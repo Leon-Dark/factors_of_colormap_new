@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高斯分布合成与扰动可视化系统</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>高斯分布合成与扰动可视化系统</h1>
+            <p class="subtitle">Gaussian Distribution Synthesis and Perturbation Visualization System</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <h2>控制面板</h2>
+                
+                <!-- 高斯尺寸配置 -->
+                <div class="control-section">
+                    <h3>高斯尺寸级别 (Gaussian Size Levels)</h3>
+                    <div class="control-group">
+                        <label for="level-small">小高斯 (Small - 高频):</label>
+                        <input type="range" id="level-small" min="5" max="20" value="8" step="1">
+                        <span id="level-small-value">8</span>px
+                    </div>
+                    <div class="control-group">
+                        <label for="level-medium-small">中小高斯 (Medium-Small):</label>
+                        <input type="range" id="level-medium-small" min="15" max="40" value="20" step="1">
+                        <span id="level-medium-small-value">20</span>px
+                    </div>
+                    <div class="control-group">
+                        <label for="level-medium">中等高斯 (Medium):</label>
+                        <input type="range" id="level-medium" min="30" max="70" value="40" step="1">
+                        <span id="level-medium-value">40</span>px
+                    </div>
+                    <div class="control-group">
+                        <label for="level-medium-large">中大高斯 (Medium-Large):</label>
+                        <input type="range" id="level-medium-large" min="60" max="120" value="80" step="1">
+                        <span id="level-medium-large-value">80</span>px
+                    </div>
+                    <div class="control-group">
+                        <label for="level-large">大高斯 (Large - 低频):</label>
+                        <input type="range" id="level-large" min="100" max="200" value="140" step="1">
+                        <span id="level-large-value">140</span>px
+                    </div>
+                </div>
+
+                <!-- 高斯数量配置 -->
+                <div class="control-section">
+                    <h3>高斯数量 (Gaussian Count)</h3>
+                    <div class="control-group">
+                        <label for="count-small">小高斯数量:</label>
+                        <input type="range" id="count-small" min="5" max="30" value="15" step="1">
+                        <span id="count-small-value">15</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="count-medium-small">中小高斯数量:</label>
+                        <input type="range" id="count-medium-small" min="3" max="20" value="10" step="1">
+                        <span id="count-medium-small-value">10</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="count-medium">中等高斯数量:</label>
+                        <input type="range" id="count-medium" min="2" max="15" value="8" step="1">
+                        <span id="count-medium-value">8</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="count-medium-large">中大高斯数量:</label>
+                        <input type="range" id="count-medium-large" min="2" max="10" value="5" step="1">
+                        <span id="count-medium-large-value">5</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="count-large">大高斯数量:</label>
+                        <input type="range" id="count-large" min="1" max="8" value="3" step="1">
+                        <span id="count-large-value">3</span>
+                    </div>
+                </div>
+
+                <!-- 扰动参数 -->
+                <div class="control-section">
+                    <h3>扰动参数 (Perturbation Parameters)</h3>
+                    <div class="control-group">
+                        <label for="perturb-magnitude">扰动幅度 (Magnitude):</label>
+                        <input type="range" id="perturb-magnitude" min="0" max="1" value="0.3" step="0.05">
+                        <span id="perturb-magnitude-value">0.3</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="perturb-ratio">扰动比例 (Ratio):</label>
+                        <input type="range" id="perturb-ratio" min="0" max="1" value="0.3" step="0.05">
+                        <span id="perturb-ratio-value">30%</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="perturb-mode">扰动模式 (Mode):</label>
+                        <select id="perturb-mode">
+                            <option value="global">全局扰动 (Global)</option>
+                            <option value="local">局部扰动 (Local)</option>
+                        </select>
+                    </div>
+                    <div class="control-group" id="local-params" style="display: none;">
+                        <label for="local-radius">局部扰动半径:</label>
+                        <input type="range" id="local-radius" min="50" max="300" value="150" step="10">
+                        <span id="local-radius-value">150</span>px
+                    </div>
+                    <div class="control-group">
+                        <label for="perturb-target">扰动目标层级:</label>
+                        <select id="perturb-target">
+                            <option value="all">所有层级</option>
+                            <option value="small">仅小高斯 (高频)</option>
+                            <option value="medium">仅中等高斯</option>
+                            <option value="large">仅大高斯 (低频)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="control-section">
+                    <h3>操作 (Actions)</h3>
+                    <button id="btn-generate" class="btn btn-primary">生成新分布 (Generate)</button>
+                    <button id="btn-apply-perturb" class="btn btn-warning">应用扰动 (Apply Perturbation)</button>
+                    <button id="btn-reset" class="btn btn-secondary">重置扰动 (Reset)</button>
+                    <button id="btn-export" class="btn btn-success">导出数据 (Export)</button>
+                </div>
+
+                <!-- 统计信息 -->
+                <div class="control-section">
+                    <h3>统计信息 (Statistics)</h3>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-label">总高斯数量:</span>
+                            <span id="stat-total-gaussians" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">扰动高斯数量:</span>
+                            <span id="stat-perturbed-gaussians" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">SSIM值:</span>
+                            <span id="stat-ssim" class="stat-value">1.000</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可视化区域 -->
+            <div class="visualization-area">
+                <h2>可视化 (Visualization)</h2>
+                
+                <!-- 视图标签 -->
+                <div class="view-tabs">
+                    <button class="tab-btn active" data-view="original">原始分布</button>
+                    <button class="tab-btn" data-view="perturbed">扰动后</button>
+                    <button class="tab-btn" data-view="difference">差异图</button>
+                    <button class="tab-btn" data-view="heatmap">热力图</button>
+                </div>
+
+                <!-- 画布容器 -->
+                <div class="canvas-container">
+                    <div class="canvas-wrapper" id="view-original">
+                        <h3>原始高斯分布</h3>
+                        <canvas id="canvas-original" width="600" height="600"></canvas>
+                        <div class="canvas-info">
+                            <span id="info-original">等待生成...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-wrapper" id="view-perturbed" style="display: none;">
+                        <h3>扰动后的分布</h3>
+                        <canvas id="canvas-perturbed" width="600" height="600"></canvas>
+                        <div class="canvas-info">
+                            <span id="info-perturbed">未应用扰动</span>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-wrapper" id="view-difference" style="display: none;">
+                        <h3>差异可视化</h3>
+                        <canvas id="canvas-difference" width="600" height="600"></canvas>
+                        <div class="canvas-info">
+                            <span id="info-difference">未应用扰动</span>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-wrapper" id="view-heatmap" style="display: none;">
+                        <h3>频率热力图</h3>
+                        <canvas id="canvas-heatmap" width="600" height="600"></canvas>
+                        <div class="canvas-info">
+                            <span id="info-heatmap">显示各频率层的能量分布</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 高斯信息显示 -->
+                <div class="gaussian-info">
+                    <h3>高斯详细信息</h3>
+                    <div id="gaussian-details">
+                        点击画布中的高斯以查看详细信息...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入D3和依赖库 -->
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/jnd/lib/d3.min.js"></script>
+    
+    <!-- 引入现有的高斯分布相关模块 -->
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/src/scalar.js"></script>
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix.js"></script>
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix_bivariate.js"></script>
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/lineup/gauss_w_noise.js"></script>
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/lineup/scalar_sample.js"></script>
+    
+    <!-- 引入我们的JavaScript模块 -->
+    <script src="js/utils.js"></script>
+    <script src="js/gaussianGenerator.js"></script>
+    <script src="js/perturbation.js"></script>
+    <script src="js/visualization.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
