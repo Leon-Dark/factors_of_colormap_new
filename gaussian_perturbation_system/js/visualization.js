@@ -18,7 +18,7 @@ class VisualizationSystem {
         
         // 渲染选项
         this.options = {
-            colormap: 'viridis',
+            colormap: 'greyscale',
             showGaussianBorders: false,
             showGaussianCenters: true,
             highlightPerturbed: true,
@@ -26,7 +26,7 @@ class VisualizationSystem {
         };
         
         // 全局 colormap（所有视图共享）
-        this.globalColormap = 'viridis';
+        this.globalColormap = 'greyscale';
         
         // 缓存的渲染数据
         this.cachedData = null;
@@ -403,7 +403,7 @@ class MultiViewVisualization {
         
         this.originalData = this.views.original.renderGaussians(this.generator, true);
         document.getElementById('info-original').textContent = 
-            `显示 ${this.generator.getAllGaussians().length} 个高斯分布`;
+            `Displaying ${this.generator.getAllGaussians().length} Gaussians / 显示 ${this.generator.getAllGaussians().length} 个高斯分布`;
     }
     
     /**
@@ -415,7 +415,7 @@ class MultiViewVisualization {
         this.perturbedData = this.views.perturbed.renderGaussians(this.generator);
         const perturbedCount = this.generator.getAllGaussians().filter(g => g.isPerturbed).length;
         document.getElementById('info-perturbed').textContent = 
-            `已扰动 ${perturbedCount} 个高斯`;
+            `${perturbedCount} perturbed Gaussians / 已扰动 ${perturbedCount} 个高斯`;
     }
     
     /**
@@ -450,7 +450,7 @@ class MultiViewVisualization {
         
         this.views.heatmap.renderHeatmap(this.generator);
         document.getElementById('info-heatmap').textContent = 
-            '频率能量分布（高频=亮色）';
+            'Frequency energy distribution (high freq = bright) / 频率能量分布（高频=亮色）';
     }
     
     /**

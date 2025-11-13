@@ -243,7 +243,7 @@ class GaussianPerturbationApp {
      */
     handleApplyPerturbation() {
         if (!this.state.hasGenerated) {
-            alert('请先生成高斯分布！');
+            alert('请先生成高斯分布！ / Please generate Gaussian distribution first!');
             return;
         }
         
@@ -269,11 +269,11 @@ class GaussianPerturbationApp {
         
         // 验证是否有选择
         if (targets.length === 0) {
-            alert('请至少选择一个扰动目标！');
+            alert('请至少选择一个扰动目标！ / Please select at least one perturbation target!');
             return;
         }
         if (perturbTypes.length === 0) {
-            alert('请至少选择一个扰动类型！');
+            alert('请至少选择一个扰动类型！ / Please select at least one perturbation type!');
             return;
         }
         
@@ -352,7 +352,7 @@ class GaussianPerturbationApp {
             this.displayGaussianInfo(nearest);
         } else {
             document.getElementById('gaussian-details').innerHTML = 
-                '点击画布中的高斯以查看详细信息...';
+                'Click on a Gaussian to view details... / 点击画布中的高斯以查看详细信息...';
         }
     }
     
@@ -374,8 +374,8 @@ class GaussianPerturbationApp {
         const html = `
             <div style="font-family: monospace;">
                 <h4 style="color: ${gauss.color}; margin-bottom: 10px;">
-                    ${info.sizeLevel.toUpperCase()} 高斯
-                    ${info.isPerturbed ? '<span style="color: red;">(已扰动)</span>' : ''}
+                    ${info.sizeLevel.toUpperCase()} Gaussian / 高斯
+                    ${info.isPerturbed ? '<span style="color: red;">(Perturbed / 已扰动)</span>' : ''}
                 </h4>
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
@@ -383,27 +383,27 @@ class GaussianPerturbationApp {
                         <td style="padding: 5px;">${info.id}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 5px;"><strong>中心位置:</strong></td>
+                        <td style="padding: 5px;"><strong>Center / 中心位置:</strong></td>
                         <td style="padding: 5px;">(${info.center.x}, ${info.center.y})</td>
                     </tr>
                     <tr>
-                        <td style="padding: 5px;"><strong>标准差 X:</strong></td>
+                        <td style="padding: 5px;"><strong>Sigma X / 标准差 X:</strong></td>
                         <td style="padding: 5px;">${info.sigma.x}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 5px;"><strong>标准差 Y:</strong></td>
+                        <td style="padding: 5px;"><strong>Sigma Y / 标准差 Y:</strong></td>
                         <td style="padding: 5px;">${info.sigma.y}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 5px;"><strong>平均尺寸:</strong></td>
+                        <td style="padding: 5px;"><strong>Avg Size / 平均尺寸:</strong></td>
                         <td style="padding: 5px;">${info.avgSigma}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 5px;"><strong>相关系数:</strong></td>
+                        <td style="padding: 5px;"><strong>Correlation / 相关系数:</strong></td>
                         <td style="padding: 5px;">${info.rho}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 5px;"><strong>幅值:</strong></td>
+                        <td style="padding: 5px;"><strong>Amplitude / 幅值:</strong></td>
                         <td style="padding: 5px;">${info.scaler}</td>
                     </tr>
                 </table>
@@ -436,5 +436,5 @@ document.addEventListener('DOMContentLoaded', () => {
     app.initialize();
     
     console.log('Gaussian Perturbation Visualization System Ready!');
-    console.log('请点击"生成新分布"按钮开始。');
+    console.log('请点击"生成新分布"按钮开始。 / Click "Generate" button to start.');
 });
