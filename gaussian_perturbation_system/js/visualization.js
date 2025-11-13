@@ -25,6 +25,9 @@ class VisualizationSystem {
             normalizeIntensity: true
         };
         
+        // 全局 colormap（所有视图共享）
+        this.globalColormap = 'viridis';
+        
         // 缓存的渲染数据
         this.cachedData = null;
         this.cachedImageData = null;
@@ -33,10 +36,11 @@ class VisualizationSystem {
     /**
      * 渲染高斯分布
      * @param {GaussianGenerator} generator - 高斯生成器
+     * @param {boolean} useOriginal - 是否使用原始参数
      */
-    renderGaussians(generator) {
+    renderGaussians(generator, useOriginal = false) {
         // 生成数据
-        const data = generator.renderTo1DArray(this.width, this.height);
+        const data = generator.renderTo1DArray(this.width, this.height, useOriginal);
         
         // 归一化
         let max = 0;
@@ -60,11 +64,11 @@ class VisualizationSystem {
         
         // 绘制高斯标记
         if (this.options.showGaussianCenters) {
-            this.drawGaussianMarkers(generator);
+            this.drawGaussianMarkers(generator, useOriginal);
         }
         
         if (this.options.showGaussianBorders) {
-            this.drawGaussianBorders(generator);
+            this.drawGaussianBorders(generator, useOriginal);
         }
         
         // 缓存数据
@@ -80,9 +84,12 @@ class VisualizationSystem {
         const imageData = this.ctx.createImageData(this.width, this.height);
         const pixels = imageData.data;
         
+        // 使用全局 colormap 或选项中的 colormap
+        const colormapToUse = this.globalColormap || this.options.colormap;
+        
         for (let i = 0; i < data.length; i++) {
             const value = data[i];
-            const color = valueToColor(value, this.options.colormap);
+            const color = valueToColor(value, colormapToUse);
             
             const pixelIndex = i * 4;
             pixels[pixelIndex] = color[0];     // R
@@ -97,21 +104,27 @@ class VisualizationSystem {
     
     /**
      * 绘制高斯中心标记
+     * @param {GaussianGenerator} generator - 高斯生成器
+     * @param {boolean} useOriginal - 是否使用原始位置
      */
-    drawGaussianMarkers(generator) {
+    drawGaussianMarkers(generator, useOriginal = false) {
         const gaussians = generator.getAllGaussians();
         
         for (const gauss of gaussians) {
+            // 确定使用原始位置还是当前位置
+            const centerX = useOriginal ? gauss.originalMX : gauss.mX;
+            const centerY = useOriginal ? gauss.originalMY : gauss.mY;
+            
             // 确定颜色
             let markerColor = gauss.color || '#ffffff';
-            if (this.options.highlightPerturbed && gauss.isPerturbed) {
+            if (this.options.highlightPerturbed && gauss.isPerturbed && !useOriginal) {
                 markerColor = '#ff0000';
             }
             
             // 绘制中心点
             this.ctx.fillStyle = markerColor;
             this.ctx.beginPath();
-            this.ctx.arc(gauss.mX, gauss.mY, 3, 0, Math.PI * 2);
+            this.ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
             this.ctx.fill();
             
             // 绘制边框
@@ -123,21 +136,29 @@ class VisualizationSystem {
     
     /**
      * 绘制高斯边界
+     * @param {GaussianGenerator} generator - 高斯生成器
+     * @param {boolean} useOriginal - 是否使用原始参数
      */
-    drawGaussianBorders(generator) {
+    drawGaussianBorders(generator, useOriginal = false) {
         const gaussians = generator.getAllGaussians();
         
         for (const gauss of gaussians) {
+            // 确定使用原始参数还是当前参数
+            const centerX = useOriginal ? gauss.originalMX : gauss.mX;
+            const centerY = useOriginal ? gauss.originalMY : gauss.mY;
+            const sX = useOriginal ? gauss.originalSX : gauss.sX;
+            const sY = useOriginal ? gauss.originalSY : gauss.sY;
+            
             const color = gauss.color || '#ffffff';
             this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = gauss.isPerturbed ? 2 : 1;
+            this.ctx.lineWidth = (gauss.isPerturbed && !useOriginal) ? 2 : 1;
             this.ctx.globalAlpha = 0.5;
             
             // 绘制椭圆（3个标准差）
             this.ctx.beginPath();
             this.ctx.ellipse(
-                gauss.mX, gauss.mY,
-                gauss.sX * 3, gauss.sY * 3,
+                centerX, centerY,
+                sX * 3, sY * 3,
                 0, 0, Math.PI * 2
             );
             this.ctx.stroke();
@@ -362,12 +383,25 @@ class MultiViewVisualization {
     }
     
     /**
+     * 设置全局 colormap（所有视图共享）
+     */
+    setColormap(colormap) {
+        // 为所有视图设置相同的 colormap
+        for (const view of Object.values(this.views)) {
+            if (view) {
+                view.globalColormap = colormap;
+            }
+        }
+        console.log(`Colormap changed to: ${colormap}`);
+    }
+    
+    /**
      * 渲染原始视图
      */
     renderOriginal() {
         if (!this.generator) return;
         
-        this.originalData = this.views.original.renderGaussians(this.generator);
+        this.originalData = this.views.original.renderGaussians(this.generator, true);
         document.getElementById('info-original').textContent = 
             `显示 ${this.generator.getAllGaussians().length} 个高斯分布`;
     }
@@ -423,13 +457,22 @@ class MultiViewVisualization {
      * 切换视图
      */
     switchView(viewName) {
-        // 隐藏所有视图
-        for (const name of Object.keys(this.views)) {
-            document.getElementById(`view-${name}`).style.display = 'none';
+        // 原始和扰动视图始终显示，只切换差异图和热力图
+        const analysisViews = ['difference', 'heatmap'];
+        
+        // 隐藏所有分析视图
+        for (const name of analysisViews) {
+            const viewElement = document.getElementById(`view-${name}`);
+            if (viewElement) {
+                viewElement.style.display = 'none';
+            }
         }
         
-        // 显示选中的视图
-        document.getElementById(`view-${viewName}`).style.display = 'block';
+        // 显示选中的视图（如果是分析视图）
+        if (analysisViews.includes(viewName)) {
+            document.getElementById(`view-${viewName}`).style.display = 'block';
+        }
+        
         this.currentView = viewName;
     }
     

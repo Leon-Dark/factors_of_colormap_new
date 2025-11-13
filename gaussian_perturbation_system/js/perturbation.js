@@ -19,12 +19,18 @@ class PerturbationSystem {
      * 扰动单个高斯
      * @param {biGauss} gauss - 高斯对象
      * @param {number} magnitude - 扰动幅度
-     * @param {string} perturbType - 扰动类型
+     * @param {string|string[]} perturbType - 扰动类型（可以是单个或数组）
      */
     perturbGaussian(gauss, magnitude, perturbType = 'all') {
-        const perturbTypes = perturbType === 'all' 
-            ? ['position', 'shape', 'amplitude'] 
-            : [perturbType];
+        // 支持数组形式的perturbType
+        let perturbTypes;
+        if (Array.isArray(perturbType)) {
+            perturbTypes = perturbType;
+        } else if (perturbType === 'all') {
+            perturbTypes = ['position', 'stretch', 'rotation', 'amplitude'];
+        } else {
+            perturbTypes = [perturbType];
+        }
         
         for (const type of perturbTypes) {
             switch(type) {
@@ -35,16 +41,29 @@ class PerturbationSystem {
                     gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
                     break;
                     
-                case 'shape':
-                    // 扰动形状（标准差和相关性）
+                case 'stretch':
+                    // 扰动形状 - 只改变标准差（拉伸/压缩）
                     const sigmaChange = magnitude * 0.3; // 最多30%的变化
                     gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange);
                     gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange);
-                    
-                    // 扰动相关系数
+                    break;
+                
+                case 'rotation':
+                    // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
                     const rhoChange = magnitude * 0.4;
                     const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
                     gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho)));
+                    break;
+                    
+                case 'shape':
+                    // 向后兼容：shape = stretch + rotation
+                    const sigmaChange2 = magnitude * 0.3;
+                    gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                    gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                    
+                    const rhoChange2 = magnitude * 0.4;
+                    const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;
+                    gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho2)));
                     break;
                     
                 case 'amplitude':
@@ -79,11 +98,16 @@ class PerturbationSystem {
      * 应用全局扰动
      * @param {number} magnitude - 扰动幅度 (0-1)
      * @param {number} ratio - 扰动比例 (0-1)
-     * @param {string} targetLevel - 目标级别 ('all', 'small', 'medium', 'large')
-     * @param {string} perturbType - 扰动类型 ('all', 'position', 'shape', 'amplitude')
+     * @param {string|string[]} targetLevel - 目标级别（单个或数组）
+     * @param {string|string[]} perturbType - 扰动类型（单个或数组）
      */
     applyGlobalPerturbation(magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
         const gaussians = this.getTargetGaussians(targetLevel);
+        
+        if (gaussians.length === 0) {
+            console.warn('No Gaussians selected for perturbation');
+            return [];
+        }
         const perturbCount = Math.floor(gaussians.length * ratio);
         
         // 随机选择要扰动的高斯
@@ -100,8 +124,8 @@ class PerturbationSystem {
             type: 'global',
             magnitude,
             ratio,
-            targetLevel,
-            perturbType,
+            targetLevel: Array.isArray(targetLevel) ? targetLevel : [targetLevel],
+            perturbType: Array.isArray(perturbType) ? perturbType : [perturbType],
             count: toPerturb.length,
             timestamp: Date.now()
         });
@@ -111,39 +135,48 @@ class PerturbationSystem {
     }
     
     /**
-     * 应用局部扰动
-     * @param {number} centerX - 扰动中心X坐标
-     * @param {number} centerY - 扰动中心Y坐标
-     * @param {number} radius - 扰动半径
+     * 应用局部扰动（自动选择最紧密的m个高斯）
+     * @param {number} targetCount - 目标扰动的高斯数量
      * @param {number} magnitude - 扰动幅度 (0-1)
-     * @param {number} ratio - 区域内扰动比例 (0-1)
-     * @param {string} targetLevel - 目标级别
-     * @param {string} perturbType - 扰动类型
+     * @param {number} ratio - 选中高斯中实际扰动的比例 (0-1)
+     * @param {string|string[]} targetLevel - 目标级别（单个或数组）
+     * @param {string|string[]} perturbType - 扰动类型（单个或数组）
      */
-    applyLocalPerturbation(centerX, centerY, radius, magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
+    applyLocalPerturbation(targetCount, magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
         const gaussians = this.getTargetGaussians(targetLevel);
         
-        // 找到半径内的所有高斯
-        const inRange = gaussians.filter(gauss => {
-            const dist = distance(centerX, centerY, gauss.mX, gauss.mY);
-            return dist <= radius;
-        });
-        
-        if (inRange.length === 0) {
-            console.warn('No Gaussians found in the specified region');
+        if (gaussians.length === 0) {
+            console.warn('No Gaussians available for perturbation');
             return [];
         }
         
-        // 根据比例选择要扰动的高斯
-        const perturbCount = Math.max(1, Math.floor(inRange.length * ratio));
-        const shuffled = this.shuffleArray([...inRange]);
-        const toPerturb = shuffled.slice(0, perturbCount);
+        // 计算实际要扰动的数量（targetCount 是簇大小，ratio 是在簇中扰动的比例）
+        // 为了让用户直观理解，我们让 targetCount 直接表示要扰动的数量
+        // 簇大小设为 targetCount 的 1.5-2 倍，确保有足够的紧密邻居
+        const perturbCount = Math.min(targetCount, gaussians.length);
+        const clusterSize = Math.min(Math.ceil(perturbCount * 1.5), gaussians.length);
         
-        // 应用扰动（可以根据距离调整幅度）
+        // 找到最紧密的簇
+        const compactCluster = this.findMostCompactCluster(gaussians, clusterSize);
+        
+        // 计算包围圆
+        const circle = this.calculateBoundingCircle(compactCluster);
+        
+        console.log(`Found compact cluster of ${clusterSize} Gaussians with radius ${circle.radius.toFixed(2)}px at (${circle.centerX.toFixed(1)}, ${circle.centerY.toFixed(1)})`);
+        
+        // 在簇中选择最中心的 perturbCount 个高斯进行扰动
+        const gaussWithDist = compactCluster.map(g => ({
+            gauss: g,
+            dist: distance(circle.centerX, circle.centerY, g.mX, g.mY)
+        }));
+        gaussWithDist.sort((a, b) => a.dist - b.dist);
+        const toPerturb = gaussWithDist.slice(0, perturbCount).map(item => item.gauss);
+        
+        // 应用扰动（根据距离调整幅度）
         for (const gauss of toPerturb) {
-            const dist = distance(centerX, centerY, gauss.mX, gauss.mY);
-            const distFactor = 1 - (dist / radius); // 距离越近，扰动越大
-            const adjustedMagnitude = magnitude * distFactor;
+            const dist = distance(circle.centerX, circle.centerY, gauss.mX, gauss.mY);
+            const distFactor = circle.radius > 0 ? 1 - (dist / circle.radius) : 1;
+            const adjustedMagnitude = magnitude * Math.max(0.5, distFactor); // 最小保持50%强度
             
             this.perturbGaussian(gauss, adjustedMagnitude, perturbType);
         }
@@ -151,18 +184,151 @@ class PerturbationSystem {
         // 记录历史
         this.perturbationHistory.push({
             type: 'local',
-            center: { x: centerX, y: centerY },
-            radius,
+            center: { x: circle.centerX, y: circle.centerY },
+            radius: circle.radius,
             magnitude,
             ratio,
-            targetLevel,
-            perturbType,
+            targetLevel: Array.isArray(targetLevel) ? targetLevel : [targetLevel],
+            perturbType: Array.isArray(perturbType) ? perturbType : [perturbType],
+            clusterSize: clusterSize,
             count: toPerturb.length,
             timestamp: Date.now()
         });
         
-        console.log(`Applied local perturbation to ${toPerturb.length} Gaussians`);
-        return toPerturb;
+        console.log(`Applied local perturbation to ${toPerturb.length} Gaussians in cluster of ${clusterSize}`);
+        return { perturbed: toPerturb, cluster: compactCluster, circle };
+    }
+    
+    /**
+     * 找到最紧密的m个高斯（最小包围圆）
+     * 优化算法：使用采样+密度启发式，降低时间复杂度
+     */
+    findMostCompactCluster(gaussians, m) {
+        if (m >= gaussians.length) {
+            return gaussians;
+        }
+        
+        const n = gaussians.length;
+        
+        // 小规模数据：遍历所有点
+        // 大规模数据：采样 sqrt(n) 或最多50个种子点
+        const maxSeeds = n < 100 ? n : Math.min(50, Math.ceil(Math.sqrt(n)));
+        
+        // 第一步：如果需要采样，选择候选种子
+        let seeds;
+        if (maxSeeds < n) {
+            // 策略：网格采样 - 将空间分成网格，每个格子选一个代表点
+            // 这样可以覆盖整个空间，避免遗漏密集区域
+            const gridSize = Math.ceil(Math.sqrt(maxSeeds));
+            const cellWidth = this.generator.width / gridSize;
+            const cellHeight = this.generator.height / gridSize;
+            
+            const grid = new Map();
+            for (const g of gaussians) {
+                const cellX = Math.floor(g.mX / cellWidth);
+                const cellY = Math.floor(g.mY / cellHeight);
+                const key = `${cellX},${cellY}`;
+                
+                if (!grid.has(key)) {
+                    grid.set(key, []);
+                }
+                grid.get(key).push(g);
+            }
+            
+            // 从每个非空格子中选择一个代表点（选最中心的）
+            seeds = [];
+            for (const [key, points] of grid.entries()) {
+                if (points.length === 0) continue;
+                
+                // 计算格子中心
+                const centerX = points.reduce((sum, g) => sum + g.mX, 0) / points.length;
+                const centerY = points.reduce((sum, g) => sum + g.mY, 0) / points.length;
+                
+                // 选择最接近中心的点
+                let closest = points[0];
+                let minDist = distance(centerX, centerY, closest.mX, closest.mY);
+                
+                for (const p of points) {
+                    const d = distance(centerX, centerY, p.mX, p.mY);
+                    if (d < minDist) {
+                        minDist = d;
+                        closest = p;
+                    }
+                }
+                
+                seeds.push(closest);
+            }
+            
+            // 如果种子数不够，随机补充
+            if (seeds.length < maxSeeds) {
+                const remaining = this.shuffleArray(
+                    gaussians.filter(g => !seeds.includes(g))
+                ).slice(0, maxSeeds - seeds.length);
+                seeds.push(...remaining);
+            }
+        } else {
+            seeds = gaussians;
+        }
+        
+        // 第二步：对每个种子，找最紧密的m个高斯
+        let bestCluster = null;
+        let minRadius = Infinity;
+        
+        for (const seed of seeds) {
+            // 计算所有高斯到seed的距离
+            const distances = gaussians.map(g => ({
+                gauss: g,
+                dist: distance(seed.mX, seed.mY, g.mX, g.mY)
+            }));
+            
+            // 按距离排序，取最近的m个
+            distances.sort((a, b) => a.dist - b.dist);
+            const cluster = distances.slice(0, m).map(d => d.gauss);
+            
+            // 计算这个簇的包围圆半径
+            const circle = this.calculateBoundingCircle(cluster);
+            
+            // 如果这个簇更紧密，更新最佳结果
+            if (circle.radius < minRadius) {
+                minRadius = circle.radius;
+                bestCluster = cluster;
+            }
+        }
+        
+        return bestCluster;
+    }
+    
+    /**
+     * 计算一组高斯的最小包围圆（近似算法）
+     */
+    calculateBoundingCircle(gaussians) {
+        if (gaussians.length === 0) {
+            return { centerX: 0, centerY: 0, radius: 0 };
+        }
+        
+        if (gaussians.length === 1) {
+            return { centerX: gaussians[0].mX, centerY: gaussians[0].mY, radius: 0 };
+        }
+        
+        // 计算质心作为圆心
+        let sumX = 0, sumY = 0;
+        for (const g of gaussians) {
+            sumX += g.mX;
+            sumY += g.mY;
+        }
+        const centerX = sumX / gaussians.length;
+        const centerY = sumY / gaussians.length;
+        
+        // 计算最远点的距离作为半径
+        let maxDist = 0;
+        for (const g of gaussians) {
+            const dist = distance(centerX, centerY, g.mX, g.mY);
+            if (dist > maxDist) {
+                maxDist = dist;
+            }
+        }
+        
+        return { centerX, centerY, radius: maxDist };
     }
     
     /**
@@ -177,16 +343,16 @@ class PerturbationSystem {
         
         switch(frequencyRange) {
             case 'high':
-                targetLevels = ['small', 'medium-small'];
+                targetLevels = ['small'];
                 break;
             case 'mid':
                 targetLevels = ['medium'];
                 break;
             case 'low':
-                targetLevels = ['medium-large', 'large'];
+                targetLevels = ['large'];
                 break;
             default:
-                targetLevels = ['small', 'medium-small', 'medium', 'medium-large', 'large'];
+                targetLevels = ['small', 'medium', 'large'];
         }
         
         const gaussians = this.generator.getAllGaussians().filter(g => 
@@ -270,13 +436,22 @@ class PerturbationSystem {
     
     /**
      * 获取目标高斯列表
+     * @param {string|string[]} targetLevel - 目标级别（单个或数组）
      */
     getTargetGaussians(targetLevel) {
+        // 支持数组形式的targetLevel
+        if (Array.isArray(targetLevel)) {
+            // 如果是数组，合并所有级别的高斯
+            const allGaussians = this.generator.getAllGaussians();
+            return allGaussians.filter(g => targetLevel.includes(g.sizeLevel));
+        }
+        
+        // 单个级别的处理
         if (targetLevel === 'all') {
             return this.generator.getAllGaussians();
         } else if (targetLevel === 'small') {
             return this.generator.getAllGaussians().filter(g => 
-                g.sizeLevel === 'small' || g.sizeLevel === 'medium-small'
+                g.sizeLevel === 'small'
             );
         } else if (targetLevel === 'medium') {
             return this.generator.getAllGaussians().filter(g => 
@@ -284,7 +459,7 @@ class PerturbationSystem {
             );
         } else if (targetLevel === 'large') {
             return this.generator.getAllGaussians().filter(g => 
-                g.sizeLevel === 'medium-large' || g.sizeLevel === 'large'
+                g.sizeLevel === 'large'
             );
         } else {
             return this.generator.getGaussiansByLevel(targetLevel);
@@ -313,7 +488,7 @@ class PerturbationSystem {
             byLevel: {}
         };
         
-        const levels = ['small', 'medium-small', 'medium', 'medium-large', 'large'];
+        const levels = ['small', 'medium', 'large'];
         for (const level of levels) {
             const levelGaussians = this.generator.getGaussiansByLevel(level);
             stats.byLevel[level] = {
@@ -340,6 +515,24 @@ class PerturbationSystem {
      */
     clearHistory() {
         this.perturbationHistory = [];
+    }
+    
+    /**
+     * 重置所有高斯到原始状态
+     */
+    resetToOriginal() {
+        const gaussians = this.generator.getAllGaussians();
+        for (const gauss of gaussians) {
+            gauss.mX = gauss.originalMX;
+            gauss.mY = gauss.originalMY;
+            gauss.sX = gauss.originalSX;
+            gauss.sY = gauss.originalSY;
+            gauss.updateRho(gauss.originalRho);
+            gauss.scaler = gauss.originalScaler;
+            gauss.isPerturbed = false;
+        }
+        this.clearHistory();
+        console.log('Reset all Gaussians to original state');
     }
     
     /**

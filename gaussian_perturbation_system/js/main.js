@@ -14,8 +14,8 @@ class GaussianPerturbationApp {
         
         // 配置
         this.config = {
-            canvasWidth: 600,
-            canvasHeight: 600
+            canvasWidth: 200,
+            canvasHeight: 200
         };
         
         // UI元素
@@ -48,6 +48,9 @@ class GaussianPerturbationApp {
         this.initializeUI();
         this.bindEvents();
         
+        // 设置默认视图（差异图）
+        this.visualization.switchView('difference');
+        
         console.log('System initialized successfully');
     }
     
@@ -55,16 +58,16 @@ class GaussianPerturbationApp {
      * 初始化UI元素引用
      */
     initializeUI() {
-        // 尺寸级别控制
-        const levels = ['small', 'medium-small', 'medium', 'medium-large', 'large'];
+        // 高斯级别控制 - 控制数量和sigma
+        const levels = ['small', 'medium', 'large'];
         this.ui.levels = {};
         
         for (const level of levels) {
             this.ui.levels[level] = {
-                slider: document.getElementById(`level-${level}`),
-                value: document.getElementById(`level-${level}-value`),
                 countSlider: document.getElementById(`count-${level}`),
-                countValue: document.getElementById(`count-${level}-value`)
+                countValue: document.getElementById(`count-${level}-value`),
+                sigmaSlider: document.getElementById(`sigma-${level}`),
+                sigmaValue: document.getElementById(`sigma-${level}-value`)
             };
         }
         
@@ -75,18 +78,26 @@ class GaussianPerturbationApp {
             ratio: document.getElementById('perturb-ratio'),
             ratioValue: document.getElementById('perturb-ratio-value'),
             mode: document.getElementById('perturb-mode'),
-            target: document.getElementById('perturb-target'),
-            localRadius: document.getElementById('local-radius'),
-            localRadiusValue: document.getElementById('local-radius-value'),
+            targetCheckboxes: {
+                small: document.getElementById('target-small'),
+                medium: document.getElementById('target-medium'),
+                large: document.getElementById('target-large')
+            },
+            typeCheckboxes: {
+                position: document.getElementById('type-position'),
+                stretch: document.getElementById('type-stretch'),
+                rotation: document.getElementById('type-rotation'),
+                amplitude: document.getElementById('type-amplitude')
+            },
+            localCount: document.getElementById('local-count'),
+            localCountValue: document.getElementById('local-count-value'),
             localParams: document.getElementById('local-params')
         };
         
         // 按钮
         this.ui.buttons = {
             generate: document.getElementById('btn-generate'),
-            applyPerturb: document.getElementById('btn-apply-perturb'),
-            reset: document.getElementById('btn-reset'),
-            export: document.getElementById('btn-export')
+            applyPerturb: document.getElementById('btn-apply-perturb')
         };
         
         // 统计信息
@@ -98,20 +109,41 @@ class GaussianPerturbationApp {
         
         // 视图标签
         this.ui.tabs = document.querySelectorAll('.tab-btn');
+        
+        // Colormap 选择器
+        this.ui.colormapSelect = document.getElementById('colormap-select');
     }
     
     /**
      * 绑定事件
      */
     bindEvents() {
-        // 尺寸级别滑块
+        // 数量和sigma滑块和输入框双向绑定
         for (const [level, elements] of Object.entries(this.ui.levels)) {
-            elements.slider.addEventListener('input', (e) => {
-                elements.value.textContent = e.target.value;
+            // 数量滑块改变 -> 更新输入框
+            elements.countSlider.addEventListener('input', (e) => {
+                elements.countValue.value = e.target.value;
             });
             
-            elements.countSlider.addEventListener('input', (e) => {
-                elements.countValue.textContent = e.target.value;
+            // 数量输入框改变 -> 更新滑块
+            elements.countValue.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                if (!isNaN(value)) {
+                    elements.countSlider.value = value;
+                }
+            });
+            
+            // sigma滑块改变 -> 更新输入框
+            elements.sigmaSlider.addEventListener('input', (e) => {
+                elements.sigmaValue.value = e.target.value;
+            });
+            
+            // sigma输入框改变 -> 更新滑块
+            elements.sigmaValue.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                if (!isNaN(value)) {
+                    elements.sigmaSlider.value = value;
+                }
             });
         }
         
@@ -125,8 +157,8 @@ class GaussianPerturbationApp {
             this.ui.perturb.ratioValue.textContent = `${Math.round(ratio * 100)}%`;
         });
         
-        this.ui.perturb.localRadius.addEventListener('input', (e) => {
-            this.ui.perturb.localRadiusValue.textContent = e.target.value;
+        this.ui.perturb.localCount.addEventListener('input', (e) => {
+            this.ui.perturb.localCountValue.textContent = e.target.value;
         });
         
         // 扰动模式切换
@@ -141,8 +173,6 @@ class GaussianPerturbationApp {
         // 按钮事件
         this.ui.buttons.generate.addEventListener('click', () => this.handleGenerate());
         this.ui.buttons.applyPerturb.addEventListener('click', () => this.handleApplyPerturbation());
-        this.ui.buttons.reset.addEventListener('click', () => this.handleReset());
-        this.ui.buttons.export.addEventListener('click', () => this.handleExport());
         
         // 视图标签切换
         this.ui.tabs.forEach(tab => {
@@ -152,6 +182,16 @@ class GaussianPerturbationApp {
                 const view = e.target.getAttribute('data-view');
                 this.visualization.switchView(view);
             });
+        });
+        
+        // 显示中心点开关
+        document.getElementById('show-centers').addEventListener('change', (e) => {
+            this.handleToggleCenters(e.target.checked);
+        });
+        
+        // Colormap 选择器
+        this.ui.colormapSelect.addEventListener('change', (e) => {
+            this.handleColormapChange(e.target.value);
         });
         
         // Canvas点击事件（显示高斯信息）
@@ -173,10 +213,10 @@ class GaussianPerturbationApp {
         console.log('Generating Gaussians...');
         this.ui.buttons.generate.classList.add('loading');
         
-        // 更新生成器配置
+        // 更新生成器配置（sigma和count均可调）
         for (const [level, elements] of Object.entries(this.ui.levels)) {
-            const sigma = parseInt(elements.slider.value);
-            const count = parseInt(elements.countSlider.value);
+            const sigma = parseFloat(elements.sigmaValue.value);
+            const count = parseInt(elements.countValue.value);
             this.generator.updateSizeLevel(level, sigma, count);
         }
         
@@ -213,21 +253,44 @@ class GaussianPerturbationApp {
         const magnitude = parseFloat(this.ui.perturb.magnitude.value);
         const ratio = parseFloat(this.ui.perturb.ratio.value);
         const mode = this.ui.perturb.mode.value;
-        const target = this.ui.perturb.target.value;
+        
+        // 获取选中的扰动目标
+        const targets = [];
+        if (this.ui.perturb.targetCheckboxes.small.checked) targets.push('small');
+        if (this.ui.perturb.targetCheckboxes.medium.checked) targets.push('medium');
+        if (this.ui.perturb.targetCheckboxes.large.checked) targets.push('large');
+        
+        // 获取选中的扰动类型
+        const perturbTypes = [];
+        if (this.ui.perturb.typeCheckboxes.position.checked) perturbTypes.push('position');
+        if (this.ui.perturb.typeCheckboxes.stretch.checked) perturbTypes.push('stretch');
+        if (this.ui.perturb.typeCheckboxes.rotation.checked) perturbTypes.push('rotation');
+        if (this.ui.perturb.typeCheckboxes.amplitude.checked) perturbTypes.push('amplitude');
+        
+        // 验证是否有选择
+        if (targets.length === 0) {
+            alert('请至少选择一个扰动目标！');
+            return;
+        }
+        if (perturbTypes.length === 0) {
+            alert('请至少选择一个扰动类型！');
+            return;
+        }
         
         setTimeout(() => {
+            // 每次扰动前先重置到原始状态
+            this.perturbation.resetToOriginal();
+            
             if (mode === 'global') {
                 this.perturbation.applyGlobalPerturbation(
-                    magnitude, ratio, target, 'all'
+                    magnitude, ratio, targets, perturbTypes
                 );
             } else {
-                // 局部扰动 - 在中心点应用
-                const radius = parseInt(this.ui.perturb.localRadius.value);
-                const centerX = this.config.canvasWidth / 2;
-                const centerY = this.config.canvasHeight / 2;
+                // 局部扰动 - 自动选择最紧密的m个高斯
+                const targetCount = parseInt(this.ui.perturb.localCount.value);
                 
                 this.perturbation.applyLocalPerturbation(
-                    centerX, centerY, radius, magnitude, ratio, target, 'all'
+                    targetCount, magnitude, ratio, targets, perturbTypes
                 );
             }
             
@@ -245,51 +308,33 @@ class GaussianPerturbationApp {
     }
     
     /**
-     * 处理重置
+     * 处理显示中心点开关
      */
-    handleReset() {
-        if (!this.state.hasGenerated) {
-            return;
+    handleToggleCenters(show) {
+        // 更新所有视图的显示选项
+        this.visualization.views.original.options.showGaussianCenters = show;
+        this.visualization.views.perturbed.options.showGaussianCenters = show;
+        this.visualization.views.heatmap.options.showGaussianCenters = show;
+        
+        // 重新渲染当前视图
+        if (this.state.hasGenerated) {
+            this.visualization.updateAllViews();
         }
-        
-        console.log('Resetting perturbations...');
-        
-        this.perturbation.resetAllPerturbations();
-        this.state.hasPerturbation = false;
-        
-        // 更新可视化
-        this.visualization.renderOriginal();
-        this.visualization.renderPerturbed();
-        this.visualization.renderHeatmap();
-        
-        // 更新统计
-        this.updateStatistics();
-        
-        console.log('Reset complete');
     }
     
     /**
-     * 处理导出
+     * 处理 colormap 变化
      */
-    handleExport() {
-        if (!this.state.hasGenerated) {
-            alert('请先生成高斯分布！');
-            return;
+    handleColormapChange(colormap) {
+        console.log('Changing colormap to:', colormap);
+        
+        // 设置全局 colormap
+        this.visualization.setColormap(colormap);
+        
+        // 如果已经生成了数据，重新渲染所有视图
+        if (this.state.hasGenerated) {
+            this.visualization.updateAllViews();
         }
-        
-        const exportData = {
-            timestamp: new Date().toISOString(),
-            config: this.generator.exportConfig(),
-            perturbation: this.state.hasPerturbation 
-                ? this.perturbation.exportPerturbationData() 
-                : null,
-            statistics: this.perturbation.getStatistics()
-        };
-        
-        const filename = `gaussian_perturbation_${Date.now()}.json`;
-        exportToJSON(exportData, filename);
-        
-        console.log('Data exported:', filename);
     }
     
     /**
@@ -380,6 +425,7 @@ class GaussianPerturbationApp {
         
         // SSIM已在差异视图中更新
     }
+    
 }
 
 // 应用初始化

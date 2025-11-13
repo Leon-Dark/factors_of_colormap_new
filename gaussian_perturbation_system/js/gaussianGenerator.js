@@ -16,13 +16,11 @@ class GaussianGenerator {
         this.height = height;
         this.gaussians = [];
         
-        // 尺寸级别配置
+        // 尺寸级别配置 - 三层固定sigma，适配200×200画布
         this.sizeLevels = {
-            'small': { sigma: 8, count: 15, color: '#e41a1c' },
-            'medium-small': { sigma: 20, count: 10, color: '#377eb8' },
-            'medium': { sigma: 40, count: 8, color: '#4daf4a' },
-            'medium-large': { sigma: 80, count: 5, color: '#984ea3' },
-            'large': { sigma: 140, count: 3, color: '#ff7f00' }
+            'small': { sigma: 4, count: 8, color: '#e41a1c' },      // 高频 σ=4px
+            'medium': { sigma: 16, count: 5, color: '#4daf4a' },    // 中频 σ=16px
+            'large': { sigma: 40, count: 3, color: '#ff7f00' }      // 低频 σ=40px
         };
     }
     
@@ -62,12 +60,16 @@ class GaussianGenerator {
      * 生成指定级别的高斯分布
      */
     generateLevel(level, sigma, count, color) {
-        const padding = sigma * 2; // 边界填充
-        const minDistance = sigma * 1.5; // 最小间距
+        // 动态调整参数，大高斯更宽松（适配200×200画布）
+        const paddingRatio = sigma > 30 ? 0.8 : 2.0;  // 大高斯大幅减少边界填充
+        const distanceRatio = sigma > 30 ? 0.3 : 0.8;  // 大高斯允许更近（允许重叠）
+        
+        const padding = sigma * paddingRatio;
+        const minDistance = sigma * distanceRatio;
         
         const levelGaussians = [];
         let attempts = 0;
-        const maxAttempts = count * 50;
+        const maxAttempts = count * 100; // 增加尝试次数
         
         while (levelGaussians.length < count && attempts < maxAttempts) {
             attempts++;
@@ -80,7 +82,9 @@ class GaussianGenerator {
             let tooClose = false;
             for (const existing of this.gaussians) {
                 const dist = distance(mX, mY, existing.mX, existing.mY);
-                const minDist = (sigma + existing.getSigmaX()) * 0.8;
+                // 动态计算最小距离
+                const avgSigma = (sigma + existing.getSigmaX()) / 2;
+                const minDist = avgSigma * distanceRatio;
                 if (dist < minDist) {
                     tooClose = true;
                     break;
@@ -186,24 +190,52 @@ class GaussianGenerator {
      * 渲染到1D数组（用于canvas ImageData）
      * @param {number} width - 图像宽度
      * @param {number} height - 图像高度
+     * @param {boolean} useOriginal - 是否使用原始参数
      * @returns {Float32Array} 1D数组
      */
-    renderTo1DArray(width, height) {
+    renderTo1DArray(width, height, useOriginal = false) {
         const data = new Float32Array(width * height);
         
         // 叠加所有高斯
         for (const gauss of this.gaussians) {
-            const bbox = gauss.getBoundingBox(3);
-            
-            const startX = Math.max(0, Math.floor(bbox.minX));
-            const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
-            const startY = Math.max(0, Math.floor(bbox.minY));
-            const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
-            
-            for (let y = startY; y <= endY; y++) {
-                for (let x = startX; x <= endX; x++) {
-                    const index = y * width + x;
-                    data[index] += gauss.eval(x, y);
+            if (useOriginal) {
+                // 使用原始参数渲染
+                const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);
+                const range = maxSigma * 3;
+                
+                const startX = Math.max(0, Math.floor(gauss.originalMX - range));
+                const endX = Math.min(width - 1, Math.ceil(gauss.originalMX + range));
+                const startY = Math.max(0, Math.floor(gauss.originalMY - range));
+                const endY = Math.min(height - 1, Math.ceil(gauss.originalMY + range));
+                
+                // 临时创建原始状态的高斯用于计算
+                const tempGauss = new biGauss(
+                    gauss.originalMX, gauss.originalMY,
+                    gauss.originalSX, gauss.originalSY,
+                    gauss.originalRho, gauss.originalScaler
+                );
+                
+                for (let y = startY; y <= endY; y++) {
+                    for (let x = startX; x <= endX; x++) {
+                        const index = y * width + x;
+                        data[index] += tempGauss.eval(x, y);
+                    }
+                }
+            } else {
+                // 使用当前参数渲染
+                const maxSigma = Math.max(gauss.sX, gauss.sY);
+                const range = maxSigma * 3;
+                
+                const startX = Math.max(0, Math.floor(gauss.mX - range));
+                const endX = Math.min(width - 1, Math.ceil(gauss.mX + range));
+                const startY = Math.max(0, Math.floor(gauss.mY - range));
+                const endY = Math.min(height - 1, Math.ceil(gauss.mY + range));
+                
+                for (let y = startY; y <= endY; y++) {
+                    for (let x = startX; x <= endX; x++) {
+                        const index = y * width + x;
+                        data[index] += gauss.eval(x, y);
+                    }
                 }
             }
         }

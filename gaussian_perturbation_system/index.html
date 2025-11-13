@@ -16,128 +16,146 @@
         <div class="main-content">
             <!-- 控制面板 -->
             <div class="control-panel">
-                <h2>控制面板</h2>
+                <h2>控制面板 / Control Panel</h2>
                 
-                <!-- 高斯尺寸配置 -->
+                <!-- 高斯参数 -->
                 <div class="control-section">
-                    <h3>高斯尺寸级别 (Gaussian Size Levels)</h3>
-                    <div class="control-group">
-                        <label for="level-small">小高斯 (Small - 高频):</label>
-                        <input type="range" id="level-small" min="5" max="20" value="8" step="1">
-                        <span id="level-small-value">8</span>px
+                    <h3>1. 高斯参数设置 / Gaussian Parameters</h3>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
+                        控制三种频率高斯的数量和标准差 / Control count and sigma of three frequency levels
+                    </p>
+                    
+                    <!-- 高频 -->
+                    <div style="background: #fff5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #e41a1c;">
+                        <div style="font-weight: bold; color: #e41a1c; margin-bottom: 8px;">
+                            高频 / High Frequency
+                        </div>
+                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
+                            <label style="font-size: 13px;">数量 / Count:</label>
+                            <input type="range" id="count-small" min="0" max="30" value="8" step="1">
+                            <input type="number" id="count-small-value" min="0" max="30" value="8" step="1" style="width: 50px; padding: 3px;">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
+                            <label style="font-size: 13px;">σ / Sigma:</label>
+                            <input type="range" id="sigma-small" min="2" max="20" value="4" step="0.5">
+                            <input type="number" id="sigma-small-value" min="2" max="20" value="4" step="0.5" style="width: 50px; padding: 3px;">
+                        </div>
                     </div>
-                    <div class="control-group">
-                        <label for="level-medium-small">中小高斯 (Medium-Small):</label>
-                        <input type="range" id="level-medium-small" min="15" max="40" value="20" step="1">
-                        <span id="level-medium-small-value">20</span>px
+                    
+                    <!-- 中频 -->
+                    <div style="background: #f5fff5; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #4daf4a;">
+                        <div style="font-weight: bold; color: #4daf4a; margin-bottom: 8px;">
+                            中频 / Mid Frequency
+                        </div>
+                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
+                            <label style="font-size: 13px;">数量 / Count:</label>
+                            <input type="range" id="count-medium" min="0" max="20" value="5" step="1">
+                            <input type="number" id="count-medium-value" min="0" max="20" value="5" step="1" style="width: 50px; padding: 3px;">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
+                            <label style="font-size: 13px;">σ / Sigma:</label>
+                            <input type="range" id="sigma-medium" min="10" max="30" value="16" step="1">
+                            <input type="number" id="sigma-medium-value" min="10" max="30" value="16" step="1" style="width: 50px; padding: 3px;">
+                        </div>
                     </div>
-                    <div class="control-group">
-                        <label for="level-medium">中等高斯 (Medium):</label>
-                        <input type="range" id="level-medium" min="30" max="70" value="40" step="1">
-                        <span id="level-medium-value">40</span>px
+                    
+                    <!-- 低频 -->
+                    <div style="background: #fff8f0; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #ff7f00;">
+                        <div style="font-weight: bold; color: #ff7f00; margin-bottom: 8px;">
+                            低频 / Low Frequency
+                        </div>
+                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
+                            <label style="font-size: 13px;">数量 / Count:</label>
+                            <input type="range" id="count-large" min="0" max="10" value="3" step="1">
+                            <input type="number" id="count-large-value" min="0" max="10" value="3" step="1" style="width: 50px; padding: 3px;">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
+                            <label style="font-size: 13px;">σ / Sigma:</label>
+                            <input type="range" id="sigma-large" min="20" max="60" value="40" step="2">
+                            <input type="number" id="sigma-large-value" min="20" max="60" value="40" step="2" style="width: 50px; padding: 3px;">
+                        </div>
                     </div>
-                    <div class="control-group">
-                        <label for="level-medium-large">中大高斯 (Medium-Large):</label>
-                        <input type="range" id="level-medium-large" min="60" max="120" value="80" step="1">
-                        <span id="level-medium-large-value">80</span>px
-                    </div>
-                    <div class="control-group">
-                        <label for="level-large">大高斯 (Large - 低频):</label>
-                        <input type="range" id="level-large" min="100" max="200" value="140" step="1">
-                        <span id="level-large-value">140</span>px
-                    </div>
-                </div>
-
-                <!-- 高斯数量配置 -->
-                <div class="control-section">
-                    <h3>高斯数量 (Gaussian Count)</h3>
-                    <div class="control-group">
-                        <label for="count-small">小高斯数量:</label>
-                        <input type="range" id="count-small" min="5" max="30" value="15" step="1">
-                        <span id="count-small-value">15</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="count-medium-small">中小高斯数量:</label>
-                        <input type="range" id="count-medium-small" min="3" max="20" value="10" step="1">
-                        <span id="count-medium-small-value">10</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="count-medium">中等高斯数量:</label>
-                        <input type="range" id="count-medium" min="2" max="15" value="8" step="1">
-                        <span id="count-medium-value">8</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="count-medium-large">中大高斯数量:</label>
-                        <input type="range" id="count-medium-large" min="2" max="10" value="5" step="1">
-                        <span id="count-medium-large-value">5</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="count-large">大高斯数量:</label>
-                        <input type="range" id="count-large" min="1" max="8" value="3" step="1">
-                        <span id="count-large-value">3</span>
-                    </div>
+                    
+                    <button id="btn-generate" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 16px;">
+                        生成新分布 / Generate
+                    </button>
                 </div>
 
                 <!-- 扰动参数 -->
                 <div class="control-section">
-                    <h3>扰动参数 (Perturbation Parameters)</h3>
+                    <h3>2. 扰动参数设置 / Perturbation Parameters</h3>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
+                        调整扰动强度、范围和类型 / Adjust perturbation strength, scope and type
+                    </p>
+                    
                     <div class="control-group">
-                        <label for="perturb-magnitude">扰动幅度 (Magnitude):</label>
-                        <input type="range" id="perturb-magnitude" min="0" max="1" value="0.3" step="0.05">
-                        <span id="perturb-magnitude-value">0.3</span>
+                        <label for="perturb-magnitude">
+                            扰动幅度 / Magnitude <span style="font-size: 11px; color: #888;">(0=min, 1=max)</span>:
+                        </label>
+                        <input type="range" id="perturb-magnitude" min="0" max="1" value="0.5" step="0.05">
+                        <span id="perturb-magnitude-value" style="font-weight: bold;">0.5</span>
                     </div>
                     <div class="control-group">
-                        <label for="perturb-ratio">扰动比例 (Ratio):</label>
-                        <input type="range" id="perturb-ratio" min="0" max="1" value="0.3" step="0.05">
-                        <span id="perturb-ratio-value">30%</span>
+                        <label for="perturb-ratio">
+                            扰动比例 / Ratio <span style="font-size: 11px; color: #888;">(% of Gaussians)</span>:
+                        </label>
+                        <input type="range" id="perturb-ratio" min="0" max="1" value="0.5" step="0.05">
+                        <span id="perturb-ratio-value" style="font-weight: bold;">50%</span>
                     </div>
                     <div class="control-group">
-                        <label for="perturb-mode">扰动模式 (Mode):</label>
-                        <select id="perturb-mode">
-                            <option value="global">全局扰动 (Global)</option>
-                            <option value="local">局部扰动 (Local)</option>
+                        <label style="display: block; margin-bottom: 5px;">扰动目标 / Target Frequency:</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-left: 10px;">
+                            <label style="font-size: 13px;"><input type="checkbox" id="target-small" class="perturb-target" checked> 高频 / High</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="target-medium" class="perturb-target" checked> 中频 / Mid</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="target-large" class="perturb-target" checked> 低频 / Low</label>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label style="display: block; margin-bottom: 5px;">扰动类型 / Type:</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-left: 10px;">
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-position" class="perturb-type" checked> 位置 / Position</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-stretch" class="perturb-type" checked> 拉伸 / Stretch</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-rotation" class="perturb-type" checked> 旋转 / Rotation</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-amplitude" class="perturb-type" checked> 幅度 / Amplitude</label>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label for="perturb-mode">扰动模式 / Mode:</label>
+                        <select id="perturb-mode" style="width: 100%; padding: 5px;">
+                            <option value="global">全局 / Global</option>
+                            <option value="local">局部 / Local</option>
                         </select>
                     </div>
-                    <div class="control-group" id="local-params" style="display: none;">
-                        <label for="local-radius">局部扰动半径:</label>
-                        <input type="range" id="local-radius" min="50" max="300" value="150" step="10">
-                        <span id="local-radius-value">150</span>px
+                    <div id="local-params" style="display: none; margin-left: 20px; margin-top: 10px;">
+                        <div class="control-group">
+                            <label for="local-count">
+                                簇大小 / Cluster Size <span style="font-size: 11px; color: #888;">(# of Gaussians)</span>:
+                            </label>
+                            <input type="range" id="local-count" min="2" max="10" value="5" step="1">
+                            <span id="local-count-value" style="font-weight: bold;">5</span>
+                        </div>
                     </div>
-                    <div class="control-group">
-                        <label for="perturb-target">扰动目标层级:</label>
-                        <select id="perturb-target">
-                            <option value="all">所有层级</option>
-                            <option value="small">仅小高斯 (高频)</option>
-                            <option value="medium">仅中等高斯</option>
-                            <option value="large">仅大高斯 (低频)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- 操作按钮 -->
-                <div class="control-section">
-                    <h3>操作 (Actions)</h3>
-                    <button id="btn-generate" class="btn btn-primary">生成新分布 (Generate)</button>
-                    <button id="btn-apply-perturb" class="btn btn-warning">应用扰动 (Apply Perturbation)</button>
-                    <button id="btn-reset" class="btn btn-secondary">重置扰动 (Reset)</button>
-                    <button id="btn-export" class="btn btn-success">导出数据 (Export)</button>
+                    
+                    <button id="btn-apply-perturb" class="btn btn-warning" style="width: 100%; margin-top: 15px; padding: 12px; font-size: 16px;">
+                        应用扰动 / Apply
+                    </button>
                 </div>
 
                 <!-- 统计信息 -->
-                <div class="control-section">
-                    <h3>统计信息 (Statistics)</h3>
+                <div class="control-section" style="background: #f8f9fa; border-radius: 5px; padding: 15px;">
+                    <h3>实时统计 / Statistics</h3>
                     <div class="stats">
-                        <div class="stat-item">
-                            <span class="stat-label">总高斯数量:</span>
-                            <span id="stat-total-gaussians" class="stat-value">0</span>
+                        <div class="stat-item" style="margin-bottom: 8px;">
+                            <span class="stat-label">总高斯数 / Total:</span>
+                            <span id="stat-total-gaussians" class="stat-value" style="font-size: 18px; font-weight: bold; color: #333;">0</span>
+                        </div>
+                        <div class="stat-item" style="margin-bottom: 8px;">
+                            <span class="stat-label">已扰动 / Perturbed:</span>
+                            <span id="stat-perturbed-gaussians" class="stat-value" style="font-size: 18px; font-weight: bold; color: #ff6b6b;">0</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">扰动高斯数量:</span>
-                            <span id="stat-perturbed-gaussians" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">SSIM值:</span>
-                            <span id="stat-ssim" class="stat-value">1.000</span>
+                            <span class="stat-label">SSIM <span style="font-size: 11px; color: #888;">(lower = more diff)</span>:</span>
+                            <span id="stat-ssim" class="stat-value" style="font-size: 20px; font-weight: bold; color: #4daf4a;">1.000</span>
                         </div>
                     </div>
                 </div>
@@ -145,56 +163,80 @@
 
             <!-- 可视化区域 -->
             <div class="visualization-area">
-                <h2>可视化 (Visualization)</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">可视化 (Visualization)</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="colormap-select" style="font-weight: bold; font-size: 14px;">
+                            Colormap:
+                        </label>
+                        <select id="colormap-select" style="padding: 5px 10px; font-size: 14px; border-radius: 4px;">
+                            <option value="viridis">Viridis</option>
+                            <option value="plasma">Plasma</option>
+                            <option value="turbo">Turbo</option>
+                            <option value="coolwarm">Cool-Warm</option>
+                            <option value="spectral">Spectral</option>
+                            <option value="rainbow">Rainbow</option>
+                            <option value="jet">Jet</option>
+                            <option value="hot">Hot</option>
+                            <option value="greyscale">Greyscale</option>
+                        </select>
+                    </div>
+                </div>
                 
-                <!-- 视图标签 -->
-                <div class="view-tabs">
-                    <button class="tab-btn active" data-view="original">原始分布</button>
-                    <button class="tab-btn" data-view="perturbed">扰动后</button>
-                    <button class="tab-btn" data-view="difference">差异图</button>
-                    <button class="tab-btn" data-view="heatmap">热力图</button>
+                <!-- 上方：原始和扰动图像并排 -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div class="canvas-wrapper" id="view-original">
+                        <h3>原始分布 / Original Distribution</h3>
+                        <canvas id="canvas-original" width="200" height="200"></canvas>
+                        <div class="canvas-info">
+                            <span id="info-original">等待生成... / Waiting...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="canvas-wrapper" id="view-perturbed">
+                        <h3>扰动后 / Perturbed Distribution</h3>
+                        <canvas id="canvas-perturbed" width="200" height="200"></canvas>
+                        <div class="canvas-info">
+                            <span id="info-perturbed">未应用扰动 / No perturbation applied</span>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- 画布容器 -->
-                <div class="canvas-container">
-                    <div class="canvas-wrapper" id="view-original">
-                        <h3>原始高斯分布</h3>
-                        <canvas id="canvas-original" width="600" height="600"></canvas>
-                        <div class="canvas-info">
-                            <span id="info-original">等待生成...</span>
-                        </div>
+                <!-- 下方：可切换的分析视图 -->
+                <div style="margin-top: 20px;">
+                    <div class="view-tabs">
+                        <button class="tab-btn active" data-view="difference">差异图 / Diff</button>
+                        <button class="tab-btn" data-view="heatmap">热力图 / Heatmap</button>
+                        <label style="margin-left: 20px; font-size: 14px;">
+                            <input type="checkbox" id="show-centers" checked> 显示中心点 / Show Centers
+                        </label>
                     </div>
-                    
-                    <div class="canvas-wrapper" id="view-perturbed" style="display: none;">
-                        <h3>扰动后的分布</h3>
-                        <canvas id="canvas-perturbed" width="600" height="600"></canvas>
-                        <div class="canvas-info">
-                            <span id="info-perturbed">未应用扰动</span>
+
+                    <!-- 画布容器 -->
+                    <div class="canvas-container">
+                        <div class="canvas-wrapper" id="view-difference">
+                            <h3>差异图 / Difference Map</h3>
+                            <canvas id="canvas-difference" width="200" height="200"></canvas>
+                            <div class="canvas-info">
+                                <span id="info-difference">需要先生成和扰动 / Generate and perturb first</span>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="canvas-wrapper" id="view-difference" style="display: none;">
-                        <h3>差异可视化</h3>
-                        <canvas id="canvas-difference" width="600" height="600"></canvas>
-                        <div class="canvas-info">
-                            <span id="info-difference">未应用扰动</span>
-                        </div>
-                    </div>
-                    
-                    <div class="canvas-wrapper" id="view-heatmap" style="display: none;">
-                        <h3>频率热力图</h3>
-                        <canvas id="canvas-heatmap" width="600" height="600"></canvas>
-                        <div class="canvas-info">
-                            <span id="info-heatmap">显示各频率层的能量分布</span>
+                        
+                        <div class="canvas-wrapper" id="view-heatmap" style="display: none;">
+                            <h3>频率热力图 / Frequency Heatmap</h3>
+                            <canvas id="canvas-heatmap" width="200" height="200"></canvas>
+                            <div class="canvas-info">
+                                <span id="info-heatmap">需要先生成 / Generate first</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 高斯信息显示 -->
                 <div class="gaussian-info">
-                    <h3>高斯详细信息</h3>
+                    <h3>高斯详细信息 / Gaussian Details</h3>
                     <div id="gaussian-details">
-                        点击画布中的高斯以查看详细信息...
+                        点击画布中的高斯以查看详细信息... / Click on a Gaussian to view details...
                     </div>
                 </div>
             </div>
@@ -212,6 +254,7 @@
     <script src="../rainbows good or bad for/supplementary materials/experiment interface/lineup/scalar_sample.js"></script>
     
     <!-- 引入我们的JavaScript模块 -->
+    <script src="js/colormaps_presets.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/gaussianGenerator.js"></script>
     <script src="js/perturbation.js"></script>

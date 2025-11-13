@@ -117,25 +117,53 @@ function exportCanvasAsImage(canvas, filename) {
 }
 
 /**
+ * 获取所有可用的 colormap 列表
+ */
+function getAvailableColormaps() {
+    return [
+        { value: 'viridis', name: 'Viridis' },
+        { value: 'plasma', name: 'Plasma' },
+        { value: 'inferno', name: 'Inferno' },
+        { value: 'magma', name: 'Magma' },
+        { value: 'turbo', name: 'Turbo' },
+        { value: 'rainbow', name: 'Rainbow' },
+        { value: 'jet', name: 'Jet' },
+        { value: 'hot', name: 'Hot' },
+        { value: 'cool', name: 'Cool' },
+        { value: 'coolwarm', name: 'Cool-Warm' },
+        { value: 'grayscale', name: 'Grayscale' }
+    ];
+}
+
+/**
  * 颜色映射 - 将标量值映射到颜色
+ * 优先使用预设的 colormap，如果没有则回退到内置实现
  */
 function valueToColor(value, colormap = 'viridis') {
     // 确保值在0-1之间
     value = clamp(value, 0, 1);
     
+    // 尝试使用预设的 colormap
+    if (typeof getColormapFunction !== 'undefined' && typeof COLORMAP_PRESETS !== 'undefined') {
+        if (COLORMAP_PRESETS[colormap]) {
+            const colormapFunc = getColormapFunction(colormap);
+            return colormapFunc(value);
+        }
+    }
+    
+    // 回退到内置实现
     switch(colormap) {
-        case 'viridis':
-            return viridisColormap(value);
-        case 'plasma':
-            return plasmaColormap(value);
-        case 'hot':
-            return hotColormap(value);
         case 'cool':
             return coolColormap(value);
         case 'grayscale':
             const gray = Math.floor(value * 255);
             return [gray, gray, gray, 255];
         default:
+            // 如果都没有，使用 viridis 的内置实现
+            if (COLORMAP_PRESETS && COLORMAP_PRESETS['viridis']) {
+                const colormapFunc = getColormapFunction('viridis');
+                return colormapFunc(value);
+            }
             return viridisColormap(value);
     }
 }
@@ -315,4 +343,127 @@ function throttle(func, limit) {
             setTimeout(() => inThrottle = false, limit);
         }
     };
+}
+
+/**
+ * Inferno颜色映射
+ */
+function infernoColormap(t) {
+    const colors = [
+        [0, 0, 4],
+        [40, 11, 84],
+        [101, 21, 110],
+        [159, 42, 99],
+        [212, 72, 66],
+        [245, 125, 21],
+        [250, 193, 39],
+        [252, 255, 164]
+    ];
+    return interpolateColors(t, colors);
+}
+
+/**
+ * Magma颜色映射
+ */
+function magmaColormap(t) {
+    const colors = [
+        [0, 0, 4],
+        [28, 16, 68],
+        [79, 18, 123],
+        [129, 37, 129],
+        [181, 54, 122],
+        [229, 80, 100],
+        [251, 136, 97],
+        [254, 194, 135],
+        [252, 253, 191]
+    ];
+    return interpolateColors(t, colors);
+}
+
+/**
+ * Turbo颜色映射
+ */
+function turboColormap(t) {
+    const colors = [
+        [48, 18, 59],
+        [62, 96, 155],
+        [33, 145, 140],
+        [92, 200, 99],
+        [253, 231, 37],
+        [252, 148, 56],
+        [227, 26, 28],
+        [189, 0, 38],
+        [122, 4, 3]
+    ];
+    return interpolateColors(t, colors);
+}
+
+/**
+ * Rainbow颜色映射
+ */
+function rainbowColormap(t) {
+    const colors = [
+        [150, 0, 90],
+        [0, 0, 200],
+        [0, 25, 255],
+        [0, 152, 255],
+        [44, 255, 150],
+        [151, 255, 0],
+        [255, 234, 0],
+        [255, 111, 0],
+        [255, 0, 0]
+    ];
+    return interpolateColors(t, colors);
+}
+
+/**
+ * Jet颜色映射
+ */
+function jetColormap(t) {
+    const colors = [
+        [0, 0, 131],
+        [0, 60, 170],
+        [5, 255, 255],
+        [255, 255, 0],
+        [250, 0, 0],
+        [128, 0, 0]
+    ];
+    return interpolateColors(t, colors);
+}
+
+/**
+ * Cool-Warm颜色映射
+ */
+function coolwarmColormap(t) {
+    const colors = [
+        [59, 76, 192],
+        [144, 178, 254],
+        [220, 220, 220],
+        [245, 156, 125],
+        [180, 4, 38]
+    ];
+    return interpolateColors(t, colors);
+}
+
+/**
+ * 颜色插值辅助函数
+ */
+function interpolateColors(t, colors) {
+    const index = t * (colors.length - 1);
+    const i = Math.floor(index);
+    const f = index - i;
+    
+    if (i >= colors.length - 1) {
+        return [...colors[colors.length - 1], 255];
+    }
+    
+    const c1 = colors[i];
+    const c2 = colors[i + 1];
+    
+    return [
+        Math.floor(c1[0] + f * (c2[0] - c1[0])),
+        Math.floor(c1[1] + f * (c2[1] - c1[1])),
+        Math.floor(c1[2] + f * (c2[2] - c1[2])),
+        255
+    ];
 }
