@@ -41,9 +41,8 @@ class GaussianPerturbationApp {
             this.config.canvasHeight
         );
         
-        // 默认启用四宫格模式
-        this.generator.setGridMode(true);
-        this.generator.setActiveQuadrant(0); // 默认选中左上分格
+        // 改为随机模式，不再使用四宫格
+        this.generator.setGridMode(false);
         
         this.perturbation = new PerturbationSystem(this.generator);
         this.visualization = new MultiViewVisualization();
@@ -57,23 +56,33 @@ class GaussianPerturbationApp {
         // 设置默认视图（差异图）
         this.visualization.switchView('difference');
         
-        console.log('System initialized successfully - Grid mode enabled by default');
+        // 初始化总数量显示
+        this.updateTotalCount();
+        
+        console.log('System initialized successfully - Random mode enabled');
     }
     
     /**
      * 初始化UI元素引用
      */
     initializeUI() {
-        // 高斯级别控制 - 只控制sigma（四宫格模式下数量固定）
+        // 高斯级别控制 - 包含数量和sigma
         const levels = ['small', 'medium', 'large'];
         this.ui.levels = {};
         
         for (const level of levels) {
+            const levelKey = level === 'small' ? 'high' : level === 'medium' ? 'mid' : 'low';
             this.ui.levels[level] = {
+                countSlider: document.getElementById(`count-${levelKey}`),
+                countValue: document.getElementById(`count-${levelKey}-value`),
                 sigmaSlider: document.getElementById(`sigma-${level}`),
                 sigmaValue: document.getElementById(`sigma-${level}-value`)
             };
         }
+        
+        // 总数量显示
+        this.ui.totalCount = document.getElementById('total-count');
+        this.ui.totalCountEn = document.getElementById('total-count-en');
         
         // 扰动控制
         this.ui.perturb = {
@@ -98,8 +107,8 @@ class GaussianPerturbationApp {
             localParams: document.getElementById('local-params')
         };
         
-        // 分格选择
-        this.ui.quadrantSelect = document.getElementById('quadrant-select');
+        // 移除分格选择（不再需要）
+        // this.ui.quadrantSelect = document.getElementById('quadrant-select');
         
         // 按钮
         this.ui.buttons = {
@@ -125,8 +134,23 @@ class GaussianPerturbationApp {
      * 绑定事件
      */
     bindEvents() {
-        // sigma滑块和输入框双向绑定
+        // 数量和sigma滑块双向绑定
         for (const [level, elements] of Object.entries(this.ui.levels)) {
+            // 数量滑块改变 -> 更新输入框和总数
+            elements.countSlider.addEventListener('input', (e) => {
+                elements.countValue.value = e.target.value;
+                this.updateTotalCount();
+            });
+            
+            // 数量输入框改变 -> 更新滑块和总数
+            elements.countValue.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                if (!isNaN(value)) {
+                    elements.countSlider.value = value;
+                    this.updateTotalCount();
+                }
+            });
+            
             // sigma滑块改变 -> 更新输入框
             elements.sigmaSlider.addEventListener('input', (e) => {
                 elements.sigmaValue.value = e.target.value;
@@ -164,12 +188,12 @@ class GaussianPerturbationApp {
             }
         });
         
-        // 分格选择
-        if (this.ui.quadrantSelect) {
-            this.ui.quadrantSelect.addEventListener('change', (e) => {
-                this.handleQuadrantChange(parseInt(e.target.value));
-            });
-        }
+        // 移除分格选择事件（不再需要）
+        // if (this.ui.quadrantSelect) {
+        //     this.ui.quadrantSelect.addEventListener('change', (e) => {
+        //         this.handleQuadrantChange(parseInt(e.target.value));
+        //     });
+        // }
         
         // 按钮事件
         this.ui.buttons.generate.addEventListener('click', () => this.handleGenerate());
@@ -213,28 +237,40 @@ class GaussianPerturbationApp {
     }
     
     /**
-     * 处理分格选择
+     * 更新总数量显示
      */
-    handleQuadrantChange(quadrantId) {
-        this.state.activeQuadrant = quadrantId;
-        this.generator.setActiveQuadrant(quadrantId);
-        console.log(`Active quadrant set to ${quadrantId}`);
+    updateTotalCount() {
+        let total = 0;
+        for (const [level, elements] of Object.entries(this.ui.levels)) {
+            const count = parseInt(elements.countValue.value) || 0;
+            total += count;
+        }
+        
+        if (this.ui.totalCount) {
+            this.ui.totalCount.textContent = total;
+        }
+        if (this.ui.totalCountEn) {
+            this.ui.totalCountEn.textContent = total;
+        }
     }
     
     /**
      * 处理生成按钮
      */
     handleGenerate() {
-        console.log('Generating Gaussians in grid mode...');
+        console.log('Generating Gaussians in random mode...');
         this.ui.buttons.generate.classList.add('loading');
         
-        // 更新sigma参数
+        // 更新参数
         for (const [level, elements] of Object.entries(this.ui.levels)) {
+            const count = parseInt(elements.countValue.value);
             const sigma = parseFloat(elements.sigmaValue.value);
+            
+            this.generator.sizeLevels[level].count = count;
             this.generator.sizeLevels[level].sigma = sigma;
         }
         
-        // 生成高斯（四宫格模式）
+        // 生成高斯（随机模式）
         setTimeout(() => {
             this.generator.generateAll();
             this.state.hasGenerated = true;
@@ -247,8 +283,9 @@ class GaussianPerturbationApp {
             // 更新统计
             this.updateStatistics();
             
+            const totalCount = this.generator.getAllGaussians().length;
             this.ui.buttons.generate.classList.remove('loading');
-            console.log('Generation complete - 28 Gaussians in 4 quadrants');
+            console.log(`Generation complete - ${totalCount} Gaussians randomly distributed`);
         }, 100);
     }
     
@@ -295,19 +332,16 @@ class GaussianPerturbationApp {
             // 每次扰动前先重置到原始状态
             this.perturbation.resetToOriginal();
             
-            // 获取当前选中的分格
-            const quadrantId = this.state.activeQuadrant;
-            
             if (mode === 'global') {
                 this.perturbation.applyGlobalPerturbation(
-                    magnitude, ratio, targets, perturbTypes, quadrantId
+                    magnitude, ratio, targets, perturbTypes
                 );
             } else {
                 // 局部扰动 - 自动选择最紧密的m个高斯
                 const targetCount = parseInt(this.ui.perturb.localCount.value);
                 
                 this.perturbation.applyLocalPerturbation(
-                    targetCount, magnitude, ratio, targets, perturbTypes, quadrantId
+                    targetCount, magnitude, ratio, targets, perturbTypes
                 );
             }
             

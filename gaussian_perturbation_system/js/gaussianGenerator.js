@@ -106,11 +106,11 @@ class GaussianGenerator {
             }
             console.log(`Generated ${this.gaussians.length} Gaussians in 4 quadrants`);
         } else {
-            // 传统模式：随机生成
+            // 随机模式：在整个空间随机生成
             for (const [level, config] of Object.entries(this.sizeLevels)) {
                 this.generateLevel(level, config.sigma, config.count, config.color);
             }
-            console.log(`Generated ${this.gaussians.length} Gaussians across all levels`);
+            console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
         }
         
         return this.gaussians;
