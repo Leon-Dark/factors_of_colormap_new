@@ -22,18 +22,13 @@
                 <div class="control-section">
                     <h3>1. 高斯参数设置 / Gaussian Parameters</h3>
                     <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
-                        控制三种频率高斯的数量和标准差 / Control count and sigma of three frequency levels
+                        四宫格模式：每格固定 1低频 + 2中频 + 4高频，共28个高斯 / Grid mode: 1 low + 2 mid + 4 high per quadrant, 28 total
                     </p>
                     
                     <!-- 高频 -->
                     <div style="background: #fff5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #e41a1c;">
                         <div style="font-weight: bold; color: #e41a1c; margin-bottom: 8px;">
-                            高频 / High Frequency
-                        </div>
-                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
-                            <label style="font-size: 13px;">数量 / Count:</label>
-                            <input type="range" id="count-small" min="0" max="30" value="8" step="1">
-                            <input type="number" id="count-small-value" min="0" max="30" value="8" step="1" style="width: 50px; padding: 3px;">
+                            高频 / High Frequency (每格4个 / 4 per quad)
                         </div>
                         <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;">σ / Sigma:</label>
@@ -45,12 +40,7 @@
                     <!-- 中频 -->
                     <div style="background: #f5fff5; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #4daf4a;">
                         <div style="font-weight: bold; color: #4daf4a; margin-bottom: 8px;">
-                            中频 / Mid Frequency
-                        </div>
-                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
-                            <label style="font-size: 13px;">数量 / Count:</label>
-                            <input type="range" id="count-medium" min="0" max="20" value="5" step="1">
-                            <input type="number" id="count-medium-value" min="0" max="20" value="5" step="1" style="width: 50px; padding: 3px;">
+                            中频 / Mid Frequency (每格2个 / 2 per quad)
                         </div>
                         <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;">σ / Sigma:</label>
@@ -62,12 +52,7 @@
                     <!-- 低频 -->
                     <div style="background: #fff8f0; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #ff7f00;">
                         <div style="font-weight: bold; color: #ff7f00; margin-bottom: 8px;">
-                            低频 / Low Frequency
-                        </div>
-                        <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
-                            <label style="font-size: 13px;">数量 / Count:</label>
-                            <input type="range" id="count-large" min="0" max="10" value="3" step="1">
-                            <input type="number" id="count-large-value" min="0" max="10" value="3" step="1" style="width: 50px; padding: 3px;">
+                            低频 / Low Frequency (每格1个 / 1 per quad)
                         </div>
                         <div style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;">σ / Sigma:</label>
@@ -81,9 +66,26 @@
                     </button>
                 </div>
 
+                <!-- 分格选择 -->
+                <div class="control-section" style="background: #e8f4f8; border-radius: 5px; padding: 15px; margin-bottom: 15px;">
+                    <h3>2. 分格选择 / Quadrant Selection</h3>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
+                        选择要扰动的分格，每次只扰动一个分格 / Select quadrant to perturb, only one at a time
+                    </p>
+                    <label for="quadrant-select" style="font-weight: bold; display: block; margin-bottom: 5px;">
+                        扰动目标分格 / Target Quadrant:
+                    </label>
+                    <select id="quadrant-select" style="width: 100%; padding: 8px; font-size: 14px;">
+                        <option value="0">左上 / Top-Left (Quadrant 0)</option>
+                        <option value="1">右上 / Top-Right (Quadrant 1)</option>
+                        <option value="2">左下 / Bottom-Left (Quadrant 2)</option>
+                        <option value="3">右下 / Bottom-Right (Quadrant 3)</option>
+                    </select>
+                </div>
+
                 <!-- 扰动参数 -->
                 <div class="control-section">
-                    <h3>2. 扰动参数设置 / Perturbation Parameters</h3>
+                    <h3>3. 扰动参数设置 / Perturbation Parameters</h3>
                     <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
                         调整扰动强度、范围和类型 / Adjust perturbation strength, scope and type
                     </p>
@@ -153,11 +155,13 @@
                             <span class="stat-label">已扰动 / Perturbed:</span>
                             <span id="stat-perturbed-gaussians" class="stat-value" style="font-size: 18px; font-weight: bold; color: #ff6b6b;">0</span>
                         </div>
-                        <div class="stat-item">
+                        <div class="stat-item" style="margin-bottom: 8px;">
                             <span class="stat-label">SSIM <span style="font-size: 11px; color: #888;">(lower = more diff)</span>:</span>
                             <span id="stat-ssim" class="stat-value" style="font-size: 20px; font-weight: bold; color: #4daf4a;">1.000</span>
                         </div>
                     </div>
+                    <!-- 分格统计（四宫格模式时显示） -->
+                    <div id="quadrant-stats"></div>
                 </div>
             </div>
 
@@ -209,6 +213,9 @@
                         <button class="tab-btn" data-view="heatmap">热力图 / Heatmap</button>
                         <label style="margin-left: 20px; font-size: 14px;">
                             <input type="checkbox" id="show-centers" checked> 显示中心点 / Show Centers
+                        </label>
+                        <label style="margin-left: 15px; font-size: 14px;">
+                            <input type="checkbox" id="show-grid" checked> 显示网格线 / Show Grid
                         </label>
                     </div>
 

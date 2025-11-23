@@ -100,9 +100,16 @@ class PerturbationSystem {
      * @param {number} ratio - 扰动比例 (0-1)
      * @param {string|string[]} targetLevel - 目标级别（单个或数组）
      * @param {string|string[]} perturbType - 扰动类型（单个或数组）
+     * @param {number|null} quadrantId - 指定分格 ID（如果为null，则扰动所有高斯）
      */
-    applyGlobalPerturbation(magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
-        const gaussians = this.getTargetGaussians(targetLevel);
+    applyGlobalPerturbation(magnitude, ratio, targetLevel = 'all', perturbType = 'all', quadrantId = null) {
+        let gaussians = this.getTargetGaussians(targetLevel);
+        
+        // 如果指定了分格，只选择该分格的高斯
+        if (quadrantId !== null && quadrantId !== undefined) {
+            gaussians = gaussians.filter(g => g.quadrant === quadrantId);
+            console.log(`Filtering to quadrant ${quadrantId}: ${gaussians.length} Gaussians`);
+        }
         
         if (gaussians.length === 0) {
             console.warn('No Gaussians selected for perturbation');
@@ -126,11 +133,13 @@ class PerturbationSystem {
             ratio,
             targetLevel: Array.isArray(targetLevel) ? targetLevel : [targetLevel],
             perturbType: Array.isArray(perturbType) ? perturbType : [perturbType],
+            quadrantId: quadrantId,
             count: toPerturb.length,
             timestamp: Date.now()
         });
         
-        console.log(`Applied global perturbation to ${toPerturb.length} Gaussians`);
+        const quadInfo = quadrantId !== null ? ` in quadrant ${quadrantId}` : '';
+        console.log(`Applied global perturbation to ${toPerturb.length} Gaussians${quadInfo}`);
         return toPerturb;
     }
     
@@ -141,9 +150,16 @@ class PerturbationSystem {
      * @param {number} ratio - 选中高斯中实际扰动的比例 (0-1)
      * @param {string|string[]} targetLevel - 目标级别（单个或数组）
      * @param {string|string[]} perturbType - 扰动类型（单个或数组）
+     * @param {number|null} quadrantId - 指定分格 ID
      */
-    applyLocalPerturbation(targetCount, magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
-        const gaussians = this.getTargetGaussians(targetLevel);
+    applyLocalPerturbation(targetCount, magnitude, ratio, targetLevel = 'all', perturbType = 'all', quadrantId = null) {
+        let gaussians = this.getTargetGaussians(targetLevel);
+        
+        // 如果指定了分格，只选择该分格的高斯
+        if (quadrantId !== null && quadrantId !== undefined) {
+            gaussians = gaussians.filter(g => g.quadrant === quadrantId);
+            console.log(`Filtering to quadrant ${quadrantId}: ${gaussians.length} Gaussians`);
+        }
         
         if (gaussians.length === 0) {
             console.warn('No Gaussians available for perturbation');
@@ -190,12 +206,14 @@ class PerturbationSystem {
             ratio,
             targetLevel: Array.isArray(targetLevel) ? targetLevel : [targetLevel],
             perturbType: Array.isArray(perturbType) ? perturbType : [perturbType],
+            quadrantId: quadrantId,
             clusterSize: clusterSize,
             count: toPerturb.length,
             timestamp: Date.now()
         });
         
-        console.log(`Applied local perturbation to ${toPerturb.length} Gaussians in cluster of ${clusterSize}`);
+        const quadInfo = quadrantId !== null ? ` in quadrant ${quadrantId}` : '';
+        console.log(`Applied local perturbation to ${toPerturb.length} Gaussians in cluster of ${clusterSize}${quadInfo}`);
         return { perturbed: toPerturb, cluster: compactCluster, circle };
     }
     

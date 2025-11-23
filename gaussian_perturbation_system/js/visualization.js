@@ -21,6 +21,7 @@ class VisualizationSystem {
             colormap: 'greyscale',
             showGaussianBorders: false,
             showGaussianCenters: true,
+            showGridLines: true,  // 新增：是否显示四宫格网格线
             highlightPerturbed: true,
             normalizeIntensity: true
         };
@@ -62,6 +63,11 @@ class VisualizationSystem {
         // 渲染到canvas
         this.renderDataToCanvas(normalizedData);
         
+        // 绘制四宫格网格线（如果启用且选项开启）
+        if (generator.gridEnabled && this.options.showGridLines) {
+            this.drawQuadrantGrid();
+        }
+        
         // 绘制高斯标记
         if (this.options.showGaussianCenters) {
             this.drawGaussianMarkers(generator, useOriginal);
@@ -75,6 +81,35 @@ class VisualizationSystem {
         this.cachedData = normalizedData;
         
         return normalizedData;
+    }
+    
+    /**
+     * 绘制四宫格网格线
+     */
+    drawQuadrantGrid() {
+        const halfW = this.width / 2;
+        const halfH = this.height / 2;
+        
+        this.ctx.strokeStyle = '#00ffff'; // 青色网格线
+        this.ctx.lineWidth = 2;
+        this.ctx.globalAlpha = 0.6;
+        this.ctx.setLineDash([5, 5]); // 虚线
+        
+        // 垂直线
+        this.ctx.beginPath();
+        this.ctx.moveTo(halfW, 0);
+        this.ctx.lineTo(halfW, this.height);
+        this.ctx.stroke();
+        
+        // 水平线
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, halfH);
+        this.ctx.lineTo(this.width, halfH);
+        this.ctx.stroke();
+        
+        // 重置样式
+        this.ctx.setLineDash([]);
+        this.ctx.globalAlpha = 1.0;
     }
     
     /**
@@ -171,8 +206,9 @@ class VisualizationSystem {
      * 渲染差异图
      * @param {Float32Array} originalData - 原始数据
      * @param {Float32Array} perturbedData - 扰动后数据
+     * @param {GaussianGenerator} generator - 高斯生成器（可选，用于绘制网格线）
      */
-    renderDifference(originalData, perturbedData) {
+    renderDifference(originalData, perturbedData, generator = null) {
         if (originalData.length !== perturbedData.length) {
             console.error('Data arrays must have the same length');
             return;
@@ -210,6 +246,11 @@ class VisualizationSystem {
         }
         
         this.ctx.putImageData(imageData, 0, 0);
+        
+        // 绘制四宫格网格线（如果启用且选项开启）
+        if (generator && generator.gridEnabled && this.options.showGridLines) {
+            this.drawQuadrantGrid();
+        }
         
         return diffData;
     }
@@ -269,6 +310,11 @@ class VisualizationSystem {
         }
         
         this.ctx.putImageData(imageData, 0, 0);
+        
+        // 绘制四宫格网格线（如果启用且选项开启）
+        if (generator.gridEnabled && this.options.showGridLines) {
+            this.drawQuadrantGrid();
+        }
         
         return energyMap;
     }
@@ -428,7 +474,7 @@ class MultiViewVisualization {
         }
         
         const diffData = this.views.difference.renderDifference(
-            this.originalData, this.perturbedData
+            this.originalData, this.perturbedData, this.generator
         );
         
         // 计算SSIM
