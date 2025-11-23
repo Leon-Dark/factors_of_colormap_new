@@ -47,9 +47,14 @@ jobs:
       - name: Prepare gh-pages directory
         run: |
           # 如果 gh-pages 分支不存在，创建初始结构
-          if [ ! -d "gh-pages" ]; then
+          if [ ! -d "gh-pages" ] || [ ! -d "gh-pages/.git" ]; then
+            echo "📦 Creating new gh-pages structure"
             mkdir -p gh-pages
-            echo "Creating new gh-pages branch"
+            cd gh-pages
+            git init
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            cd ..
           fi
           
           # 创建或清理目标目录
@@ -289,12 +294,28 @@ jobs:
           cd gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 检查是否是新的 gh-pages 分支
+          if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+            echo "📦 Initializing new gh-pages branch"
+            git checkout --orphan gh-pages
+          fi
+          
           git add .
           
           if git diff --staged --quiet; then
-            echo "No changes to deploy"
+            echo "ℹ️ No changes to deploy"
           else
             git commit -m "Deploy ${{ steps.path.outputs.branch_name }} to ${{ steps.path.outputs.deploy_path }}"
-            git push origin gh-pages
+            
+            # 首次推送或更新
+            if git ls-remote --heads origin gh-pages | grep -q gh-pages; then
+              echo "📤 Pushing to existing gh-pages branch"
+              git push origin gh-pages
+            else
+              echo "🚀 Creating and pushing new gh-pages branch"
+              git push -u origin gh-pages
+            fi
+            
             echo "✅ Deployed successfully!"
           fi
