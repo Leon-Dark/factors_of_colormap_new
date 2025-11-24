@@ -58,13 +58,25 @@ jobs:
           fi
           
           # 创建或清理目标目录
-          TARGET_PATH="gh-pages/${{ steps.path.outputs.deploy_path }}"
-          rm -rf "$TARGET_PATH"
-          mkdir -p "$TARGET_PATH"
+          if [ "${{ steps.path.outputs.deploy_path }}" = "." ]; then
+            echo "🧹 Cleaning root directory (preserving subdirectories)"
+            # main 分支：只删除已知的主分支项目文件夹和根索引页
+            # 这样做是为了保留 random 等其他分支的子目录
+            rm -rf gh-pages/Colormap_Visualizer
+            rm -rf gh-pages/gaussian_perturbation_system
+            rm -rf "gh-pages/rainbows good or bad for"
+            rm -f gh-pages/index.html
+          else
+            # 子分支：清理特定的子目录
+            TARGET_PATH="gh-pages/${{ steps.path.outputs.deploy_path }}"
+            echo "🧹 Cleaning target directory: $TARGET_PATH"
+            rm -rf "$TARGET_PATH"
+            mkdir -p "$TARGET_PATH"
+          fi
           
           # 复制源文件
           if [ "${{ steps.path.outputs.deploy_path }}" = "." ]; then
-            # main 分支：复制到根目录（保留其他分支的子目录）
+            # main 分支：复制到根目录
             cp -r source/Colormap_Visualizer gh-pages/
             cp -r source/gaussian_perturbation_system gh-pages/
             cp -r source/"rainbows good or bad for" gh-pages/
