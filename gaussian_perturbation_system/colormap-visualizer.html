@@ -28,7 +28,7 @@
         
         .container {
             display: grid;
-            grid-template-columns: 320px 1fr;
+            grid-template-columns: 320px 1fr 300px;
             height: 100vh;
             gap: 0;
         }
@@ -171,6 +171,113 @@
         .chart-container {
             margin: 20px 0;
         }
+        
+        /* 历史面板 */
+        .history-panel {
+            background: white;
+            border-left: 2px solid #ddd;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        
+        .history-panel h2 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #2196F3;
+            padding-bottom: 5px;
+        }
+        
+        .history-item {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .history-item:hover {
+            background: #e3f2fd;
+            border-color: #2196F3;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .history-item.active {
+            background: #e3f2fd;
+            border-color: #2196F3;
+            border-width: 2px;
+        }
+        
+        .history-preview {
+            width: 100%;
+            height: 50px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            position: relative;
+            background: #f0f0f0;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        
+        .history-preview:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .history-preview canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            image-rendering: pixelated;
+        }
+        
+        .history-info {
+            font-size: 11px;
+            color: #666;
+            margin: 3px 0;
+        }
+        
+        .history-timestamp {
+            font-size: 10px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .history-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        
+        .badge-pass {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+        
+        .badge-fail {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+        
+        .clear-history-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .clear-history-btn:hover {
+            background: #d32f2f;
+        }
     </style>
 </head>
 <body>
@@ -200,9 +307,8 @@
                 <select id="chroma-pattern">
                     <option value="uniform">Uniform (恒定)</option>
                     <option value="linear" selected>Linear (线性)</option>
-                    <option value="peak">Peak (波峰)</option>
-                    <option value="valley">Valley (波谷)</option>
-                    <option value="wave">Wave (波动)</option>
+                    <option value="diverging">diverging (波峰)</option>
+                    <option value="thermal">thermal (波动)</option>
                 </select>
                 <div style="font-size: 11px; color: #999; margin-top: 5px;">
                     Min/Max 将自动搜索最优值
@@ -216,9 +322,8 @@
                 <select id="lumi-pattern">
                     <option value="uniform">Uniform (恒定)</option>
                     <option value="linear" selected>Linear (线性)</option>
-                    <option value="peak">Peak (波峰)</option>
-                    <option value="valley">Valley (波谷)</option>
-                    <option value="wave">Wave (波动)</option>
+                    <option value="diverging">diverging (波峰)</option>
+                    <option value="thermal">thermal (波动)</option>
                 </select>
                 <div style="font-size: 11px; color: #999; margin-top: 5px;">
                     Min/Max 将自动搜索最优值
@@ -276,9 +381,237 @@
                 <p style="margin-top: 10px;">调整左侧参数后点击生成按钮</p>
             </div>
         </div>
+        
+        <!-- 历史记录面板 -->
+        <div class="history-panel">
+            <h2>📜 Colormap History</h2>
+            <div style="font-size: 11px; color: #999; margin: -10px 0 10px 0;">
+                Click to view details | 点击查看详情
+            </div>
+            <div id="history-list">
+                <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+                    No history yet<br>
+                    生成colormap后会显示在这里
+                </div>
+            </div>
+            <button class="clear-history-btn" onclick="clearHistory()" style="display: none;" id="clear-history-btn">
+                🗑️ Clear All History
+            </button>
+        </div>
     </div>
 
 <script>
+// ========== 历史记录管理 ==========
+let colormapHistory = [];
+let currentHistoryId = null;
+const MAX_HISTORY = 50; // 最多保存50条历史
+
+// 添加到历史记录
+function addToHistory(colormap, stats) {
+    const historyItem = {
+        id: Date.now(),
+        timestamp: new Date().toLocaleString('zh-CN', { 
+            month: '2-digit', 
+            day: '2-digit', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        }),
+        colormap: colormap,
+        stats: JSON.parse(JSON.stringify(stats)) // 深拷贝
+    };
+    
+    colormapHistory.unshift(historyItem);
+    
+    // 限制历史记录数量
+    if (colormapHistory.length > MAX_HISTORY) {
+        colormapHistory = colormapHistory.slice(0, MAX_HISTORY);
+    }
+    
+    currentHistoryId = historyItem.id;
+    updateHistoryPanel();
+}
+
+// 更新历史面板显示
+function updateHistoryPanel() {
+    const historyList = document.getElementById('history-list');
+    const clearBtn = document.getElementById('clear-history-btn');
+    
+    if (colormapHistory.length === 0) {
+        historyList.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+                No history yet<br>
+                生成colormap后会显示在这里
+            </div>
+        `;
+        clearBtn.style.display = 'none';
+        return;
+    }
+    
+    clearBtn.style.display = 'block';
+    
+    // 使用 DocumentFragment 提高性能
+    const fragment = document.createDocumentFragment();
+    
+    colormapHistory.forEach((item, index) => {
+        const deltaE = item.stats.deltaE;
+        const isPass = deltaE.allPass;
+        const badgeClass = isPass ? 'badge-pass' : 'badge-fail';
+        const badgeText = isPass ? '✓ Pass' : '✗ Fail';
+        const isActive = item.id === currentHistoryId ? 'active' : '';
+        
+        // 模式标识
+        const mode = item.stats.config.mode || 'strict';
+        const modeText = mode === 'strict' ? 'S' : 'A';
+        const modeTitle = mode === 'strict' ? 'Strict Mode' : 'Adjusted Mode';
+        const modeColor = mode === 'strict' ? '#4CAF50' : '#FF9800';
+        
+        // 创建历史项容器
+        const itemDiv = document.createElement('div');
+        itemDiv.className = `history-item ${isActive}`;
+        
+        // 创建 Canvas 预览
+        const previewContainer = document.createElement('div');
+        previewContainer.style.position = 'relative';
+        
+        const previewDiv = document.createElement('div');
+        previewDiv.className = 'history-preview';
+        previewDiv.onclick = () => loadHistoryItem(item.id);
+        
+        const canvas = createHistoryPreviewCanvas(item.colormap);
+        previewDiv.appendChild(canvas);
+        
+
+        
+        // 删除按钮 (更小、更透明，悬停时显示)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.style.cssText = `position: absolute; top: 2px; right: 2px; padding: 0;
+                                    width: 14px; height: 14px; line-height: 14px;
+                                    background: rgba(0,0,0,0.3); color: white; border: none; 
+                                    border-radius: 50%; cursor: pointer; font-size: 9px; z-index: 1;
+                                    opacity: 0.6; transition: all 0.2s; margin: 0;`;
+        deleteBtn.title = '删除此记录';
+        deleteBtn.textContent = '✕';
+        
+        // 悬停效果
+        deleteBtn.onmouseenter = () => {
+            deleteBtn.style.background = 'rgba(244,67,54,0.9)';
+            deleteBtn.style.opacity = '1';
+        };
+        deleteBtn.onmouseleave = () => {
+            deleteBtn.style.background = 'rgba(0,0,0,0.3)';
+            deleteBtn.style.opacity = '0.6';
+        };
+        deleteBtn.onclick = (e) => deleteHistoryItem(item.id, e);
+        
+        previewContainer.appendChild(previewDiv);
+        previewContainer.appendChild(deleteBtn);
+        
+        // 信息区域
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cursor = 'pointer';
+        infoDiv.onclick = () => loadHistoryItem(item.id);
+        infoDiv.innerHTML = `
+            <div class="history-info">
+                <span style="color: #999; font-size: 10px;">#${index + 1}</span>
+                <span class="history-badge ${badgeClass}">${badgeText}</span>
+                <span>ΔE: ${deltaE.min.toFixed(1)}-${deltaE.max.toFixed(1)}</span>
+            </div>
+            <div class="history-info">
+                H: ${item.stats.config.hueRange}° | 
+                C: ${item.stats.config.chromaPattern.substring(0,3)} | 
+                L: ${item.stats.config.lumiPattern.substring(0,3)}
+            </div>
+            <div class="history-timestamp">${item.timestamp}</div>
+        `;
+        
+        itemDiv.appendChild(previewContainer);
+        itemDiv.appendChild(infoDiv);
+        fragment.appendChild(itemDiv);
+    });
+    
+    historyList.innerHTML = '';
+    historyList.appendChild(fragment);
+}
+
+// 创建历史预览的 Canvas
+function createHistoryPreviewCanvas(colormap) {
+    const canvas = document.createElement('canvas');
+    canvas.width = colormap.length;
+    canvas.height = 50;
+    
+    const ctx = canvas.getContext('2d');
+    for (let i = 0; i < colormap.length; i++) {
+        const color = colormap[i];
+        // 处理不同的颜色格式
+        if (color.r !== undefined) {
+            ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+        } else if (Array.isArray(color)) {
+            ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+        } else {
+            ctx.fillStyle = `rgb(${color}, ${color}, ${color})`;
+        }
+        ctx.fillRect(i, 0, 1, 50);
+    }
+    
+    return canvas;
+}
+
+// 创建CSS渐变字符串（备用）
+function createGradientString(colormap) {
+    const colors = colormap.map(c => {
+        if (c.r !== undefined) {
+            return `rgb(${c.r},${c.g},${c.b})`;
+        } else if (Array.isArray(c)) {
+            return `rgb(${c[0]},${c[1]},${c[2]})`;
+        }
+        return `rgb(${c},${c},${c})`;
+    });
+    return `linear-gradient(to right, ${colors.join(', ')})`;
+}
+
+// 加载历史记录项
+function loadHistoryItem(id) {
+    const item = colormapHistory.find(h => h.id === id);
+    if (!item) return;
+    
+    currentColormap = item.colormap;
+    currentStats = item.stats;
+    currentHistoryId = id;
+    
+    // 直接显示，不添加到历史
+    visualizeColormap();
+    updateHistoryPanel();
+    
+    // 滚动到顶部
+    document.getElementById('viz-area').scrollTop = 0;
+}
+
+// 删除单个历史项
+function deleteHistoryItem(id, event) {
+    event.stopPropagation(); // 阻止事件冒泡
+    
+    const index = colormapHistory.findIndex(h => h.id === id);
+    if (index === -1) return;
+    
+    colormapHistory.splice(index, 1);
+    
+    // 如果删除的是当前显示的项，清除当前ID
+    if (currentHistoryId === id) {
+        currentHistoryId = null;
+    }
+    
+    updateHistoryPanel();
+}
+
+// 清除所有历史
+function clearHistory() {
+    if (!confirm('确定要清除所有历史记录吗？')) return;
+    
+    colormapHistory = [];
+    currentHistoryId = null;
+    updateHistoryPanel();
+}
+
 // ========== 核心算法部分（从stimuli-generator.html保持不变）==========
 
 // CIEDE2000色差计算
@@ -461,11 +794,9 @@ function getPatternControlPoints(pattern, min, max, value = null) {
             return [mid, mid];
         case 'linear':
             return [min, max];
-        case 'peak':
+        case 'diverging':
             return [min, max, min];
-        case 'valley':
-            return [max, min, max];
-        case 'wave':
+        case 'thermal':
             return [min, max, min, max, min];
         default:
             return [min, max];
@@ -658,6 +989,9 @@ function generateColormapStrict() {
     };
     
     visualizeColormap();
+    
+    // 添加到历史记录
+    addToHistory(currentColormap, currentStats);
 }
 
 // 搜索有效的colormap候选
@@ -869,6 +1203,9 @@ function generateColormapAdjusted() {
     };
     
     visualizeColormap();
+    
+    // 添加到历史记录
+    addToHistory(currentColormap, currentStats);
 }
 
 // 多段插值函数（从原文件）
@@ -912,10 +1249,6 @@ function visualizeColormap() {
     const vizArea = document.getElementById('viz-area');
     vizArea.innerHTML = '';
     
-    // 0. Config Info
-    const configDiv = createConfigInfo();
-    vizArea.appendChild(configDiv);
-    
     // 1. Colormap Bar
     const barDiv = createColormapBar();
     vizArea.appendChild(barDiv);
@@ -923,74 +1256,15 @@ function visualizeColormap() {
     // 2. HCL Curves
     const curvesDiv = createHCLCurves();
     vizArea.appendChild(curvesDiv);
+       // 3. Stats
+    const statsDiv = createStatsBox();
+    vizArea.appendChild(statsDiv);
     
-    // 3. Static Metrics (Previously section 4)
+    // 4. Static Metrics
     const metricsDiv = createStaticMetricsBox();
     vizArea.appendChild(metricsDiv);
 }
 
-function createConfigInfo() {
-    const div = document.createElement('div');
-    div.className = 'colormap-display';
-    
-    const cfg = currentStats.config;
-    const chromaDesc = cfg.chromaPattern === 'uniform' ? 
-        `${cfg.chromaPattern} (${cfg.chromaValue})` :
-        `${cfg.chromaPattern} [${cfg.chromaMin}, ${cfg.chromaMax}]`;
-    const lumiDesc = cfg.lumiPattern === 'uniform' ? 
-        `${cfg.lumiPattern} (${cfg.lumiValue})` :
-        `${cfg.lumiPattern} [${cfg.lumiMin}, ${cfg.lumiMax}]`;
-    
-    const autoSelectedNote = cfg.mode === 'strict' && cfg.searchParams && cfg.searchParams.combinationsTested ? 
-        `<div style="font-size: 11px; color: #4CAF50; margin-top: 8px; padding: 5px; background: #e8f5e9; border-radius: 3px;">
-            ✓ 参数自动优化完成 (测试了 ${cfg.searchParams.combinationsTested} 个组合)
-        </div>` : '';
-    
-    const modeColor = cfg.mode === 'strict' ? '#4CAF50' : '#FF9800';
-    const modeText = cfg.mode === 'strict' ? 
-        '严格模式 (无突变)' : 
-        '调整模式 (允许修正)';
-    
-    let searchInfo = '';
-    if (cfg.mode === 'strict' && cfg.searchParams) {
-        const attempts = cfg.searchParams.attempts || 1;
-        const usedPerturb = attempts > 1;
-        
-        const attemptText = usedPerturb ? 
-            `<span style="color: #FF9800;">扰动搜索: 第 ${attempts} 次尝试成功</span>` : 
-            '<span style="color: #4CAF50;">首次尝试成功 (无需扰动)</span>';
-        
-        searchInfo = `<p style="font-size: 12px; margin-top: 8px;">
-            ${attemptText}
-        </p>
-        <p style="color: #666; font-size: 11px;">
-            找到参数: hStart=${cfg.searchParams.hStart}°, 
-            cBase=${cfg.searchParams.cBase}, lBase=${cfg.searchParams.lBase}
-        </p>`;
-        
-        if (usedPerturb) {
-            const cOriginal = cfg.chromaMax - cfg.chromaMin;
-            const lOriginal = cfg.lumiMax - cfg.lumiMin;
-            searchInfo += `<p style="color: #FF9800; font-size: 11px;">
-                目标范围: C=${cOriginal}, L=${lOriginal}
-                <br>实际范围: C=${cfg.searchParams.finalTargetC}, L=${cfg.searchParams.finalTargetL}
-            </p>`;
-        }
-    }
-    
-    div.innerHTML = `
-        <div class="colormap-title">Configuration</div>
-        <div class="stats-box" style="background: #f0f8ff;">
-            <p><strong>Mode:</strong> <span style="color: ${modeColor}; font-weight: bold;">${modeText}</span></p>
-            ${autoSelectedNote}
-            <p><strong>Hue Range:</strong> ${cfg.hueRange}°</p>
-            <p><strong>Chroma:</strong> ${chromaDesc}</p>
-            <p><strong>Luminance:</strong> ${lumiDesc}</p>
-            ${searchInfo}
-        </div>
-    `;
-    return div;
-}
 
 function createColormapBar() {
     const div = document.createElement('div');
@@ -1033,12 +1307,6 @@ function createHCLCurves() {
     const hueEnd = hueValues[hueValues.length - 1];
     const hueDiff = ((hueEnd - hueStart + 360) % 360).toFixed(1);
     
-    div.innerHTML = `
-        <div class="colormap-title">HCL Curves</div>
-        <div style="margin-left: 20px; margin-bottom: 10px; color: #666; font-size: 12px;">
-            Hue: ${hueStart.toFixed(1)}° → ${hueEnd.toFixed(1)}°
-        </div>
-    `;
     
     const chartDiv = document.createElement('div');
     chartDiv.style.display = 'flex';
@@ -1099,6 +1367,61 @@ function drawCurve(data, container, name, yMin, yMax) {
         .style('font-size', '13px')
         .style('font-weight', 'bold')
         .text(name);
+}
+
+function createStatsBox() {
+    const div = document.createElement('div');
+    div.className = 'colormap-display';
+    
+    const chromaRange = currentStats.actualRanges.chroma;
+    const lumiRange = currentStats.actualRanges.luminance;
+    const deltaE = currentStats.deltaE;
+    
+    const hueStart = currentStats.hclData[0][0];
+    const hueEnd = currentStats.hclData[currentStats.hclData.length - 1][0];
+    const hueDiff = ((hueEnd - hueStart + 360) % 360).toFixed(1);
+    
+    const discriminabilityIcon = deltaE.allPass ? '✓' : '✗';
+    const discriminabilityColor = deltaE.allPass ? '#4CAF50' : '#f44336';
+    
+    div.innerHTML = `
+        <div class="colormap-title">Statistics & Quality Metrics</div>
+        <div class="stats-box">
+            <p><strong>Total Colors:</strong> ${currentStats.total}</p>
+            <p><strong>Out of Gamut (Adjusted):</strong> ${currentStats.invalid} 
+               <span style="color: ${currentStats.invalid > 50 ? '#f44336' : '#666'}">
+               (${((currentStats.invalid / currentStats.total) * 100).toFixed(1)}%)
+               </span>
+            </p>
+            
+            <p style="margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px;">
+                <strong>Hue Range:</strong> ${hueStart.toFixed(1)}° → ${hueEnd.toFixed(1)}°
+                <br><span style="margin-left: 20px;">跨度 Δ = ${hueDiff}°</span>
+            </p>
+            <p>
+                <strong>Chroma Range:</strong> ${chromaRange[0].toFixed(1)} → ${chromaRange[1].toFixed(1)}
+                <br><span style="margin-left: 20px;">跨度 Δ = ${(chromaRange[1] - chromaRange[0]).toFixed(1)}</span>
+            </p>
+            <p>
+                <strong>Luminance Range:</strong> ${lumiRange[0].toFixed(1)} → ${lumiRange[1].toFixed(1)}
+                <br><span style="margin-left: 20px;">跨度 Δ = ${(lumiRange[1] - lumiRange[0]).toFixed(1)}</span>
+            </p>
+            
+            <p style="margin-top: 10px; border-top: 1px solid #ddd; padding-top: 10px;">
+                <strong>CIEDE2000 (ΔE, ${deltaE.sampleNum} samples):</strong>
+                <br><span style="margin-left: 20px;">Min: ${deltaE.min.toFixed(2)}</span>
+                <br><span style="margin-left: 20px;">Max: ${deltaE.max.toFixed(2)}</span>
+                <br><span style="margin-left: 20px;">Avg: ${deltaE.avg.toFixed(2)}</span>
+            </p>
+            <p>
+                <strong>Discriminability (ΔE ≥ ${deltaE.threshold}):</strong> 
+                <span style="color: ${discriminabilityColor}; font-weight: bold; font-size: 16px;">
+                    ${discriminabilityIcon} ${deltaE.allPass ? 'Pass' : 'Fail'}
+                </span>
+            </p>
+        </div>
+    `;
+    return div;
 }
 
 // 页面加载时初始化
