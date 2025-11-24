@@ -1113,8 +1113,10 @@ window.addEventListener('DOMContentLoaded', () => {
         
         if (typeof c3 !== 'undefined' && typeof c3.load === 'function') {
             console.log('Loading c3 data...');
-            c3.load('../rainbows good or bad for/supplementary materials/experiment interface/lib/colorname/c3_data.json', false);
-            console.log('c3.load completed');
+            // Try loading with URL encoding for web compatibility
+            const c3Path = '../rainbows%20good%20or%20bad%20for/supplementary%20materials/experiment%20interface/lib/colorname/c3_data.json';
+            c3.load(c3Path, false);
+            console.log('c3.load called with path:', c3Path);
             
             // Check if data was loaded
             if (c3.color && c3.terms) {
