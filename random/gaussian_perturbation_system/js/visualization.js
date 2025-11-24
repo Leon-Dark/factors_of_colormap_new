@@ -63,8 +63,8 @@ class VisualizationSystem {
         // 渲染到canvas
         this.renderDataToCanvas(normalizedData);
         
-        // 绘制四宫格网格线（如果启用且选项开启）
-        if (generator.gridEnabled && this.options.showGridLines) {
+        // 绘制网格线（如枟选项开启）
+        if (this.options.showGridLines) {
             this.drawQuadrantGrid();
         }
         
@@ -84,7 +84,7 @@ class VisualizationSystem {
     }
     
     /**
-     * 绘制四宫格网格线
+     * 绘制网格线（将画布分为四个区域以便观察）
      */
     drawQuadrantGrid() {
         const halfW = this.width / 2;
@@ -247,8 +247,8 @@ class VisualizationSystem {
         
         this.ctx.putImageData(imageData, 0, 0);
         
-        // 绘制四宫格网格线（如果启用且选项开启）
-        if (generator && generator.gridEnabled && this.options.showGridLines) {
+        // 绘制网格线（如果选项开启）
+        if (this.options.showGridLines) {
             this.drawQuadrantGrid();
         }
         
@@ -311,8 +311,8 @@ class VisualizationSystem {
         
         this.ctx.putImageData(imageData, 0, 0);
         
-        // 绘制四宫格网格线（如果启用且选项开启）
-        if (generator.gridEnabled && this.options.showGridLines) {
+        // 绘制网格线（如果选项开启）
+        if (this.options.showGridLines) {
             this.drawQuadrantGrid();
         }
         

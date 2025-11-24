@@ -22,19 +22,6 @@ class GaussianGenerator {
             'medium': { sigma: 16, count: 5, color: '#4daf4a' },    // 中频 σ=16px
             'large': { sigma: 40, count: 3, color: '#ff7f00' }      // 低频 σ=40px
         };
-        
-        // 四宫格配置
-        this.gridEnabled = false; // 是否启用四宫格模式
-        this.gridConfig = {
-            // 每个分格的高斯数量配置
-            perQuadrant: {
-                'small': 4,   // 每个分格4个高频
-                'medium': 2,  // 每个分格2个中频
-                'large': 1    // 每个分格1个低频
-            }
-        };
-        this.activeQuadrant = null; // 当前激活的分格 (0, 1, 2, 3)
-        this.quadrants = this.calculateQuadrants();
     }
     
     /**
@@ -43,42 +30,8 @@ class GaussianGenerator {
     updateDimensions(width, height) {
         this.width = width;
         this.height = height;
-        this.quadrants = this.calculateQuadrants();
     }
     
-    /**
-     * 计算四宫格边界
-     * @returns {Array} 四个分格的边界信息
-     */
-    calculateQuadrants() {
-        const halfW = this.width / 2;
-        const halfH = this.height / 2;
-        
-        return [
-            { id: 0, name: '左上 / Top-Left', minX: 0, maxX: halfW, minY: 0, maxY: halfH },
-            { id: 1, name: '右上 / Top-Right', minX: halfW, maxX: this.width, minY: 0, maxY: halfH },
-            { id: 2, name: '左下 / Bottom-Left', minX: 0, maxX: halfW, minY: halfH, maxY: this.height },
-            { id: 3, name: '右下 / Bottom-Right', minX: halfW, maxX: this.width, minY: halfH, maxY: this.height }
-        ];
-    }
-    
-    /**
-     * 启用/禁用四宫格模式
-     */
-    setGridMode(enabled) {
-        this.gridEnabled = enabled;
-        console.log(`Grid mode ${enabled ? 'enabled' : 'disabled'}`);
-    }
-    
-    /**
-     * 设置激活的分格
-     */
-    setActiveQuadrant(quadrantId) {
-        if (quadrantId >= 0 && quadrantId < 4) {
-            this.activeQuadrant = quadrantId;
-            console.log(`Active quadrant set to ${quadrantId}: ${this.quadrants[quadrantId].name}`);
-        }
-    }
     
     /**
      * 更新尺寸级别配置
@@ -91,124 +44,22 @@ class GaussianGenerator {
     }
     
     /**
-     * 生成所有级别的高斯分布
+     * 生成所有级别的高斯分布（随机模式）
      */
     generateAll() {
         this.gaussians = [];
         
-        if (this.gridEnabled) {
-            // 四宫格模式：为每个分格生成高斯
-            for (let quadId = 0; quadId < 4; quadId++) {
-                for (const [level, config] of Object.entries(this.sizeLevels)) {
-                    const count = this.gridConfig.perQuadrant[level];
-                    this.generateLevelInQuadrant(level, config.sigma, count, config.color, quadId);
-                }
-            }
-            console.log(`Generated ${this.gaussians.length} Gaussians in 4 quadrants`);
-        } else {
-            // 传统模式：随机生成
-            for (const [level, config] of Object.entries(this.sizeLevels)) {
-                this.generateLevel(level, config.sigma, config.count, config.color);
-            }
-            console.log(`Generated ${this.gaussians.length} Gaussians across all levels`);
+        // 在整个空间随机生成
+        for (const [level, config] of Object.entries(this.sizeLevels)) {
+            this.generateLevel(level, config.sigma, config.count, config.color);
         }
+        console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
         
         return this.gaussians;
     }
     
     /**
-     * 在指定分格内生成高斯分布
-     */
-    generateLevelInQuadrant(level, sigma, count, color, quadrantId) {
-        const quad = this.quadrants[quadrantId];
-        
-        // 动态调整参数，大高斯更宽松
-        const paddingRatio = sigma > 30 ? 0.8 : 2.0;
-        const distanceRatio = sigma > 30 ? 0.3 : 0.8;
-        
-        const padding = sigma * paddingRatio;
-        const minDistance = sigma * distanceRatio;
-        
-        const levelGaussians = [];
-        let attempts = 0;
-        const maxAttempts = count * 100;
-        
-        while (levelGaussians.length < count && attempts < maxAttempts) {
-            attempts++;
-            
-            // 在分格范围内生成随机位置
-            const mX = randomRange(
-                Math.max(quad.minX + padding, padding),
-                Math.min(quad.maxX - padding, this.width - padding)
-            );
-            const mY = randomRange(
-                Math.max(quad.minY + padding, padding),
-                Math.min(quad.maxY - padding, this.height - padding)
-            );
-            
-            // 确保不超出总画布边界
-            if (mX < padding || mX > this.width - padding || 
-                mY < padding || mY > this.height - padding) {
-                continue;
-            }
-            
-            // 检查是否与同分格的已有高斯太近
-            let tooClose = false;
-            for (const existing of this.gaussians) {
-                if (existing.quadrant !== quadrantId) continue; // 只检查同分格的高斯
-                
-                const dist = distance(mX, mY, existing.mX, existing.mY);
-                const avgSigma = (sigma + existing.getSigmaX()) / 2;
-                const minDist = avgSigma * distanceRatio;
-                if (dist < minDist) {
-                    tooClose = true;
-                    break;
-                }
-            }
-            
-            if (tooClose) continue;
-            
-            // 生成标准差（添加一些随机变化）
-            const sXVariation = 0.7 + Math.random() * 0.6;
-            const sYVariation = 0.7 + Math.random() * 0.6;
-            const sX = sigma * sXVariation;
-            const sY = sigma * sYVariation;
-            
-            // 生成相关系数
-            const rho = (Math.random() * 2 - 1) * 0.6;
-            
-            // 生成幅值
-            const scaler = 0.5 + Math.random() * 0.5;
-            
-            // 创建高斯
-            const gauss = new biGauss(mX, mY, sX, sY, rho, scaler);
-            gauss.color = color;
-            gauss.sizeLevel = level;
-            gauss.quadrant = quadrantId; // 记录所属分格
-            
-            // 添加扩展属性
-            gauss.originalMX = mX;
-            gauss.originalMY = mY;
-            gauss.originalSX = sX;
-            gauss.originalSY = sY;
-            gauss.originalRho = rho;
-            gauss.originalScaler = scaler;
-            gauss.isPerturbed = false;
-            gauss.id = Math.random().toString(36).substr(2, 9);
-            
-            levelGaussians.push(gauss);
-            this.gaussians.push(gauss);
-        }
-        
-        if (levelGaussians.length < count) {
-            console.warn(`Quadrant ${quadrantId}: Only generated ${levelGaussians.length}/${count} Gaussians for level ${level}`);
-        }
-        
-        return levelGaussians;
-    }
-    
-    /**
-     * 生成指定级别的高斯分布（传统随机模式）
+     * 生成指定级别的高斯分布（随机模式）
      */
     generateLevel(level, sigma, count, color) {
         // 动态调整参数，大高斯更宽松（适配200×200画布）
@@ -260,7 +111,6 @@ class GaussianGenerator {
             const gauss = new biGauss(mX, mY, sX, sY, rho, scaler);
             gauss.color = color;
             gauss.sizeLevel = level;
-            gauss.quadrant = null; // 传统模式不属于任何分格
             
             // 添加扩展属性
             gauss.originalMX = mX;
@@ -288,20 +138,6 @@ class GaussianGenerator {
      */
     getGaussiansByLevel(level) {
         return this.gaussians.filter(g => g.sizeLevel === level);
-    }
-    
-    /**
-     * 获取指定分格的所有高斯
-     */
-    getGaussiansByQuadrant(quadrantId) {
-        return this.gaussians.filter(g => g.quadrant === quadrantId);
-    }
-    
-    /**
-     * 获取指定分格和级别的高斯
-     */
-    getGaussiansByQuadrantAndLevel(quadrantId, level) {
-        return this.gaussians.filter(g => g.quadrant === quadrantId && g.sizeLevel === level);
     }
     
     /**
@@ -416,10 +252,7 @@ class GaussianGenerator {
         const stats = {
             total: this.gaussians.length,
             byLevel: {},
-            byQuadrant: {},
-            perturbed: this.gaussians.filter(g => g.isPerturbed).length,
-            gridEnabled: this.gridEnabled,
-            activeQuadrant: this.activeQuadrant
+            perturbed: this.gaussians.filter(g => g.isPerturbed).length
         };
         
         for (const level of Object.keys(this.sizeLevels)) {
@@ -428,17 +261,6 @@ class GaussianGenerator {
                 count: levelGaussians.length,
                 perturbed: levelGaussians.filter(g => g.isPerturbed).length
             };
-        }
-        
-        if (this.gridEnabled) {
-            for (let i = 0; i < 4; i++) {
-                const quadGaussians = this.getGaussiansByQuadrant(i);
-                stats.byQuadrant[i] = {
-                    name: this.quadrants[i].name,
-                    count: quadGaussians.length,
-                    perturbed: quadGaussians.filter(g => g.isPerturbed).length
-                };
-            }
         }
         
         return stats;
@@ -452,9 +274,6 @@ class GaussianGenerator {
             width: this.width,
             height: this.height,
             sizeLevels: this.sizeLevels,
-            gridEnabled: this.gridEnabled,
-            gridConfig: this.gridConfig,
-            activeQuadrant: this.activeQuadrant,
             gaussians: this.gaussians.map(g => ({
                 id: g.id,
                 mX: g.mX,
@@ -464,7 +283,6 @@ class GaussianGenerator {
                 rho: g.rho,
                 scaler: g.scaler,
                 sizeLevel: g.sizeLevel,
-                quadrant: g.quadrant,
                 isPerturbed: g.isPerturbed,
                 color: g.color,
                 original: {
@@ -486,15 +304,10 @@ class GaussianGenerator {
         this.width = config.width;
         this.height = config.height;
         this.sizeLevels = config.sizeLevels;
-        this.gridEnabled = config.gridEnabled || false;
-        this.gridConfig = config.gridConfig || this.gridConfig;
-        this.activeQuadrant = config.activeQuadrant || null;
-        this.quadrants = this.calculateQuadrants();
         this.gaussians = config.gaussians.map(gData => {
             const g = new biGauss(gData.mX, gData.mY, gData.sX, gData.sY, gData.rho, gData.scaler);
             g.id = gData.id;
             g.sizeLevel = gData.sizeLevel;
-            g.quadrant = gData.quadrant !== undefined ? gData.quadrant : null;
             g.isPerturbed = gData.isPerturbed;
             g.color = gData.color;
             g.originalMX = gData.original.mX;
