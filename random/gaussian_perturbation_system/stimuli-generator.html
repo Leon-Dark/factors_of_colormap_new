@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+        content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Colormap Generation</title>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+
+<body>
+</body>
+
+<!-- <script type="text/javascript" src="/static/js/metrics.js"></script> -->
+<script>
+    // read all colormaps, find the luminance and chroma range
+    // testColormaps()
+
+    function generateStimuli(sample_number = 500) {
+        const base_hues = [0, 50, 100, 150, 200, 250, 300].reverse()
+        const hue_combinations = [
+            base_hues.slice(),
+            base_hues.slice(0, 5),
+            base_hues.slice(0, 3)
+        ];
+        const chromas = [20, 120], lumis = [20, 90];
+        const chroma_array = [
+            [(chromas[0] + chromas[1]) / 2, (chromas[0] + chromas[1]) / 2],
+            [chromas[0], (chromas[0] + chromas[1]) / 2],
+            [chromas[0], chromas[1]],
+            [chromas[0], chromas[1], chromas[0]],
+            [chromas[0], chromas[1], chromas[0], chromas[1], chromas[0]]
+        ];
+        const lumi_array = [
+            [(lumis[0] + lumis[1]) / 2, (lumis[0] + lumis[1]) / 2],
+            [lumis[0], (lumis[0] + lumis[1]) / 2],
+            [lumis[0], lumis[1]],
+            [lumis[0], lumis[1], lumis[0]],
+            [lumis[0], lumis[1], lumis[0], lumis[1], lumis[0]]
+        ];
+
+        // ---------- 插值函数 ----------
+        function getInterpolatedValues(arr, num) {
+            const step_num = 500;
+            let interpolated = [];
+            for (let i = 0; i < arr.length - 1; i++) {
+                for (let j = 0; j < step_num; j++) {
+                    const t = j / step_num;
+                    interpolated.push(arr[i] + t * (arr[i + 1] - arr[i]));
+                }
+            }
+            interpolated.push(arr[arr.length - 1]);
+
+            const sampled = [];
+            for (let i = 0; i < num; i++) {
+                const idx = Math.round(i / (num - 1) * (interpolated.length - 1));
+                sampled.push(interpolated[idx]);
+            }
+            return sampled;
+        }
+
+        // ---------- HCL → RGB ----------
+        function hclToRgb(h, c, l) {
+            const hRad = (h % 360) / 360 * 2 * Math.PI;
+            const a = c * Math.cos(hRad);
+            const b = c * Math.sin(hRad);
+
+            let y = (l + 16) / 116;
+            let x = a / 500 + y;
+            let z = y - b / 200;
+
+            const labToXyz = t => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+            x = labToXyz(x) * 95.047;
+            y = labToXyz(y) * 100.0;
+            z = labToXyz(z) * 108.883;
+
+            let r = x * 3.2406 + y * -1.5372 + z * -0.4986;
+            let g = x * -0.9689 + y * 1.8758 + z * 0.0415;
+            let b_ = x * 0.0557 + y * -0.2040 + z * 1.0570;
+
+            const gammaCorrect = t => (t > 0.0031308 ? 1.055 * t ** (1 / 2.4) - 0.055 : 12.92 * t);
+            r = gammaCorrect(r / 100);
+            g = gammaCorrect(g / 100);
+            b_ = gammaCorrect(b_ / 100);
+
+            // return {
+            //     r: Math.round(Math.max(0, Math.min(1, r)) * 255),
+            //     g: Math.round(Math.max(0, Math.min(1, g)) * 255),
+            //     b: Math.round(Math.max(0, Math.min(1, b_)) * 255)
+            // };
+            return { r: r, g: g, b: b_ }
+        }
+
+        function isValidRGB(rgb) {
+            return (
+                !isNaN(rgb.r) && !isNaN(rgb.g) && !isNaN(rgb.b) &&
+                isFinite(rgb.r) && isFinite(rgb.g) && isFinite(rgb.b) &&
+                rgb.r >= 0 && rgb.r <= 1 &&
+                rgb.g >= 0 && rgb.g <= 1 &&
+                rgb.b >= 0 && rgb.b <= 1
+            );
+        }
+
+        // ---------- 找到附近合法颜色 ----------
+        const perturbOffsets = [];
+        for (let i = -10; i <= 10; i++) {
+            for (let j = -30; j <= 30; j++) {
+                for (let k = -30; k <= 30; k++) {
+                    perturbOffsets.push([i, j, k]);
+                }
+            }
+        }
+        perturbOffsets.sort((a, b) =>
+            Math.hypot(...a) - Math.hypot(...b)
+        );
+        console.log("perturbOffsets", perturbOffsets);
+
+        function findNearestValidColor([h, c, l]) {
+            // return [h, c, l]
+            for (let [dh, dc, dl] of perturbOffsets) {
+                const hh = (h + dh + 360) % 360;
+                const cc = Math.max(0, Math.min(120, c + dc));
+                const ll = Math.max(10, Math.min(90, l + dl));
+                const rgb = d3.hcl(hh, cc, ll).rgb();
+                if (rgb.displayable()) {
+                    return [hh, cc, ll];
+                }
+            }
+            // console.log("No valid color found for HCL:", h, c, l);
+            return [h, c, l];
+        }
+        function getInterpolatedHues(hue_points, num) {
+            // 计算插值
+            let interpolated = [];
+            const step_num = 500;
+
+            for (let i = 0; i < hue_points.length - 1; i++) {
+                const h1 = hue_points[i];
+                const h2 = hue_points[i + 1];
+                let hue
+
+                for (let j = 0; j < step_num; j++) {
+                    if (h2 < h1)
+                        hue = (h1 + (h2 - h1) * j / step_num) % 360
+                    else
+                        hue = (h1 + (h2 - h1 - 360) * j / step_num + 360) % 360
+                    interpolated.push(hue);
+                }
+            }
+
+            interpolated.push(hue_points[hue_points.length - 1]);
+
+            // 重采样为固定数量
+            const sampled = [];
+            for (let i = 0; i < num; i++) {
+                const idx = Math.round(i / (num - 1) * (interpolated.length - 1));
+                sampled.push(interpolated[idx]);
+            }
+
+            return sampled;
+        }
+
+        // ---------- 生成 colormap ----------
+        const colormap_array = [], condition_array = [], origin_colormap_array = [];
+        let colormap_count = 0
+        for (let h_index = 0; h_index < hue_combinations.length; h_index++) {
+            const hue_base = hue_combinations[h_index].slice();
+            const offset = 0; //Math.random() * (h_index === 0 ? 60 : h_index === 1 ? 160 : 260);
+            for (let i = 0; i < hue_base.length; i++) {
+                hue_base[i] = (hue_base[i] + offset) % 360;
+            }
+
+            const hues = getInterpolatedHues(hue_base, sample_number);
+
+            for (let lumi of lumi_array) {
+                const luminances = getInterpolatedValues(lumi, sample_number);
+                for (let chroma of chroma_array) {
+                    const chromas = getInterpolatedValues(chroma, sample_number);
+
+                    const colormap = [], origin_colormap = [];
+                    let invalidCount = 0;
+
+                    for (let i = 0; i < sample_number; i++) {
+                        const hcl = [hues[i], chromas[i], luminances[i]];
+                        origin_colormap.push(hcl);
+
+                        if (true) {
+                            const rgb = d3.hcl(...hcl).rgb();
+                            if (!rgb.displayable()) {
+                                invalidCount++;
+                                const adjusted = findNearestValidColor(hcl);
+                                colormap.push(adjusted);
+                            } else {
+                                colormap.push(hcl);
+                            }
+                        } else {
+                            const rgb = d3.rgb(d3.lab(d3.hcl(hcl[0], hcl[1], hcl[2])));
+                            const hcl_adjusted = d3.hcl(d3.lab(rgb));
+                            colormap.push([hcl_adjusted.h, hcl_adjusted.c, hcl_adjusted.l]);
+                        }
+                    }
+
+                    console.log(`${colormap_count++} HueSet${h_index}, L=${lumi}, C=${chroma} → Invalid ${invalidCount}/${sample_number}`);
+                    colormap_array.push(colormap);
+                    condition_array.push(`H=${hue_base}, L=[${lumi}], C=[${chroma}]`);
+                    origin_colormap_array.push(origin_colormap)
+                }
+            }
+        }
+
+        return [colormap_array, condition_array, origin_colormap_array];
+    }
+
+
+    function drawGivenCurve(data, div, name, x = 0, y = 1) {
+        var svg_width = 400, svg_height = 200, margin = 30
+        let linechart_svg = div.append("svg").attr("id", "renderSvg").attr("typeId", "line")
+            .attr("width", svg_width).attr("height", svg_height).style("display", "inline-block");
+
+        let linechart = linechart_svg.style("background-color", "#FFF")
+            .append("g")
+            .attr("transform", "translate(" + margin + "," + margin + ")");
+
+        let m_xScale = d3.scaleLinear().range([0, svg_width - margin * 2]), // value -> display
+            m_yScale = d3.scaleLinear().range([svg_height - margin * 2, 0]); // value -> display
+        // Scale the range of the data
+        m_xScale.domain(d3.extent(data[0], function (d) {
+            return d[x];
+        }));
+        if (name == "luminance") {
+            m_yScale.domain([0, 100]);
+        } else if (name == "chroma") {
+            m_yScale.domain([0, 120]);
+        } else {
+            m_yScale.domain([0, 360]);
+            // m_yScale.domain(d3.extent(data, function (d) {
+            //     return d[y];
+            // }));
+        }
+        // define the line
+        let valueline = d3.line()
+            .x(function (d) {
+                return m_xScale(d[x]);
+            })
+            .y(function (d) {
+                return m_yScale(d[y]);
+            })//.curve(d3.curveCatmullRom);
+
+        // Add the valueline path.
+        linechart.selectAll('path')
+            .data(data).enter().append("path")
+            .attr("d", function (d) {
+                return valueline(d);
+            })
+            .attr("class", "linechart")
+            .attr("fill", "none")
+            // .attr("stroke", "#444")
+            .attr("stroke", function (d, i) {
+                return i == 0 ? "blue" : "red"
+            })
+            .style("stroke-width", 1)
+
+        // Add the X Axis
+        linechart.append("g")
+            .attr("transform", "translate(0," + (svg_height - margin * 2) + ")")
+            .call(d3.axisBottom(m_xScale)); //.tickFormat("")
+
+        // Add the Y Axis
+        linechart.append("g")
+            .call(d3.axisLeft(m_yScale)); //.tickFormat("")
+
+        linechart_svg.append("text").attr("x", 0).attr("y", 20).text(name)
+            .attr("font-size", "12px").attr("fill", "#000")
+            .attr("text-anchor", "start").attr("font-weight", "bold")
+            .attr("transform", "translate(" + (margin) + "," + (margin - 10) + ")");
+    }
+
+    function drawGivenColormap(colormap, condition_name, condition) {
+        let div = d3.select("body").append("div")
+            .style("border", "1px solid black").style("margin-top", "10px")
+            .style("padding", "5px")
+        div.append("h3").text(condition_name)
+
+        function getCurve(pal, index) {
+            var curve = []
+            for (var i = 0; i < pal.length; i++) {
+                let tuple = d3.rgb(d3.lab(d3.hcl(pal[i][0], pal[i][1], pal[i][2])))
+                let hcl = d3.hcl(d3.lab(tuple))
+                tuple = [hcl.h, hcl.c, hcl.l]
+                curve.push([i, tuple[index]])
+            }
+            return curve
+        }
+        function getCurve2(pal, index) {
+            var curve = []
+            for (var i = 0; i < pal.length; i++) {
+                curve.push([i, pal[i][index]])
+            }
+            return curve
+        }
+        drawGivenCurve([getCurve2(condition, 0), getCurve(colormap, 0)], div, "Hue")
+        drawGivenCurve([getCurve2(condition, 1), getCurve(colormap, 1)], div, "chroma")
+        drawGivenCurve([getCurve2(condition, 2), getCurve(colormap, 2)], div, "luminance")
+
+        let width = colormap.length, height = 45
+        //get context 
+        div.append("canvas").attr("id", condition_name)
+            .attr("width", width).attr("height", height).style("margin-left", "20px")
+        let canvas = document.getElementById(condition_name)
+        let context = canvas.getContext('2d');
+
+        //traverse the image data
+        for (var i = 0; i < canvas.width; i++) {
+            let tuple = d3.rgb(d3.lab(d3.hcl(colormap[i][0], colormap[i][1], colormap[i][2])))
+            for (var j = 0; j < canvas.height; j++) {
+                context.fillStyle = 'rgba(' + tuple.r +
+                    ',' + tuple.g +
+                    ',' + tuple.b +
+                    ',' + 1 + ')';
+                context.fillRect(i, j, 1, 1);
+            }
+        }
+
+    }
+
+    function getInterpolatedRgb(colormap, step_num) {
+        const interpolated = [];
+        for (let i = 0; i < colormap.length - 1; i++) {
+            const start = colormap[i];
+            const end = colormap[i + 1];
+            for (let j = 0; j < step_num; j++) {
+                const t = j / step_num;
+                const r = Math.round(start.r + t * (end.r - start.r));
+                const g = Math.round(start.g + t * (end.g - start.g));
+                const b = Math.round(start.b + t * (end.b - start.b));
+                interpolated.push(d3.rgb(r, g, b));
+            }
+        }
+        // 重采样为固定数量
+        const sampled = [];
+        for (let i = 0; i < step_num; i++) {
+            const idx = Math.round(i / (step_num - 1) * (interpolated.length - 1));
+            sampled.push(interpolated[idx]);
+        }
+        return sampled;
+    }
+
+    // // 生成少量控制点，在每个控制点之间使用rgb插值
+    // let stimuli_array = generateStimuli(100)
+    // for (let i = 0; i < stimuli_array[0].length; i++) {
+    //     let colormap = stimuli_array[0][i]
+    //     // test
+    //     const colormap_rgb = colormap.map(d => d3.rgb(d3.lab(d3.hcl(d[0], d[1], d[2]))))
+    //     let interpolated = getInterpolatedRgb(colormap_rgb, 500)
+    //     const colormap_hcl = interpolated.map(d => {
+    //         const hcl = d3.hcl(d3.lab(d));
+    //         return [hcl.h, hcl.c, hcl.l];
+    //     })
+    //     const condition_interpolated = [];
+    //     for (let j = 0; j < 500; j++) {
+    //         const t = j / 499; // Normalize to [0, 1]
+    //         const index = t * (stimuli_array[2][i].length - 1);
+    //         const lowerIndex = Math.floor(index);
+    //         const upperIndex = Math.ceil(index);
+    //         const ratio = index - lowerIndex;
+
+    //         const lower = stimuli_array[2][i][lowerIndex];
+    //         const upper = stimuli_array[2][i][upperIndex];
+
+    //         condition_interpolated.push([
+    //             lower[0] + ratio * (upper[0] - lower[0]),
+    //             lower[1] + ratio * (upper[1] - lower[1]),
+    //             lower[2] + ratio * (upper[2] - lower[2])
+    //         ]);
+    //     }
+    //     stimuli_array[2][i] = condition_interpolated;
+    //     drawGivenColormap(colormap_hcl, i + "：" + stimuli_array[1][i], stimuli_array[2][i])
+    // }
+
+    // let stimuli_array = generateStimuli(500)
+    // for (let i = 0; i < stimuli_array[0].length; i++) {
+    //     let colormap = stimuli_array[0][i]
+    //     drawGivenColormap(colormap, i + "：" + stimuli_array[1][i], stimuli_array[2][i])
+    // }
+</script>
+
+<script>
+    function parseControlPoints(input) {
+        const min = Math.min(...input);
+        const max = Math.max(...input);
+        if (max > min) {
+            input = input.map(v => (v - min) / (max - min));
+        } else {
+            input = input.map(() => 0.5); // Default to 0.5 if all values are the same
+        }
+        return input
+        // return input.map(d => +d / 100).map(v => Math.max(0, Math.min(1, v)));
+    }
+
+    function ciede2000(lab1, lab2) {
+        const [L1, a1, b1] = lab1;
+        const [L2, a2, b2] = lab2;
+
+        const avg_L = (L1 + L2) / 2.0;
+        const C1 = Math.sqrt(a1 * a1 + b1 * b1);
+        const C2 = Math.sqrt(a2 * a2 + b2 * b2);
+        const avg_C = (C1 + C2) / 2.0;
+
+        const G = 0.5 * (1 - Math.sqrt((avg_C ** 7) / ((avg_C ** 7) + (25 ** 7))));
+        const a1p = (1 + G) * a1;
+        const a2p = (1 + G) * a2;
+        const C1p = Math.sqrt(a1p * a1p + b1 * b1);
+        const C2p = Math.sqrt(a2p * a2p + b2 * b2);
+
+        const avg_Cp = (C1p + C2p) / 2.0;
+
+        const h1 = Math.atan2(b1, a1p), h2 = Math.atan2(b2, a2p)
+        const h1p = h1 * 180 / Math.PI + (h1 < 0 ? 360 : 0);
+        const h2p = h2 * 180 / Math.PI + (h2 < 0 ? 360 : 0);
+
+        const deltahp = (C1p * C2p === 0) ? 0 :
+            (Math.abs(h2p - h1p) <= 180) ? (h2p - h1p) :
+                (h2p <= h1p) ? (h2p - h1p + 360) : (h2p - h1p - 360);
+
+        const deltaLp = L2 - L1;
+        const deltaCp = C2p - C1p;
+        const deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((deltahp * Math.PI) / 360);
+
+        const avg_Lp = (L1 + L2) / 2.0;
+        // const avg_hp = (Math.abs(h1p - h2p) > 180) ? (h1p + h2p + 360) / 2.0 : (h1p + h2p) / 2.0;
+        let avg_hp;
+        if (Math.abs(h1p - h2p) <= 180) {
+            avg_hp = (h1p + h2p) / 2.0;
+        } else if ((h1p + h2p) < 360) {
+            avg_hp = (h1p + h2p + 360) / 2.0;
+        } else {
+            avg_hp = (h1p + h2p - 360) / 2.0;
+        }
+
+        const T = 1
+            - 0.17 * Math.cos((avg_hp - 30) * Math.PI / 180)
+            + 0.24 * Math.cos((2 * avg_hp) * Math.PI / 180)
+            + 0.32 * Math.cos((3 * avg_hp + 6) * Math.PI / 180)
+            - 0.20 * Math.cos((4 * avg_hp - 63) * Math.PI / 180);
+
+        const delta_ro = 30 * Math.exp(-(((avg_hp - 275) / 25) ** 2));
+        const RC = 2 * Math.sqrt((avg_Cp ** 7) / ((avg_Cp ** 7) + (25 ** 7)));
+        const SL = 1 + (0.015 * ((avg_Lp - 50) ** 2)) / Math.sqrt(20 + ((avg_Lp - 50) ** 2));
+        const SC = 1 + 0.045 * avg_Cp;
+        const SH = 1 + 0.015 * avg_Cp * T;
+        const RT = -Math.sin(2 * delta_ro * Math.PI / 180) * RC;
+
+        const deltaE = Math.sqrt(
+            (deltaLp / SL) ** 2 +
+            (deltaCp / SC) ** 2 +
+            (deltaHp / SH) ** 2 +
+            RT * (deltaCp / SC) * (deltaHp / SH)
+        );
+
+        return deltaE;
+    }
+
+    function satisfyDiscriminability(colormap, sampleNum = 10) {
+        const sampled_colormap = [];
+        for (let i = 0; i < colormap.length; i += Math.floor(colormap.length / sampleNum)) {
+            let lab = d3.lab(colormap[i]);
+            sampled_colormap.push([lab.l, lab.a, lab.b]);
+        }
+
+        for (let i = 0; i < sampled_colormap.length; i++) {
+            for (let j = i + 1; j < sampled_colormap.length; j++) {
+                let deltaE = ciede2000(sampled_colormap[i], sampled_colormap[j])
+                if (deltaE < 3) {
+                    // console.log("discriminable", i, j, deltaE)
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    function generate(targetH, targetC, targetL, controlPoints_c, controlPoints_l) {
+        if (targetC < 0 || targetL < 0) return []
+        const cControls = parseControlPoints(controlPoints_c);
+        const lControls = parseControlPoints(controlPoints_l);
+        // console.log(targetH, targetC, targetL, cControls, lControls);
+        let hue_start = 0; //Math.random() * 360
+
+        const sampleN = 256;
+        const step = 5;
+        const candidates = [];
+
+        for (let hStart = 0; hStart <= 360; hStart += step) {
+            for (let cBase = 20; cBase <= 130 - targetC; cBase += step) {
+                for (let lBase = 20; lBase <= 100 - targetL; lBase += step) {
+                    const hEnd = (hue_start + hStart - targetH + 360) % 360;
+                    const colormap = [];
+                    const hValues = [], cValues = [], lValues = [];
+
+                    for (let i = 0; i < sampleN; i++) {
+                        const t = i / (sampleN - 1);
+                        const h1 = (hue_start + hStart) % 360;
+                        const h2 = hEnd;
+                        let hue
+                        if (h2 < h1)
+                            hue = (h1 + (h2 - h1) * t) % 360
+                        else
+                            hue = (h1 + (h2 - h1 - 360) * t + 360) % 360
+                        const h = hue
+
+                        const cInterp = interpolateMultiSegment(t, cControls);
+                        const cMin = d3.min(cControls), cMax = d3.max(cControls);
+                        let cNorm = (cInterp - cMin) / Math.max(1e-5, cMax - cMin);
+                        let c = cBase + targetC * cNorm;
+                        if (controlPoints_c[0] == controlPoints_c[1]) {
+                            c = 20 - cBase + controlPoints_c[0]
+                        }
+
+                        const lInterp = interpolateMultiSegment(t, lControls);
+                        const lMin = d3.min(lControls), lMax = d3.max(lControls);
+                        let lNorm = (lInterp - lMin) / Math.max(1e-5, lMax - lMin);
+                        let l = lBase + targetL * lNorm;
+                        if (controlPoints_l[0] == controlPoints_l[1]) {
+                            l = 20 - lBase + controlPoints_l[0]
+                        }
+
+                        const rgb = d3.hcl(h, c, l).rgb();
+                        if (!rgb.displayable()) break;
+                        colormap.push(d3.rgb(rgb.r, rgb.g, rgb.b));
+                        hValues.push(h);
+                        cValues.push(c);
+                        lValues.push(l);
+                    }
+
+                    if (colormap.length === sampleN && satisfyDiscriminability(colormap)) {
+                        candidates.push({ colormap, hValues, cValues, lValues });
+                        // if (candidates.length >= 10) break;
+                    }
+                }
+            }
+        }
+
+        // 排序候选 colormap 按 chroma 和 luminance 误差最小优先
+        candidates.sort((a, b) => {
+            const errA = Math.abs(d3.max(a.cValues) - d3.max(controlPoints_c) + d3.min(controlPoints_c) - d3.min(a.cValues)) +
+                Math.abs(d3.max(a.lValues) - d3.max(controlPoints_l) + d3.min(controlPoints_l) - d3.min(a.lValues));
+            const errB = Math.abs(d3.max(b.cValues) - d3.max(controlPoints_c) + d3.min(controlPoints_c) - d3.min(b.cValues)) +
+                Math.abs(d3.max(b.lValues) - d3.max(controlPoints_l) + d3.min(controlPoints_l) - d3.min(b.lValues));
+            return errA - errB;
+        });
+
+        // 添加误差提示信息
+        candidates.forEach((cand, i) => {
+            const cRange = d3.max(cand.cValues) - d3.min(cand.cValues);
+            const lRange = d3.max(cand.lValues) - d3.min(cand.lValues);
+            const cErr = (cRange - targetC).toFixed(2);
+            const lErr = (lRange - targetL).toFixed(2);
+            cand.label = `Colormap ${i + 1} | ΔC err: ${cErr}, ΔL err: ${lErr}`;
+        });
+
+        return candidates;
+    }
+
+    function interpolateMultiSegment(t, points) {
+        const seg = points.length - 1;
+        const segT = t * seg;
+        const idx = Math.floor(segT);
+        const frac = segT - idx;
+        const p0 = points[idx] ?? points[points.length - 1];
+        const p1 = points[idx + 1] ?? points[points.length - 1];
+        return (p0 + frac * (p1 - p0)); // strictly normalized to [0,1]
+    }
+
+    function generateAll() {
+        const hue_targets = [100, 200, 300]
+
+        const chromas = [20, 120], lumis = [20, 90];
+        const chroma_array = [
+            [(chromas[0] + chromas[1]) / 2, (chromas[0] + chromas[1]) / 2],
+            [chromas[0], (chromas[0] + chromas[1]) / 2],
+            [chromas[0], chromas[1]],
+            [chromas[0], chromas[1], chromas[0]],
+            [chromas[0], chromas[1], chromas[0], chromas[1], chromas[0]]
+        ];
+        const lumi_array = [
+            [(lumis[0] + lumis[1]) / 2, (lumis[0] + lumis[1]) / 2],
+            [lumis[0], (lumis[0] + lumis[1]) / 2],
+            [lumis[0], lumis[1]],
+            [lumis[0], lumis[1], lumis[0]],
+            [lumis[0], lumis[1], lumis[0], lumis[1], lumis[0]]
+        ];
+
+        const perturbOffsets = [];
+        for (let i = 0; i <= 70; i += 5) {
+            for (let j = 0; j <= 50; j += 5) {
+                perturbOffsets.push([i, j]);
+            }
+        }
+        perturbOffsets.sort((a, b) =>
+            Math.hypot(...a) - Math.hypot(...b)
+        );
+        console.log("perturbOffsets", perturbOffsets);
+        let colormap_count = 0
+        for (let hue of hue_targets) {
+            for (let lumi of lumi_array) {
+                let luminance_target = lumi[1] - lumi[0];
+                for (let chroma of chroma_array) {
+                    let chroma_target = chroma[1] - chroma[0];
+                    let used_chroma = chroma_target, used_lumi = luminance_target;
+                    let colormap
+                    for (let i = 0; i < perturbOffsets.length; i++) {
+                        used_chroma = Math.max(0, chroma_target - perturbOffsets[i][0]);
+                        used_lumi = Math.max(0, luminance_target - perturbOffsets[i][1]);
+                        colormap = generate(hue, used_chroma, used_lumi, chroma, lumi);
+                        if (colormap.length > 0) {
+                            break;
+                        }
+                    }
+                    const condition = `H diff=${hue}, C=[${chroma}], L=[${lumi}]` + ", chroma diff=" + used_chroma + `(${chroma_target})` + ", lumi diff=" + used_lumi + `(${luminance_target})`;
+                    console.log(condition, colormap.length);
+                    for (let i = 0; i < 1; i++) {
+                        if (colormap.length == 0) {
+                            console.log("no colormap found");
+                            break;
+                        }
+                        // console.log(i, d3.extent(colormap[i]['hValues']), d3.extent(colormap[i]['cValues']), d3.extent(colormap[i]['lValues']));
+                        let str = 'actual hue diff = ' + getHueDiff(colormap[i]['hValues'][0], colormap[i]['hValues'][colormap[i]['hValues'].length - 1]) +
+                            ', actual chroma diff = ' + (d3.extent(colormap[i]['cValues'])[1] - d3.extent(colormap[i]['cValues'])[0]) +
+                            ', actual luminance diff = ' + (d3.extent(colormap[i]['lValues'])[1] - d3.extent(colormap[i]['lValues'])[0]);
+                        drawGivenColormap2(colormap[i], (colormap_count++) + ", " + condition + ", " + str);
+                    }
+                }
+            }
+        }
+    }
+    function getHueDiff(h1, h2) {
+        return (h1 - h2 + 360) % 360
+    }
+    function drawGivenCurve2(data, div, name, x = 0, y = 1) {
+
+        var svg_width = 400, svg_height = 200, margin = 30
+        let linechart_svg = div.append("svg").attr("id", "renderSvg").attr("typeId", "line")
+            .attr("width", svg_width).attr("height", svg_height).style("display", "inline-block");
+
+        let linechart = linechart_svg.style("background-color", "#FFF")
+            .append("g")
+            .attr("transform", "translate(" + margin + "," + margin + ")");
+
+        let m_xScale = d3.scaleLinear().range([0, svg_width - margin * 2]), // value -> display
+            m_yScale = d3.scaleLinear().range([svg_height - margin * 2, 0]); // value -> display
+        // Scale the range of the data
+        m_xScale.domain([0, data[0].length - 1]);
+        if (name == "luminance") {
+            m_yScale.domain([0, 100]);
+        } else if (name == "chroma") {
+            m_yScale.domain([0, 120]);
+        } else {
+            m_yScale.domain([0, 360]);
+            // m_yScale.domain(d3.extent(data, function (d) {
+            //     return d[y];
+            // }));
+        }
+        // define the line
+        let valueline = d3.line()
+            .x(function (d, i) {
+                return m_xScale(i);
+            })
+            .y(function (d) {
+                return m_yScale(d);
+            })//.curve(d3.curveCatmullRom);
+
+        // Add the valueline path.
+        linechart.selectAll('path')
+            .data(data).enter().append("path")
+            .attr("d", function (d) {
+                return valueline(d);
+            })
+            .attr("class", "linechart")
+            .attr("fill", "none")
+            // .attr("stroke", "#444")
+            .attr("stroke", function (d, i) {
+                return i == 0 ? "blue" : "red"
+            })
+            .style("stroke-width", 1)
+
+        // Add the X Axis
+        linechart.append("g")
+            .attr("transform", "translate(0," + (svg_height - margin * 2) + ")")
+            .call(d3.axisBottom(m_xScale)); //.tickFormat("")
+
+        // Add the Y Axis
+        linechart.append("g")
+            .call(d3.axisLeft(m_yScale)); //.tickFormat("")
+
+        linechart_svg.append("text").attr("x", 0).attr("y", 20).text(name)
+            .attr("font-size", "12px").attr("fill", "#000")
+            .attr("text-anchor", "start").attr("font-weight", "bold")
+            .attr("transform", "translate(" + (margin) + "," + (margin - 10) + ")");
+    }
+
+    function drawGivenColormap2(candidates, condition_name) {
+        const colormap = candidates['colormap'];
+        let div = d3.select("body").append("div").attr("class", "colormapDiv")
+            .style("border", "1px solid black").style("margin-top", "10px")
+            .style("padding", "5px")
+        div.append("h3").text(condition_name)
+        let tmp = []
+        for (let i = 0; i < colormap.length; i++) {
+            let tuple = colormap[i]
+            tmp.push([tuple.r, tuple.g, tuple.b].map(d => Math.round(d)))
+        }
+        // div.append("p").text(JSON.stringify(tmp))
+
+        drawGivenCurve2([candidates['hValues']], div, "Hue")
+        drawGivenCurve2([candidates['cValues']], div, "chroma")
+        drawGivenCurve2([candidates['lValues']], div, "luminance")
+
+        let width = colormap.length, height = 45
+        //get context 
+        div.append("canvas").attr("id", condition_name)
+            .attr("width", width).attr("height", height).style("margin-left", "20px")
+        let canvas = document.getElementById(condition_name)
+        let context = canvas.getContext('2d');
+
+        //traverse the image data
+        for (var i = 0; i < canvas.width; i++) {
+            let tuple = colormap[i]
+            for (var j = 0; j < canvas.height; j++) {
+                context.fillStyle = 'rgba(' + tuple.r +
+                    ',' + tuple.g +
+                    ',' + tuple.b +
+                    ',' + 1 + ')';
+                context.fillRect(i, j, 1, 1);
+            }
+        }
+
+    }
+    generateAll()
+</script>
+
+</html>
