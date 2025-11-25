@@ -1831,7 +1831,7 @@ function discriminatory_cie(colormap) {
             // Use our existing ciede2000 function
             // d3 v7 uses uppercase L, lowercase a, b
             const deltaE = ciede2000([lab1.l || lab1.L, lab1.a, lab1.b], [lab2.l || lab2.L, lab2.a, lab2.b]);
-            const v_ij = deltaE / Math.abs((j - i) / (colors.length - 1));
+            const v_ij = deltaE ;
             totalSpeed += v_ij;
             pairCount++;
         }
@@ -1955,10 +1955,8 @@ function discriminatory_hue(colormap) {
             if (hueDiff > 180) {
                 hueDiff = 360 - hueDiff;
             }
-            
-            const normalizedHueDiff = hueDiff;
-            const normFactor = Math.abs((j - i) / (colors.length - 1));
-            const v_ij = normalizedHueDiff / normFactor;
+        
+            const v_ij =  hueDiff;
             
             if (isNaN(v_ij)) {
                 console.warn(`Hue v_ij is NaN for pair [${i}, ${j}]`);
