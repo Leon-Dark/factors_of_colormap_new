@@ -12,6 +12,13 @@
 </head>
 
 <body>
+    <div style="padding: 20px; background: #f5f5f5; border-bottom: 2px solid #4CAF50;">
+        <h1 style="margin: 0 0 10px 0; color: #333;">Colormap Generator with Quality Metrics</h1>
+        <button onclick="generateAll()" style="padding: 10px 20px; font-size: 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            🎨 Generate All Colormaps
+        </button>
+        <p style="color: #666; margin: 10px 0 0 0; font-size: 14px;">Click the button to generate colormaps with quality metrics. Open Console (F12) to see detailed logs.</p>
+    </div>
 </body>
 
 <!-- <script type="text/javascript" src="/static/js/metrics.js"></script> -->
@@ -704,9 +711,10 @@
     function drawGivenColormap2(candidates, condition_name) {
         const colormap = candidates['colormap'];
         let div = d3.select("body").append("div").attr("class", "colormapDiv")
-            .style("border", "1px solid black").style("margin-top", "10px")
-            .style("padding", "5px")
-        div.append("h3").text(condition_name)
+            .style("border", "1px solid #ccc").style("margin-top", "10px")
+            .style("padding", "10px").style("background", "#fafafa")
+            .style("border-radius", "4px").style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+        div.append("h3").text(condition_name).style("margin-top", "0").style("color", "#333")
         let tmp = []
         for (let i = 0; i < colormap.length; i++) {
             let tuple = colormap[i]
@@ -737,8 +745,501 @@
             }
         }
 
+        // Calculate and display metrics
+        const metrics = calculateAndDisplayMetrics(colormap, condition_name);
+        if (metrics) {
+            displayMetricsInDiv(div, metrics);
+        }
     }
-    generateAll()
+
+    // ... (rest of the code remains the same)
+
+    // ========== Static Metrics Calculation Functions ==========
+
+    // 辅助函数：将 RGB colormap 转换为标准格式
+    function convertColormapToStandardFormat(colormap) {
+        if (!colormap || colormap.length === 0) {
+            console.error("Invalid colormap:", colormap);
+            return null;
+        }
+
+        const standardizedColors = [];
+        for (let i = 0; i < colormap.length; i++) {
+            const color = colormap[i];
+            let r, g, b;
+
+            if (typeof color.r === 'number' && typeof color.g === 'number' && typeof color.b === 'number') {
+                r = Math.round(color.r);
+                g = Math.round(color.g);
+                b = Math.round(color.b);
+            } else if (Array.isArray(color) && color.length >= 3) {
+                r = Math.round(color[0]);
+                g = Math.round(color[1]);
+                b = Math.round(color[2]);
+            } else {
+                console.warn(`Invalid color at index ${i}:`, color);
+                continue;
+            }
+
+            standardizedColors.push({
+                value: i / (colormap.length - 1),
+                rgb: [r, g, b]
+            });
+        }
+
+        if (standardizedColors.length === 0) {
+            console.error("No valid colors found in colormap");
+            return null;
+        }
+
+        return standardizedColors;
+    }
+
+    // 简化的 ΔE 计算 (用于对比敏感度)
+    function computeDeltaE(L1, a1, b1, L2, a2, b2, wa = 0.1, wb = 0.1) {
+        if (isNaN(L1) || isNaN(a1) || isNaN(b1) || isNaN(L2) || isNaN(a2) || isNaN(b2)) {
+            console.error("computeDeltaE received invalid parameters:", { L1, a1, b1, L2, a2, b2 });
+            return 0;
+        }
+
+        let deltaL = L1 - L2;
+        let deltaA = a1 - a2;
+        let deltaB = b1 - b2;
+
+        if (isNaN(deltaL) || isNaN(deltaA) || isNaN(deltaB)) {
+            console.error("computeDeltaE calculation error:", { deltaL, deltaA, deltaB });
+            return 0;
+        }
+
+        const result = Math.sqrt(
+            Math.pow(deltaL, 2) +
+            wa * Math.pow(deltaA, 2) +
+            wb * Math.pow(deltaB, 2)
+        );
+
+        if (isNaN(result)) {
+            console.error("computeDeltaE final result is NaN");
+            return 0;
+        }
+
+        return result;
+    }
+
+    // 1. CIEDE2000 Discriminative Power
+    function discriminatory_cie(colormap) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            console.error("Invalid colors array:", colors);
+            return 0;
+        }
+
+        let totalSpeed = 0;
+        let pairCount = 0;
+
+        for (let i = 0; i < colors.length; i++) {
+            for (let j = i + 1; j < colors.length; j++) {
+                const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
+                const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+                const lab1 = d3.lab(rgbColor1);
+                const lab2 = d3.lab(rgbColor2);
+
+                const deltaE = ciede2000([lab1.l || lab1.L, lab1.a, lab1.b], [lab2.l || lab2.L, lab2.a, lab2.b]);
+                const v_ij = deltaE;
+                totalSpeed += v_ij;
+                pairCount++;
+            }
+        }
+
+        const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
+        return globalDiscriminativePower;
+    }
+
+    // 2. Contrast Sensitivity
+    function discriminatory_contrast_sensitivity(colormap) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            console.error("Invalid colors array:", colors);
+            return 0;
+        }
+
+        let totalSpeed = 0;
+        let pairCount = 0;
+
+        try {
+            for (let i = 0; i < colors.length; i++) {
+                for (let j = i + 1; j < colors.length; j++) {
+                    try {
+                        const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
+                        const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+
+                        if (!rgbColor1 || !rgbColor2) {
+                            continue;
+                        }
+
+                        const lab1 = d3.lab(rgbColor1);
+                        const lab2 = d3.lab(rgbColor2);
+
+                        const l1 = Number(lab1.l !== undefined ? lab1.l : lab1.L);
+                        const a1 = Number(lab1.a);
+                        const b1 = Number(lab1.b);
+                        const l2 = Number(lab2.l !== undefined ? lab2.l : lab2.L);
+                        const a2 = Number(lab2.a);
+                        const b2 = Number(lab2.b);
+
+                        const deltaE = computeDeltaE(l1, a1, b1, l2, a2, b2);
+
+                        if (isNaN(deltaE) || deltaE === 0) {
+                            continue;
+                        }
+
+                        const normalizationFactor = Math.abs((j - i) / (colors.length - 1));
+
+                        if (normalizationFactor === 0) {
+                            continue;
+                        }
+
+                        const v_ij = deltaE / normalizationFactor;
+
+                        if (isNaN(v_ij)) {
+                            continue;
+                        }
+
+                        const contribution = 3.4 * Math.pow(v_ij, 0.879);
+
+                        totalSpeed += contribution;
+                        pairCount++;
+
+                    } catch (error) {
+                        console.error(`Error processing color pair [${i}, ${j}]:`, error);
+                    }
+                }
+            }
+
+            const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
+            return globalDiscriminativePower;
+        } catch (error) {
+            console.error("discriminatory_contrast_sensitivity error:", error);
+            return 0;
+        }
+    }
+
+    // 3. Hue Discriminative Power
+    function discriminatory_hue(colormap) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            console.error("Invalid colors array:", colors);
+            return 0;
+        }
+
+        let totalSpeed = 0;
+        let pairCount = 0;
+
+        for (let i = 0; i < colors.length; i++) {
+            for (let j = i + 1; j < colors.length; j++) {
+                const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
+                const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+
+                const hcl1 = d3.hcl(rgbColor1);
+                const hcl2 = d3.hcl(rgbColor2);
+
+                const h1 = isNaN(hcl1.h) ? 0 : hcl1.h;
+                const h2 = isNaN(hcl2.h) ? 0 : hcl2.h;
+
+                let hueDiff = Math.abs(h1 - h2);
+                if (hueDiff > 180) {
+                    hueDiff = 360 - hueDiff;
+                }
+
+                const v_ij = hueDiff;
+
+                if (isNaN(v_ij)) {
+                    console.warn(`Hue v_ij is NaN for pair [${i}, ${j}]`);
+                }
+
+                totalSpeed += v_ij;
+                pairCount++;
+            }
+        }
+
+        const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
+        return globalDiscriminativePower;
+    }
+
+    // 4. Luminance Variation
+    function luminance_variation(colormap) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            console.error("Invalid colors array:", colors);
+            return 0;
+        }
+
+        const luminanceValues = [];
+        for (let i = 0; i < colors.length; i++) {
+            try {
+                const r = parseInt(colors[i].rgb[0]);
+                const g = parseInt(colors[i].rgb[1]);
+                const b = parseInt(colors[i].rgb[2]);
+
+                if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                    console.error(`Invalid rgb values for color ${i}:`, colors[i].rgb);
+                    continue;
+                }
+
+                const rgbColor = d3.rgb(r, g, b);
+                const hcl = d3.hcl(rgbColor);
+
+                const lValue = hcl.l !== undefined ? hcl.l : hcl.L;
+                if (hcl && typeof lValue === 'number' && !isNaN(lValue)) {
+                    luminanceValues.push(lValue);
+                } else {
+                    console.error(`Invalid luminance for color ${i}:`, hcl);
+                }
+            } catch (error) {
+                console.error(`Error processing color ${i}:`, error);
+            }
+        }
+
+        if (luminanceValues.length === 0) {
+            console.error("No valid luminance values calculated");
+            return null;
+        }
+
+        let totalVariation = 0;
+        for (let i = 1; i < luminanceValues.length; i++) {
+            totalVariation += Math.abs(luminanceValues[i] - luminanceValues[i - 1]);
+        }
+
+        return totalVariation;
+    }
+
+    // 5. Chromatic Variation
+    function chromatic_variation(colormap) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            console.error("Invalid colors array:", colors);
+            return 0;
+        }
+
+        const saturationValues = [];
+        for (let i = 0; i < colors.length; i++) {
+            try {
+                const r = parseInt(colors[i].rgb[0]);
+                const g = parseInt(colors[i].rgb[1]);
+                const b = parseInt(colors[i].rgb[2]);
+
+                if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                    console.error(`Invalid rgb values for color ${i}:`, colors[i].rgb);
+                    continue;
+                }
+
+                const rgbColor = d3.rgb(r, g, b);
+                const hcl = d3.hcl(rgbColor);
+
+                const cValue = hcl.c !== undefined ? hcl.c : hcl.C;
+                if (hcl && typeof cValue === 'number' && !isNaN(cValue)) {
+                    saturationValues.push(cValue);
+                } else {
+                    console.error(`Invalid saturation for color ${i}:`, hcl);
+                }
+            } catch (error) {
+                console.error(`Error processing color ${i}:`, error);
+            }
+        }
+
+        if (saturationValues.length === 0) {
+            console.error("No valid saturation values calculated");
+            return null;
+        }
+
+        let totalVariation = 0;
+        for (let i = 1; i < saturationValues.length; i++) {
+            totalVariation += Math.abs(saturationValues[i] - saturationValues[i - 1]);
+        }
+
+        return totalVariation;
+    }
+
+    // 6. LAB Length
+    function calculate_lab_length(colormap, sampleCount = 9) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            console.error("Invalid colors array:", colors);
+            return 0;
+        }
+
+        const samples = [];
+        const step = (colors.length - 1) / (sampleCount - 1);
+
+        for (let i = 0; i < sampleCount; i++) {
+            const index = Math.min(Math.floor(i * step), colors.length - 1);
+            try {
+                const r = parseInt(colors[index].rgb[0]);
+                const g = parseInt(colors[index].rgb[1]);
+                const b = parseInt(colors[index].rgb[2]);
+
+                if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                    console.error(`Invalid rgb values for sampled color ${i}:`, colors[index].rgb);
+                    continue;
+                }
+
+                const rgbColor = d3.rgb(r, g, b);
+                const lab = d3.lab(rgbColor);
+
+                const lValue = lab.l !== undefined ? lab.l : lab.L;
+                if (!isNaN(lValue) && !isNaN(lab.a) && !isNaN(lab.b)) {
+                    samples.push(lab);
+                }
+            } catch (error) {
+                console.error(`Error sampling color ${i}:`, error);
+            }
+        }
+
+        if (samples.length < 2) {
+            console.error("Not enough valid samples for LAB length calculation");
+            return 0;
+        }
+
+        let totalLabLength = 0;
+
+        for (let i = 0; i < samples.length - 1; i++) {
+            const lab1 = samples[i];
+            const lab2 = samples[i + 1];
+
+            const l1 = lab1.l !== undefined ? lab1.l : lab1.L;
+            const l2 = lab2.l !== undefined ? lab2.l : lab2.L;
+
+            const distance = Math.sqrt(
+                Math.pow(l2 - l1, 2) +
+                Math.pow(lab2.a - lab1.a, 2) +
+                Math.pow(lab2.b - lab1.b, 2)
+            );
+
+            if (isNaN(distance)) {
+                console.warn(`LAB distance is NaN for samples ${i}-${i + 1}`);
+            }
+
+            totalLabLength += distance;
+        }
+
+        return totalLabLength;
+    }
+
+    // 计算所有 metrics 并显示
+    function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
+        console.log(`\n========== ${title} ==========`);
+
+        try {
+            const metrics = {};
+
+            metrics.discriminatory_cie = discriminatory_cie(colormap) || 0;
+            console.log('CIEDE2000 Discriminative Power:', metrics.discriminatory_cie.toFixed(3));
+
+            metrics.discriminatory_contrast = discriminatory_contrast_sensitivity(colormap) || 0;
+            console.log('Contrast Sensitivity:', metrics.discriminatory_contrast.toFixed(3));
+
+            metrics.discriminatory_hue = discriminatory_hue(colormap) || 0;
+            console.log('Hue Discriminative Power:', metrics.discriminatory_hue.toFixed(3));
+
+            metrics.luminance_var = luminance_variation(colormap) || 0;
+            console.log('Luminance Variation:', metrics.luminance_var.toFixed(3));
+
+            metrics.chromatic_var = chromatic_variation(colormap) || 0;
+            console.log('Chromatic Variation:', metrics.chromatic_var.toFixed(3));
+
+            metrics.lab_length = calculate_lab_length(colormap) || 0;
+            console.log('LAB Length:', metrics.lab_length.toFixed(3));
+
+            console.log('==========================================\n');
+
+            return metrics;
+        } catch (error) {
+            console.error('Error calculating metrics:', error);
+            console.error('Error stack:', error.stack);
+            return null;
+        }
+    }
+
+    // 在 div 中显示 metrics（表格布局）
+    function displayMetricsInDiv(div, metrics) {
+        const metricsDiv = div.append("div")
+            .style("margin-top", "15px")
+            .style("margin-left", "20px")
+            .style("padding", "12px")
+            .style("background", "white")
+            .style("border", "1px solid #ddd")
+            .style("border-radius", "4px")
+            .style("box-shadow", "0 1px 3px rgba(0,0,0,0.1)")
+            .style("max-width", "1200px");
+
+        metricsDiv.append("h4")
+            .text("📊 Quality Metrics")
+            .style("margin", "0 0 10px 0")
+            .style("color", "#333")
+            .style("font-size", "14px")
+            .style("border-bottom", "2px solid #4CAF50")
+            .style("padding-bottom", "5px");
+
+        // 创建一个表格布局
+        const table = metricsDiv.append("table")
+            .style("width", "100%")
+            .style("border-collapse", "collapse")
+            .style("font-size", "12px");
+
+        const metricsData = [
+            { name: "CIEDE2000 Discriminative Power", value: metrics.discriminatory_cie, color: "#2196F3", abbr: "CIEDE" },
+            { name: "Contrast Sensitivity", value: metrics.discriminatory_contrast, color: "#FF9800", abbr: "Contrast" },
+            { name: "Hue Discriminative Power", value: metrics.discriminatory_hue, color: "#9C27B0", abbr: "Hue" },
+            { name: "Luminance Variation", value: metrics.luminance_var, color: "#4CAF50", abbr: "Lumi Var" },
+            { name: "Chromatic Variation", value: metrics.chromatic_var, color: "#F44336", abbr: "Chroma Var" },
+            { name: "LAB Length", value: metrics.lab_length, color: "#607D8B", abbr: "LAB Len" }
+        ];
+
+        // 两列布局：每行显示两个指标
+        for (let i = 0; i < metricsData.length; i += 2) {
+            const row = table.append("tr")
+                .style("border-bottom", i < metricsData.length - 2 ? "1px solid #eee" : "none");
+
+            // 第一个指标
+            const metric1 = metricsData[i];
+            row.append("td")
+                .style("padding", "8px 10px")
+                .style("font-weight", "500")
+                .style("color", "#555")
+                .style("width", "35%")
+                .html(`<span style="color: ${metric1.color}; font-size: 16px;">●</span> ${metric1.name}`);
+            
+            row.append("td")
+                .style("padding", "8px 10px")
+                .style("text-align", "right")
+                .style("font-weight", "bold")
+                .style("color", metric1.color)
+                .style("width", "15%")
+                .text(metric1.value.toFixed(3));
+
+            // 第二个指标（如果存在）
+            if (i + 1 < metricsData.length) {
+                const metric2 = metricsData[i + 1];
+                row.append("td")
+                    .style("padding", "8px 10px")
+                    .style("font-weight", "500")
+                    .style("color", "#555")
+                    .style("width", "35%")
+                    .style("padding-left", "20px")
+                    .html(`<span style="color: ${metric2.color}; font-size: 16px;">●</span> ${metric2.name}`);
+                
+                row.append("td")
+                    .style("padding", "8px 10px")
+                    .style("text-align", "right")
+                    .style("font-weight", "bold")
+                    .style("color", metric2.color)
+                    .style("width", "15%")
+                    .text(metric2.value.toFixed(3));
+            } else {
+                // 如果是奇数个指标，填充空列
+                row.append("td").attr("colspan", "2");
+            }
+        }
+    }
 </script>
 
 </html>
