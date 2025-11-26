@@ -2322,7 +2322,7 @@ function selectClusterCentroid(cluster) {
 }
 
 /**
- * Calculate Color Categorization Tendency
+ * Calculate Color Categorization Tendency (Optimized)
  * = K (number of clusters) × mean ΔE between cluster centroids
  */
 function calculate_color_categorization_tendency(colormap, sampleCount = 100, dissimilarityThreshold = 0.6) {
@@ -2338,6 +2338,8 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
         return { value: 0, clusterCount: 0, meanDeltaE: 0 };
     }
 
+    const startTime = performance.now();
+
     // Sample colors uniformly
     const samples = [];
     const step = Math.max(1, Math.floor(colors.length / sampleCount));
@@ -2351,13 +2353,12 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
             const b = parseInt(colors[i].rgb[2]);
 
             if (isNaN(r) || isNaN(g) || isNaN(b)) {
-                console.error(`Invalid rgb values for color ${i}:`, colors[i].rgb);
                 continue;
             }
 
             samples.push(d3.rgb(r, g, b));
         } catch (error) {
-            console.error(`Error sampling color ${i}:`, error);
+            // Skip errors
         }
     }
 
@@ -2366,29 +2367,46 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
         return { value: 0, clusterCount: 0, meanDeltaE: 0 };
     }
 
-    console.log(`Performing agglomerative clustering on ${samples.length} colors...`);
+    console.log(`⏱️ Computing name distance matrix for ${samples.length} colors...`);
 
-    // Perform agglomerative clustering
-    const clusters = agglomerativeClusteringByName(samples, dissimilarityThreshold);
+    // OPTIMIZATION: Pre-compute distance matrix (only once)
+    const distMatrix = new Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+        distMatrix[i] = new Array(samples.length);
+        for (let j = 0; j < samples.length; j++) {
+            if (i === j) {
+                distMatrix[i][j] = 0;
+            } else if (j > i) {
+                distMatrix[i][j] = getNameDifference(samples[i], samples[j]);
+            } else {
+                distMatrix[i][j] = distMatrix[j][i]; // Symmetric
+            }
+        }
+    }
+
+    const matrixTime = performance.now();
+    console.log(`✓ Distance matrix computed in ${(matrixTime - startTime).toFixed(0)}ms`);
+
+    // Perform optimized agglomerative clustering
+    const clusters = agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold);
     const K = clusters.length;
     
-    console.log(`Found ${K} color categories`);
+    const clusterTime = performance.now();
+    console.log(`✓ Clustering completed in ${(clusterTime - matrixTime).toFixed(0)}ms, found ${K} categories`);
 
     if (K < 2) {
-        // Only one cluster, no discriminability
         return { value: 0, clusterCount: K, meanDeltaE: 0 };
     }
 
     // Select centroid for each cluster
     const centroids = [];
     for (let cluster of clusters) {
-        const centroid = selectClusterCentroid(cluster);
+        const clusterColors = cluster.indices.map(idx => samples[idx]);
+        const centroid = selectClusterCentroid({ colors: clusterColors });
         if (centroid) {
             centroids.push(centroid);
         }
     }
-
-    console.log(`Selected ${centroids.length} cluster centroids`);
 
     if (centroids.length < 2) {
         return { value: 0, clusterCount: K, meanDeltaE: 0 };
@@ -2403,7 +2421,6 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
             const lab1 = d3.lab(centroids[i]);
             const lab2 = d3.lab(centroids[j]);
             
-            // Use CIEDE2000 for accurate color difference
             const l1 = lab1.l !== undefined ? lab1.l : lab1.L;
             const l2 = lab2.l !== undefined ? lab2.l : lab2.L;
             
@@ -2419,13 +2436,84 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
     const meanDeltaE = pairCount > 0 ? totalDeltaE / pairCount : 0;
     const categorizationTendency = K * meanDeltaE;
 
-    console.log(`Categorization Tendency: K=${K}, mean ΔE=${meanDeltaE.toFixed(2)}, tendency=${categorizationTendency.toFixed(2)}`);
+    const totalTime = performance.now();
+    console.log(`✓ Total calculation time: ${(totalTime - startTime).toFixed(0)}ms`);
+    console.log(`📊 Result: K=${K}, mean ΔE=${meanDeltaE.toFixed(2)}, tendency=${categorizationTendency.toFixed(2)}`);
 
     return {
         value: categorizationTendency,
         clusterCount: K,
         meanDeltaE: meanDeltaE
     };
+}
+
+/**
+ * Optimized agglomerative clustering using pre-computed distance matrix
+ */
+function agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold = 0.6) {
+    if (!samples || samples.length === 0) {
+        return [];
+    }
+
+    // Initialize: each sample is its own cluster (store indices instead of colors)
+    let clusters = samples.map((_, i) => ({
+        id: i,
+        indices: [i]
+    }));
+
+    let merged = true;
+    let iterCount = 0;
+    
+    while (merged && clusters.length > 1) {
+        merged = false;
+        iterCount++;
+        
+        let minDissimilarity = Infinity;
+        let mergeIndex = -1;
+        
+        // Find the best adjacent pair to merge
+        for (let i = 0; i < clusters.length - 1; i++) {
+            const c1 = clusters[i];
+            const c2 = clusters[i + 1];
+            
+            // Calculate average dissimilarity using pre-computed matrix
+            let totalDissim = 0;
+            let pairCount = 0;
+            
+            for (let idx1 of c1.indices) {
+                for (let idx2 of c2.indices) {
+                    const dissim = distMatrix[idx1][idx2];
+                    if (!isNaN(dissim) && isFinite(dissim)) {
+                        totalDissim += dissim;
+                        pairCount++;
+                    }
+                }
+            }
+            
+            const avgDissim = pairCount > 0 ? totalDissim / pairCount : Infinity;
+            
+            if (avgDissim < minDissimilarity) {
+                minDissimilarity = avgDissim;
+                mergeIndex = i;
+            }
+        }
+        
+        // Merge if below threshold
+        if (mergeIndex >= 0 && minDissimilarity < dissimilarityThreshold) {
+            const c1 = clusters[mergeIndex];
+            const c2 = clusters[mergeIndex + 1];
+            
+            const mergedCluster = {
+                id: c1.id,
+                indices: [...c1.indices, ...c2.indices]
+            };
+            
+            clusters.splice(mergeIndex, 2, mergedCluster);
+            merged = true;
+        }
+    }
+    
+    return clusters;
 }
 
 // Create Static Metrics display box

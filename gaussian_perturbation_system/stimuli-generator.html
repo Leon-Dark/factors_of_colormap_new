@@ -1391,7 +1391,22 @@
             return 0;
         }
 
-        const clusters = agglomerativeClusteringByName(samples, dissimilarityThreshold);
+        // OPTIMIZATION: Pre-compute distance matrix
+        const distMatrix = new Array(samples.length);
+        for (let i = 0; i < samples.length; i++) {
+            distMatrix[i] = new Array(samples.length);
+            for (let j = 0; j < samples.length; j++) {
+                if (i === j) {
+                    distMatrix[i][j] = 0;
+                } else if (j > i) {
+                    distMatrix[i][j] = getNameDifference(samples[i], samples[j]);
+                } else {
+                    distMatrix[i][j] = distMatrix[j][i];
+                }
+            }
+        }
+
+        const clusters = agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold);
         const K = clusters.length;
 
         if (K < 2) {
@@ -1400,7 +1415,8 @@
 
         const centroids = [];
         for (let cluster of clusters) {
-            const centroid = selectClusterCentroid(cluster);
+            const clusterColors = cluster.indices.map(idx => samples[idx]);
+            const centroid = selectClusterCentroid({ colors: clusterColors });
             if (centroid) {
                 centroids.push(centroid);
             }
@@ -1432,6 +1448,67 @@
 
         const meanDeltaE = pairCount > 0 ? totalDeltaE / pairCount : 0;
         return K * meanDeltaE;
+    }
+
+    // Optimized clustering with pre-computed distance matrix
+    function agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold = 0.6) {
+        if (!samples || samples.length === 0) {
+            return [];
+        }
+
+        let clusters = samples.map((_, i) => ({
+            id: i,
+            indices: [i]
+        }));
+
+        let merged = true;
+        
+        while (merged && clusters.length > 1) {
+            merged = false;
+            
+            let minDissimilarity = Infinity;
+            let mergeIndex = -1;
+            
+            for (let i = 0; i < clusters.length - 1; i++) {
+                const c1 = clusters[i];
+                const c2 = clusters[i + 1];
+                
+                let totalDissim = 0;
+                let pairCount = 0;
+                
+                for (let idx1 of c1.indices) {
+                    for (let idx2 of c2.indices) {
+                        const dissim = distMatrix[idx1][idx2];
+                        if (!isNaN(dissim) && isFinite(dissim)) {
+                            totalDissim += dissim;
+                            pairCount++;
+                        }
+                    }
+                }
+                
+                const avgDissim = pairCount > 0 ? totalDissim / pairCount : Infinity;
+                
+                if (avgDissim < minDissimilarity) {
+                    minDissimilarity = avgDissim;
+                    mergeIndex = i;
+                }
+            }
+            
+            if (mergeIndex >= 0 && minDissimilarity < dissimilarityThreshold) {
+                const c1 = clusters[mergeIndex];
+                const c2 = clusters[mergeIndex + 1];
+                
+                const mergedCluster = {
+                    id: c1.id,
+                    indices: [...c1.indices, ...c2.indices]
+                };
+                
+                clusters.splice(mergeIndex, 2, mergedCluster);
+                merged = true;
+            }
+        }
+        
+        return clusters;
     }
 
     // 计算所有 metrics 并显示
