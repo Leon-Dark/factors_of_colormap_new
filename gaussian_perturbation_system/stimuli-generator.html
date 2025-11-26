@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html>
 
@@ -9,6 +9,7 @@
     <title>Colormap Generation</title>
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="../rainbows good or bad for/supplementary materials/experiment interface/lib/colorname/c3.js"></script>
 </head>
 
 <body>
@@ -582,6 +583,15 @@
     }
 
     function generateAll() {
+        // Create grid container for multi-column layout
+        d3.select("body").append("div")
+            .attr("id", "colormapsGrid")
+            .style("display", "grid")
+            .style("grid-template-columns", "repeat(auto-fill, minmax(400px, 1fr))")
+            .style("gap", "15px")
+            .style("padding", "20px")
+            .style("max-width", "100%");
+
         const hue_targets = [100, 200, 300]
 
         const chromas = [20, 120], lumis = [20, 90];
@@ -626,31 +636,26 @@
                             break;
                         }
                     }
-                    const condition = `H diff=${hue}, C=[${chroma}], L=[${lumi}]` + ", chroma diff=" + used_chroma + `(${chroma_target})` + ", lumi diff=" + used_lumi + `(${luminance_target})`;
-                    console.log(condition, colormap.length);
-                    for (let i = 0; i < 1; i++) {
-                        if (colormap.length == 0) {
-                            console.log("no colormap found");
-                            break;
-                        }
-                        // console.log(i, d3.extent(colormap[i]['hValues']), d3.extent(colormap[i]['cValues']), d3.extent(colormap[i]['lValues']));
-                        let str = 'actual hue diff = ' + getHueDiff(colormap[i]['hValues'][0], colormap[i]['hValues'][colormap[i]['hValues'].length - 1]) +
-                            ', actual chroma diff = ' + (d3.extent(colormap[i]['cValues'])[1] - d3.extent(colormap[i]['cValues'])[0]) +
-                            ', actual luminance diff = ' + (d3.extent(colormap[i]['lValues'])[1] - d3.extent(colormap[i]['lValues'])[0]);
-                        drawGivenColormap2(colormap[i], (colormap_count++) + ", " + condition + ", " + str);
+                    if (colormap.length > 0) {
+                        const condition = `H diff=${hue}, C=[${chroma}], L=[${lumi}]` + ", chroma diff=" + used_chroma + `(${chroma_target})` + ", lumi diff=" + used_lumi + `(${luminance_target})`;
+                        drawGivenColormap2(colormap[0], (colormap_count++) + ", " + condition);
                     }
                 }
             }
         }
     }
+
     function getHueDiff(h1, h2) {
         return (h1 - h2 + 360) % 360
     }
     function drawGivenCurve2(data, div, name, x = 0, y = 1) {
 
-        var svg_width = 400, svg_height = 200, margin = 30
+        var svg_width = 220, svg_height = 80, margin = 20
         let linechart_svg = div.append("svg").attr("id", "renderSvg").attr("typeId", "line")
-            .attr("width", svg_width).attr("height", svg_height).style("display", "inline-block");
+            .attr("width", svg_width).attr("height", svg_height)
+            .style("display", "block")
+            .style("flex", "1")
+            .style("min-width", "180px");
 
         let linechart = linechart_svg.style("background-color", "#FFF")
             .append("g")
@@ -696,46 +701,53 @@
         // Add the X Axis
         linechart.append("g")
             .attr("transform", "translate(0," + (svg_height - margin * 2) + ")")
-            .call(d3.axisBottom(m_xScale)); //.tickFormat("")
+            .call(d3.axisBottom(m_xScale))
+            .style("font-size", "8px"); //.tickFormat("")
 
         // Add the Y Axis
         linechart.append("g")
-            .call(d3.axisLeft(m_yScale)); //.tickFormat("")
+            .call(d3.axisLeft(m_yScale))
+            .style("font-size", "8px"); //.tickFormat("")
 
-        linechart_svg.append("text").attr("x", 0).attr("y", 20).text(name)
-            .attr("font-size", "12px").attr("fill", "#000")
+        linechart_svg.append("text").attr("x", 0).attr("y", 15).text(name)
+            .attr("font-size", "10px").attr("fill", "#000")
             .attr("text-anchor", "start").attr("font-weight", "bold")
-            .attr("transform", "translate(" + (margin) + "," + (margin - 10) + ")");
+            .attr("transform", "translate(" + (margin) + "," + (margin - 8) + ")");
     }
 
     function drawGivenColormap2(candidates, condition_name) {
         const colormap = candidates['colormap'];
-        let div = d3.select("body").append("div").attr("class", "colormapDiv")
+        let div = d3.select("#colormapsGrid").append("div").attr("class", "colormapDiv")
             .style("border", "1px solid #ccc").style("margin-top", "10px")
             .style("padding", "10px").style("background", "#fafafa")
             .style("border-radius", "4px").style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
-        div.append("h3").text(condition_name).style("margin-top", "0").style("color", "#333")
-        let tmp = []
-        for (let i = 0; i < colormap.length; i++) {
-            let tuple = colormap[i]
-            tmp.push([tuple.r, tuple.g, tuple.b].map(d => Math.round(d)))
-        }
-        // div.append("p").text(JSON.stringify(tmp))
+            .style("display", "grid")
+            .style("grid-template-columns", "1fr")
+            .style("gap", "10px")
+            .style("width", "100%")
+            .style("max-width", "400px");
 
-        drawGivenCurve2([candidates['hValues']], div, "Hue")
-        drawGivenCurve2([candidates['cValues']], div, "chroma")
-        drawGivenCurve2([candidates['lValues']], div, "luminance")
+        // Add title
+        div.append("div")
+            .style("font-size", "11px")
+            .style("color", "#666")
+            .style("margin-bottom", "5px")
+            .text(condition_name);
 
-        let width = colormap.length, height = 45
-        //get context 
-        div.append("canvas").attr("id", condition_name)
-            .attr("width", width).attr("height", height).style("margin-left", "20px")
-        let canvas = document.getElementById(condition_name)
+        // Canvas at top (below title)
+        let width = colormap.length, height = 40;
+        // Use a unique numeric ID to avoid issues with special characters
+        const canvasId = "canvas_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+        div.append("canvas").attr("id", canvasId)
+            .attr("width", width).attr("height", height)
+            .style("display", "block")
+            .style("margin", "0");
+        let canvas = document.getElementById(canvasId);
         let context = canvas.getContext('2d');
 
         //traverse the image data
         for (var i = 0; i < canvas.width; i++) {
-            let tuple = colormap[i]
+            let tuple = colormap[i];
             for (var j = 0; j < canvas.height; j++) {
                 context.fillStyle = 'rgba(' + tuple.r +
                     ',' + tuple.g +
@@ -744,6 +756,17 @@
                 context.fillRect(i, j, 1, 1);
             }
         }
+
+        // Charts container (horizontal flex layout)
+        let chartsDiv = div.append("div")
+            .style("display", "flex")
+            .style("gap", "10px")
+            .style("justify-content", "space-between")
+            .style("flex-wrap", "wrap");
+
+        drawGivenCurve2([candidates['hValues']], chartsDiv, "Hue");
+        drawGivenCurve2([candidates['cValues']], chartsDiv, "Chroma");
+        drawGivenCurve2([candidates['lValues']], chartsDiv, "Luminance");
 
         // Calculate and display metrics
         const metrics = calculateAndDisplayMetrics(colormap, condition_name);
@@ -1124,6 +1147,293 @@
         return totalLabLength;
     }
 
+    // ========== Color Naming Functions ==========
+
+    function getColorNameIndex(c) {
+        if (typeof c3 === 'undefined' || !c3.color) {
+            return 0;
+        }
+
+        var x = d3.lab(c);
+        var minDist = Number.MAX_VALUE;
+        var minIndex = 0;
+
+        var xL = x.l !== undefined ? x.l : x.L;
+        var xA = x.a;
+        var xB = x.b;
+
+        for (var i = 0; i < c3.color.length; i++) {
+            var c2 = c3.color[i];
+            var c2L = c2.l !== undefined ? c2.l : c2.L;
+            var c2A = c2.a;
+            var c2B = c2.b;
+
+            var dist = Math.sqrt(
+                Math.pow(xL - c2L, 2) +
+                Math.pow(xA - c2A, 2) +
+                Math.pow(xB - c2B, 2)
+            );
+
+            if (dist < minDist) {
+                minDist = dist;
+                minIndex = i;
+            }
+        }
+
+        return minIndex;
+    }
+
+    function getNameDifference(c0, c1) {
+        if (typeof c3 === 'undefined' || !c3.color) {
+            var lab0 = d3.lab(c0);
+            var lab1 = d3.lab(c1);
+            var lVal0 = lab0.l !== undefined ? lab0.l : lab0.L;
+            var lVal1 = lab1.l !== undefined ? lab1.l : lab1.L;
+            return Math.sqrt(
+                Math.pow(lVal1 - lVal0, 2) +
+                Math.pow(lab1.a - lab0.a, 2) +
+                Math.pow(lab1.b - lab0.b, 2)
+            ) / 100;
+        }
+
+        var i0 = getColorNameIndex(c0);
+        var i1 = getColorNameIndex(c1);
+
+        if (i0 === i1) {
+            return 0;
+        }
+
+        try {
+            var hellinger = c3.color.hellinger(i0, i1);
+            return hellinger;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    function nameSalience(c) {
+        if (typeof c3 === 'undefined' || !c3.color) {
+            return 0;
+        }
+
+        var minE = -4.5;
+        var maxE = 0.0;
+        var i = getColorNameIndex(c);
+        var ent = c3.color.entropy(i);
+        return (ent - minE) / (maxE - minE);
+    }
+
+    // 7. Color Name Variation
+    function calculate_color_name_variation(colormap, sampleCount = 9) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            return 0;
+        }
+
+        const samples = [];
+        const step = (colors.length - 1) / (sampleCount - 1);
+
+        for (let i = 0; i < sampleCount; i++) {
+            const index = Math.min(Math.floor(i * step), colors.length - 1);
+            try {
+                const r = parseInt(colors[index].rgb[0]);
+                const g = parseInt(colors[index].rgb[1]);
+                const b = parseInt(colors[index].rgb[2]);
+
+                if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                    continue;
+                }
+
+                samples.push(d3.rgb(r, g, b));
+            } catch (error) {
+                // Skip errors
+            }
+        }
+
+        let totalNameDifference = 0;
+        let validPairs = 0;
+
+        for (let i = 0; i < samples.length - 1; i++) {
+            try {
+                const c0 = samples[i];
+                const c1 = samples[i + 1];
+                if (c0 && c1 && typeof getNameDifference === 'function') {
+                    const nameDiff = getNameDifference(c0, c1);
+
+                    if (!isNaN(nameDiff) && isFinite(nameDiff)) {
+                        totalNameDifference += nameDiff;
+                        validPairs++;
+                    }
+                }
+            } catch (error) {
+                // Skip errors
+            }
+        }
+
+        return validPairs > 0 ? totalNameDifference : 0;
+    }
+
+    // ========== Color Categorization Tendency ==========
+
+    function agglomerativeClusteringByName(colors, dissimilarityThreshold = 0.6) {
+        if (!colors || colors.length === 0) {
+            return [];
+        }
+
+        let clusters = colors.map((color, i) => ({
+            id: i,
+            colors: [color]
+        }));
+
+        let merged = true;
+        while (merged && clusters.length > 1) {
+            merged = false;
+
+            let minDissimilarity = Infinity;
+            let mergeIndex = -1;
+
+            for (let i = 0; i < clusters.length - 1; i++) {
+                const c1 = clusters[i];
+                const c2 = clusters[i + 1];
+
+                let totalDissim = 0;
+                let pairCount = 0;
+
+                for (let color1 of c1.colors) {
+                    for (let color2 of c2.colors) {
+                        const dissim = getNameDifference(color1, color2);
+                        if (!isNaN(dissim) && isFinite(dissim)) {
+                            totalDissim += dissim;
+                            pairCount++;
+                        }
+                    }
+                }
+
+                const avgDissim = pairCount > 0 ? totalDissim / pairCount : Infinity;
+
+                if (avgDissim < minDissimilarity) {
+                    minDissimilarity = avgDissim;
+                    mergeIndex = i;
+                }
+            }
+
+            if (mergeIndex >= 0 && minDissimilarity < dissimilarityThreshold) {
+                const c1 = clusters[mergeIndex];
+                const c2 = clusters[mergeIndex + 1];
+
+                const mergedCluster = {
+                    id: c1.id,
+                    colors: [...c1.colors, ...c2.colors]
+                };
+
+                clusters.splice(mergeIndex, 2, mergedCluster);
+                merged = true;
+            }
+        }
+
+        return clusters;
+    }
+
+    function selectClusterCentroid(cluster) {
+        if (!cluster || !cluster.colors || cluster.colors.length === 0) {
+            return null;
+        }
+
+        if (typeof nameSalience !== 'function') {
+            return cluster.colors[0];
+        }
+
+        let maxSaliency = -Infinity;
+        let centroid = cluster.colors[0];
+
+        for (let color of cluster.colors) {
+            try {
+                const saliency = nameSalience(color);
+                if (!isNaN(saliency) && saliency > maxSaliency) {
+                    maxSaliency = saliency;
+                    centroid = color;
+                }
+            } catch (e) {
+                // Skip errors
+            }
+        }
+
+        return centroid;
+    }
+
+    // 8. Color Categorization Tendency
+    function calculate_color_categorization_tendency(colormap, sampleCount = 100, dissimilarityThreshold = 0.6) {
+        const colors = convertColormapToStandardFormat(colormap);
+        if (!colors || !colors.length) {
+            return 0;
+        }
+
+        const samples = [];
+        const step = Math.max(1, Math.floor(colors.length / sampleCount));
+
+        for (let i = 0; i < colors.length; i += step) {
+            if (samples.length >= sampleCount) break;
+
+            try {
+                const r = parseInt(colors[i].rgb[0]);
+                const g = parseInt(colors[i].rgb[1]);
+                const b = parseInt(colors[i].rgb[2]);
+
+                if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                    samples.push(d3.rgb(r, g, b));
+                }
+            } catch (error) {
+                // Skip errors
+            }
+        }
+
+        if (samples.length < 2) {
+            return 0;
+        }
+
+        const clusters = agglomerativeClusteringByName(samples, dissimilarityThreshold);
+        const K = clusters.length;
+
+        if (K < 2) {
+            return 0;
+        }
+
+        const centroids = [];
+        for (let cluster of clusters) {
+            const centroid = selectClusterCentroid(cluster);
+            if (centroid) {
+                centroids.push(centroid);
+            }
+        }
+
+        if (centroids.length < 2) {
+            return 0;
+        }
+
+        let totalDeltaE = 0;
+        let pairCount = 0;
+
+        for (let i = 0; i < centroids.length; i++) {
+            for (let j = i + 1; j < centroids.length; j++) {
+                const lab1 = d3.lab(centroids[i]);
+                const lab2 = d3.lab(centroids[j]);
+
+                const l1 = lab1.l !== undefined ? lab1.l : lab1.L;
+                const l2 = lab2.l !== undefined ? lab2.l : lab2.L;
+
+                const deltaE = ciede2000([l1, lab1.a, lab1.b], [l2, lab2.a, lab2.b]);
+
+                if (!isNaN(deltaE) && isFinite(deltaE)) {
+                    totalDeltaE += deltaE;
+                    pairCount++;
+                }
+            }
+        }
+
+        const meanDeltaE = pairCount > 0 ? totalDeltaE / pairCount : 0;
+        return K * meanDeltaE;
+    }
+
     // 计算所有 metrics 并显示
     function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
         console.log(`\n========== ${title} ==========`);
@@ -1149,6 +1459,12 @@
             metrics.lab_length = calculate_lab_length(colormap) || 0;
             console.log('LAB Length:', metrics.lab_length.toFixed(3));
 
+            metrics.color_name_var = calculate_color_name_variation(colormap) || 0;
+            console.log('Color Name Variation:', metrics.color_name_var.toFixed(3));
+
+            metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
+            console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
+
             console.log('==========================================\n');
 
             return metrics;
@@ -1162,36 +1478,35 @@
     // 在 div 中显示 metrics（表格布局）
     function displayMetricsInDiv(div, metrics) {
         const metricsDiv = div.append("div")
-            .style("margin-top", "15px")
-            .style("margin-left", "20px")
-            .style("padding", "12px")
+            .style("margin-top", "0")
+            .style("padding", "8px")
             .style("background", "white")
             .style("border", "1px solid #ddd")
-            .style("border-radius", "4px")
-            .style("box-shadow", "0 1px 3px rgba(0,0,0,0.1)")
-            .style("max-width", "1200px");
+            .style("border-radius", "4px");
 
         metricsDiv.append("h4")
-            .text("📊 Quality Metrics")
-            .style("margin", "0 0 10px 0")
+            .text("📊 Metrics")
+            .style("margin", "0 0 6px 0")
             .style("color", "#333")
-            .style("font-size", "14px")
-            .style("border-bottom", "2px solid #4CAF50")
-            .style("padding-bottom", "5px");
+            .style("font-size", "12px")
+            .style("border-bottom", "1px solid #4CAF50")
+            .style("padding-bottom", "3px");
 
         // 创建一个表格布局
         const table = metricsDiv.append("table")
             .style("width", "100%")
             .style("border-collapse", "collapse")
-            .style("font-size", "12px");
+            .style("font-size", "11px");
 
         const metricsData = [
-            { name: "CIEDE2000 Discriminative Power", value: metrics.discriminatory_cie, color: "#2196F3", abbr: "CIEDE" },
-            { name: "Contrast Sensitivity", value: metrics.discriminatory_contrast, color: "#FF9800", abbr: "Contrast" },
-            { name: "Hue Discriminative Power", value: metrics.discriminatory_hue, color: "#9C27B0", abbr: "Hue" },
-            { name: "Luminance Variation", value: metrics.luminance_var, color: "#4CAF50", abbr: "Lumi Var" },
-            { name: "Chromatic Variation", value: metrics.chromatic_var, color: "#F44336", abbr: "Chroma Var" },
-            { name: "LAB Length", value: metrics.lab_length, color: "#607D8B", abbr: "LAB Len" }
+            { name: "CIEDE", value: metrics.discriminatory_cie, color: "#2196F3" },
+            { name: "Contrast", value: metrics.discriminatory_contrast, color: "#FF9800" },
+            { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
+            { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
+            { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
+            { name: "LAB Len", value: metrics.lab_length, color: "#607D8B" },
+            { name: "CNV", value: metrics.color_name_var, color: "#00BCD4" },
+            { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
         ];
 
         // 两列布局：每行显示两个指标
@@ -1202,38 +1517,38 @@
             // 第一个指标
             const metric1 = metricsData[i];
             row.append("td")
-                .style("padding", "8px 10px")
+                .style("padding", "4px 6px")
                 .style("font-weight", "500")
                 .style("color", "#555")
-                .style("width", "35%")
-                .html(`<span style="color: ${metric1.color}; font-size: 16px;">●</span> ${metric1.name}`);
+                .style("width", "30%")
+                .html(`<span style="color: ${metric1.color}; font-size: 12px;">●</span> ${metric1.name}`);
             
             row.append("td")
-                .style("padding", "8px 10px")
+                .style("padding", "4px 6px")
                 .style("text-align", "right")
                 .style("font-weight", "bold")
                 .style("color", metric1.color)
-                .style("width", "15%")
-                .text(metric1.value.toFixed(3));
+                .style("width", "20%")
+                .text(metric1.value.toFixed(2));
 
             // 第二个指标（如果存在）
             if (i + 1 < metricsData.length) {
                 const metric2 = metricsData[i + 1];
                 row.append("td")
-                    .style("padding", "8px 10px")
+                    .style("padding", "4px 6px")
                     .style("font-weight", "500")
                     .style("color", "#555")
-                    .style("width", "35%")
-                    .style("padding-left", "20px")
-                    .html(`<span style="color: ${metric2.color}; font-size: 16px;">●</span> ${metric2.name}`);
+                    .style("width", "30%")
+                    .style("padding-left", "10px")
+                    .html(`<span style="color: ${metric2.color}; font-size: 12px;">●</span> ${metric2.name}`);
                 
                 row.append("td")
-                    .style("padding", "8px 10px")
+                    .style("padding", "4px 6px")
                     .style("text-align", "right")
                     .style("font-weight", "bold")
                     .style("color", metric2.color)
-                    .style("width", "15%")
-                    .text(metric2.value.toFixed(3));
+                    .style("width", "20%")
+                    .text(metric2.value.toFixed(2));
             } else {
                 // 如果是奇数个指标，填充空列
                 row.append("td").attr("colspan", "2");

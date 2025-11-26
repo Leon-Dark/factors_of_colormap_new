@@ -1831,7 +1831,7 @@ function discriminatory_cie(colormap) {
             // Use our existing ciede2000 function
             // d3 v7 uses uppercase L, lowercase a, b
             const deltaE = ciede2000([lab1.l || lab1.L, lab1.a, lab1.b], [lab2.l || lab2.L, lab2.a, lab2.b]);
-            const v_ij = deltaE ;
+            const v_ij = deltaE / Math.abs((j - i) / (colors.length - 1));
             totalSpeed += v_ij;
             pairCount++;
         }
@@ -1955,8 +1955,10 @@ function discriminatory_hue(colormap) {
             if (hueDiff > 180) {
                 hueDiff = 360 - hueDiff;
             }
-        
-            const v_ij =  hueDiff;
+            
+            const normalizedHueDiff = hueDiff;
+            const normFactor = Math.abs((j - i) / (colors.length - 1));
+            const v_ij = normalizedHueDiff / normFactor;
             
             if (isNaN(v_ij)) {
                 console.warn(`Hue v_ij is NaN for pair [${i}, ${j}]`);
@@ -2211,6 +2213,221 @@ function calculate_color_name_variation(colormap, sampleCount = 9) {
     return totalNameDifference;
 }
 
+// ========== Color Categorization Tendency ==========
+
+/**
+ * Perform agglomerative clustering on colors based on name similarity
+ * Stop merging when name dissimilarity exceeds threshold (default 0.6)
+ */
+function agglomerativeClusteringByName(colors, dissimilarityThreshold = 0.6) {
+    if (!colors || colors.length === 0) {
+        console.error("Invalid colors array for clustering");
+        return [];
+    }
+
+    // Initialize: each color is its own cluster
+    let clusters = colors.map((color, i) => ({
+        id: i,
+        colors: [color],
+        centroidIndex: 0 // index within the colors array of this cluster
+    }));
+
+    // Keep merging until no more adjacent clusters can be merged
+    let merged = true;
+    while (merged && clusters.length > 1) {
+        merged = false;
+        
+        // Find the best adjacent pair to merge
+        let minDissimilarity = Infinity;
+        let mergeIndex = -1;
+        
+        for (let i = 0; i < clusters.length - 1; i++) {
+            const c1 = clusters[i];
+            const c2 = clusters[i + 1];
+            
+            // Calculate dissimilarity between adjacent clusters
+            // Use average linkage: average dissimilarity between all pairs
+            let totalDissim = 0;
+            let pairCount = 0;
+            
+            for (let color1 of c1.colors) {
+                for (let color2 of c2.colors) {
+                    const dissim = getNameDifference(color1, color2);
+                    if (!isNaN(dissim) && isFinite(dissim)) {
+                        totalDissim += dissim;
+                        pairCount++;
+                    }
+                }
+            }
+            
+            const avgDissim = pairCount > 0 ? totalDissim / pairCount : Infinity;
+            
+            if (avgDissim < minDissimilarity) {
+                minDissimilarity = avgDissim;
+                mergeIndex = i;
+            }
+        }
+        
+        // If the minimum dissimilarity is below threshold, merge
+        if (mergeIndex >= 0 && minDissimilarity < dissimilarityThreshold) {
+            const c1 = clusters[mergeIndex];
+            const c2 = clusters[mergeIndex + 1];
+            
+            // Merge c2 into c1
+            const mergedCluster = {
+                id: c1.id,
+                colors: [...c1.colors, ...c2.colors],
+                centroidIndex: 0 // will be updated later
+            };
+            
+            // Remove the two clusters and insert the merged one
+            clusters.splice(mergeIndex, 2, mergedCluster);
+            merged = true;
+        }
+    }
+    
+    return clusters;
+}
+
+/**
+ * Select centroid for each cluster based on name saliency
+ * Returns the color with highest name saliency in the cluster
+ */
+function selectClusterCentroid(cluster) {
+    if (!cluster || !cluster.colors || cluster.colors.length === 0) {
+        return null;
+    }
+    
+    if (typeof nameSalience !== 'function') {
+        console.warn('nameSalience function not available, using first color as centroid');
+        return cluster.colors[0];
+    }
+    
+    let maxSaliency = -Infinity;
+    let centroid = cluster.colors[0];
+    
+    for (let color of cluster.colors) {
+        try {
+            const saliency = nameSalience(color);
+            if (!isNaN(saliency) && saliency > maxSaliency) {
+                maxSaliency = saliency;
+                centroid = color;
+            }
+        } catch (e) {
+            console.warn('Error calculating name saliency:', e);
+        }
+    }
+    
+    return centroid;
+}
+
+/**
+ * Calculate Color Categorization Tendency
+ * = K (number of clusters) × mean ΔE between cluster centroids
+ */
+function calculate_color_categorization_tendency(colormap, sampleCount = 100, dissimilarityThreshold = 0.6) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return { value: 0, clusterCount: 0, meanDeltaE: 0 };
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return { value: 0, clusterCount: 0, meanDeltaE: 0 };
+    }
+
+    // Sample colors uniformly
+    const samples = [];
+    const step = Math.max(1, Math.floor(colors.length / sampleCount));
+    
+    for (let i = 0; i < colors.length; i += step) {
+        if (samples.length >= sampleCount) break;
+        
+        try {
+            const r = parseInt(colors[i].rgb[0]);
+            const g = parseInt(colors[i].rgb[1]);
+            const b = parseInt(colors[i].rgb[2]);
+
+            if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                console.error(`Invalid rgb values for color ${i}:`, colors[i].rgb);
+                continue;
+            }
+
+            samples.push(d3.rgb(r, g, b));
+        } catch (error) {
+            console.error(`Error sampling color ${i}:`, error);
+        }
+    }
+
+    if (samples.length < 2) {
+        console.error("Not enough valid samples for categorization");
+        return { value: 0, clusterCount: 0, meanDeltaE: 0 };
+    }
+
+    console.log(`Performing agglomerative clustering on ${samples.length} colors...`);
+
+    // Perform agglomerative clustering
+    const clusters = agglomerativeClusteringByName(samples, dissimilarityThreshold);
+    const K = clusters.length;
+    
+    console.log(`Found ${K} color categories`);
+
+    if (K < 2) {
+        // Only one cluster, no discriminability
+        return { value: 0, clusterCount: K, meanDeltaE: 0 };
+    }
+
+    // Select centroid for each cluster
+    const centroids = [];
+    for (let cluster of clusters) {
+        const centroid = selectClusterCentroid(cluster);
+        if (centroid) {
+            centroids.push(centroid);
+        }
+    }
+
+    console.log(`Selected ${centroids.length} cluster centroids`);
+
+    if (centroids.length < 2) {
+        return { value: 0, clusterCount: K, meanDeltaE: 0 };
+    }
+
+    // Calculate pairwise CIELAB ΔE between all centroids
+    let totalDeltaE = 0;
+    let pairCount = 0;
+    
+    for (let i = 0; i < centroids.length; i++) {
+        for (let j = i + 1; j < centroids.length; j++) {
+            const lab1 = d3.lab(centroids[i]);
+            const lab2 = d3.lab(centroids[j]);
+            
+            // Use CIEDE2000 for accurate color difference
+            const l1 = lab1.l !== undefined ? lab1.l : lab1.L;
+            const l2 = lab2.l !== undefined ? lab2.l : lab2.L;
+            
+            const deltaE = ciede2000([l1, lab1.a, lab1.b], [l2, lab2.a, lab2.b]);
+            
+            if (!isNaN(deltaE) && isFinite(deltaE)) {
+                totalDeltaE += deltaE;
+                pairCount++;
+            }
+        }
+    }
+
+    const meanDeltaE = pairCount > 0 ? totalDeltaE / pairCount : 0;
+    const categorizationTendency = K * meanDeltaE;
+
+    console.log(`Categorization Tendency: K=${K}, mean ΔE=${meanDeltaE.toFixed(2)}, tendency=${categorizationTendency.toFixed(2)}`);
+
+    return {
+        value: categorizationTendency,
+        clusterCount: K,
+        meanDeltaE: meanDeltaE
+    };
+}
+
 // Create Static Metrics display box
 function createStaticMetricsBox() {
     const div = document.createElement('div');
@@ -2293,6 +2510,26 @@ function createStaticMetricsBox() {
                 metrics.color_name_var = 'N/A';
             }
             
+            try {
+                // Color Categorization Tendency
+                if (typeof getNameDifference === 'function' && typeof nameSalience === 'function') {
+                    const categorizationResult = calculate_color_categorization_tendency(colormapObj);
+                    metrics.categorization_tendency = categorizationResult.value;
+                    metrics.cluster_count = categorizationResult.clusterCount;
+                    metrics.mean_category_deltaE = categorizationResult.meanDeltaE;
+                    console.log('Color Categorization Tendency:', categorizationResult);
+                } else {
+                    metrics.categorization_tendency = 'N/A (c3 not loaded)';
+                    metrics.cluster_count = 'N/A';
+                    metrics.mean_category_deltaE = 'N/A';
+                }
+            } catch (e) {
+                console.error('Error calculating Color Categorization Tendency:', e);
+                metrics.categorization_tendency = 'N/A';
+                metrics.cluster_count = 'N/A';
+                metrics.mean_category_deltaE = 'N/A';
+            }
+            
             // Format the values
             const formatValue = (val) => {
                 if (val === 'N/A' || typeof val === 'string') return val;
@@ -2312,6 +2549,7 @@ function createStaticMetricsBox() {
             html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Chromatic Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.chromatic_var)}</td></tr>`;
             html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>LAB Length</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.lab_length)}</td></tr>`;
             html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Color Name Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.color_name_var)}</td></tr>`;
+            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Color Categorization Tendency</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.categorization_tendency)}</td></tr>`;
             
             html += '</table>';
             html += '</div>';
