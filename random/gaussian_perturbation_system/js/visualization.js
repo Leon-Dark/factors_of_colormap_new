@@ -152,10 +152,7 @@ class VisualizationSystem {
             
             // 确定颜色
             let markerColor = gauss.color || '#ffffff';
-            if (this.options.highlightPerturbed && gauss.isPerturbed && !useOriginal) {
-                markerColor = '#ff0000';
-            }
-            
+
             // 绘制中心点
             this.ctx.fillStyle = markerColor;
             this.ctx.beginPath();
@@ -164,7 +161,12 @@ class VisualizationSystem {
             
             // 绘制边框
             this.ctx.strokeStyle = '#000000';
-            this.ctx.lineWidth = 1;
+            // 如果是被扰动的点，边缘加粗
+            if (this.options.highlightPerturbed && gauss.isPerturbed && !useOriginal) {
+                this.ctx.lineWidth = 3;
+            } else {
+                this.ctx.lineWidth = 1;
+            }
             this.ctx.stroke();
         }
     }

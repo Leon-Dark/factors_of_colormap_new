@@ -152,9 +152,6 @@ class VisualizationSystem {
             
             // 确定颜色
             let markerColor = gauss.color || '#ffffff';
-            if (this.options.highlightPerturbed && gauss.isPerturbed && !useOriginal) {
-                markerColor = '#ff0000';
-            }
             
             // 绘制中心点
             this.ctx.fillStyle = markerColor;
@@ -186,8 +183,14 @@ class VisualizationSystem {
             
             const color = gauss.color || '#ffffff';
             this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = (gauss.isPerturbed && !useOriginal) ? 2 : 1;
-            this.ctx.globalAlpha = 0.5;
+            
+            if (gauss.isPerturbed && !useOriginal) {
+                this.ctx.lineWidth = 3;
+                this.ctx.globalAlpha = 1.0;
+            } else {
+                this.ctx.lineWidth = 1;
+                this.ctx.globalAlpha = 0.5;
+            }
             
             // 绘制椭圆（3个标准差）
             this.ctx.beginPath();

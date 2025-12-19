@@ -495,7 +495,7 @@
         const cControls = parseControlPoints(controlPoints_c);
         const lControls = parseControlPoints(controlPoints_l);
         // console.log(targetH, targetC, targetL, cControls, lControls);
-        let hue_start = 0; //Math.random() * 360
+        let hue_start = Math.random() * 360
 
         const sampleN = 256;
         const step = 5;
@@ -594,20 +594,26 @@
 
         const hue_targets = [100, 200, 300]
 
+        // Profile Definitions
+        // Constant: value = 55 (L), 70 (C)
+        // Linear: range = [20, 90] (L), [20, 120] (C)
+        // Diverging: range = [20, 90, 20] (L), [20, 120, 20] (C)
+        // Thermal: range = [20, 90, 20, 90, 20] (L), [20, 120, 20, 120, 20] (C)
+
         const chromas = [20, 120], lumis = [20, 90];
+        
         const chroma_array = [
-            [(chromas[0] + chromas[1]) / 2, (chromas[0] + chromas[1]) / 2],
-            [chromas[0], (chromas[0] + chromas[1]) / 2],
-            [chromas[0], chromas[1]],
-            [chromas[0], chromas[1], chromas[0]],
-            [chromas[0], chromas[1], chromas[0], chromas[1], chromas[0]]
+            [70, 70],                                   // Constant
+            [chromas[0], chromas[1]],                   // Linear
+            [chromas[0], chromas[1], chromas[0]],       // Diverging
+            [chromas[0], chromas[1], chromas[0], chromas[1], chromas[0]] // Thermal
         ];
+        
         const lumi_array = [
-            [(lumis[0] + lumis[1]) / 2, (lumis[0] + lumis[1]) / 2],
-            [lumis[0], (lumis[0] + lumis[1]) / 2],
-            [lumis[0], lumis[1]],
-            [lumis[0], lumis[1], lumis[0]],
-            [lumis[0], lumis[1], lumis[0], lumis[1], lumis[0]]
+            [55, 55],                                   // Constant
+            [lumis[0], lumis[1]],                       // Linear
+            [lumis[0], lumis[1], lumis[0]],             // Diverging
+            [lumis[0], lumis[1], lumis[0], lumis[1], lumis[0]] // Thermal
         ];
 
         const perturbOffsets = [];
@@ -946,7 +952,7 @@
         }
     }
 
-    // 3. Hue Discriminative Power
+    // 3. Hue Variation
     function discriminatory_hue(colormap) {
         const colors = convertColormapToStandardFormat(colormap);
         if (!colors || !colors.length) {
@@ -954,38 +960,41 @@
             return 0;
         }
 
-        let totalSpeed = 0;
-        let pairCount = 0;
-
+        const hueValues = [];
         for (let i = 0; i < colors.length; i++) {
-            for (let j = i + 1; j < colors.length; j++) {
-                const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
-                const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+            try {
+                const r = parseInt(colors[i].rgb[0]);
+                const g = parseInt(colors[i].rgb[1]);
+                const b = parseInt(colors[i].rgb[2]);
 
-                const hcl1 = d3.hcl(rgbColor1);
-                const hcl2 = d3.hcl(rgbColor2);
-
-                const h1 = isNaN(hcl1.h) ? 0 : hcl1.h;
-                const h2 = isNaN(hcl2.h) ? 0 : hcl2.h;
-
-                let hueDiff = Math.abs(h1 - h2);
-                if (hueDiff > 180) {
-                    hueDiff = 360 - hueDiff;
+                if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                    continue;
                 }
 
-                const v_ij = hueDiff;
+                const rgbColor = d3.rgb(r, g, b);
+                const hcl = d3.hcl(rgbColor);
 
-                if (isNaN(v_ij)) {
-                    console.warn(`Hue v_ij is NaN for pair [${i}, ${j}]`);
-                }
-
-                totalSpeed += v_ij;
-                pairCount++;
+                const h = isNaN(hcl.h) ? 0 : hcl.h;
+                hueValues.push(h);
+            } catch (error) {
+                console.error(`Error processing color ${i}:`, error);
             }
         }
 
-        const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
-        return globalDiscriminativePower;
+        if (hueValues.length === 0) {
+            return 0;
+        }
+
+        let totalVariation = 0;
+        for (let i = 1; i < hueValues.length; i++) {
+            let diff = Math.abs(hueValues[i] - hueValues[i - 1]);
+            if (diff > 180) {
+                diff = 360 - diff;
+            }
+            totalVariation += diff;
+        }
+
+        return totalVariation;
     }
 
     // 4. Luminance Variation

@@ -1936,41 +1936,47 @@ function discriminatory_hue(colormap) {
         return 0;
     }
 
-    let totalSpeed = 0;
-    let pairCount = 0;
-
+    const hueValues = [];
     for (let i = 0; i < colors.length; i++) {
-        for (let j = i + 1; j < colors.length; j++) {
-            const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
-            const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
-            
-            const hcl1 = d3.hcl(rgbColor1);
-            const hcl2 = d3.hcl(rgbColor2);
+        try {
+            const r = parseInt(colors[i].rgb[0]);
+            const g = parseInt(colors[i].rgb[1]);
+            const b = parseInt(colors[i].rgb[2]);
+
+            if (isNaN(r) || isNaN(g) || isNaN(b)) {
+                console.error(`Invalid rgb values for color ${i}:`, colors[i].rgb);
+                continue;
+            }
+
+            const rgbColor = d3.rgb(r, g, b);
+            const hcl = d3.hcl(rgbColor);
             
             // d3.hcl may return h as NaN for achromatic colors
-            const h1 = isNaN(hcl1.h) ? 0 : hcl1.h;
-            const h2 = isNaN(hcl2.h) ? 0 : hcl2.h;
-            
-            let hueDiff = Math.abs(h1 - h2);
-            if (hueDiff > 180) {
-                hueDiff = 360 - hueDiff;
-            }
-            
-            const normalizedHueDiff = hueDiff;
-            const normFactor = Math.abs((j - i) / (colors.length - 1));
-            const v_ij = normalizedHueDiff / normFactor;
-            
-            if (isNaN(v_ij)) {
-                console.warn(`Hue v_ij is NaN for pair [${i}, ${j}]`);
-            }
-            
-            totalSpeed += v_ij;
-            pairCount++;
+            // For variation calculation, we'll treat NaN as 0 or the previous value? 
+            // Existing logic used 0. Let's stick to 0 for now or finding nearest valid hue might be better but 0 is safe default.
+            const h = isNaN(hcl.h) ? 0 : hcl.h;
+            hueValues.push(h);
+        } catch (error) {
+            console.error(`Error processing color ${i}:`, error);
         }
     }
 
-    const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
-    return globalDiscriminativePower;
+    if (hueValues.length === 0) {
+        console.error("No valid hue values calculated");
+        return null;
+    }
+
+    let totalVariation = 0;
+    for (let i = 1; i < hueValues.length; i++) {
+        let diff = Math.abs(hueValues[i] - hueValues[i-1]);
+        // Handle hue wrap-around for shortest path
+        if (diff > 180) {
+            diff = 360 - diff;
+        }
+        totalVariation += diff;
+    }
+
+    return totalVariation;
 }
 
 function luminance_variation(colormap) {

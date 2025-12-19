@@ -18,7 +18,7 @@ class GaussianGenerator {
         
         // 尺寸级别配置 - 三层固定sigma，适配200×200画布
         this.sizeLevels = {
-            'small': { sigma: 4, count: 8, color: '#e41a1c' },      // 高频 σ=4px
+            'small': { sigma: 4, count: 8, color: '#377eb8' },      // 高频 σ=4px (Blue)
             'medium': { sigma: 16, count: 5, color: '#4daf4a' },    // 中频 σ=16px
             'large': { sigma: 40, count: 3, color: '#ff7f00' }      // 低频 σ=40px
         };
@@ -184,6 +184,13 @@ class GaussianGenerator {
                 }
             }
         }
+
+        // Apply logarithmic compression
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                field[y][x] = Math.log(1 + field[y][x]);
+            }
+        }
         
         return field;
     }
@@ -240,6 +247,11 @@ class GaussianGenerator {
                     }
                 }
             }
+        }
+        
+        // Apply logarithmic compression
+        for (let i = 0; i < data.length; i++) {
+            data[i] = Math.log(1 + data[i]);
         }
         
         return data;
