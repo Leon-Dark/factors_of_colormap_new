@@ -677,6 +677,73 @@ function ciede2000(lab1, lab2) {
     return deltaE;
 }
 
+function calcSmoothnessMinDiff(palette) {
+    let min_color_diff = 0;
+    try {
+        let fineSamples = [];
+        let numFineSamples = 1000;
+        for (let k = 0; k < numFineSamples; k++) {
+            let t_total = k / (numFineSamples - 1); 
+            let segmentIndex = Math.floor(t_total * (palette.length - 1));
+            if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+            let segmentLength = 1 / (palette.length - 1);
+            let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+            
+            let c1 = palette[segmentIndex];
+            let c2 = palette[segmentIndex + 1];
+            
+            let h1 = c1[0], h2 = c2[0];
+            let diff = h2 - h1;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            let h = (h1 + diff * t + 360) % 360;
+            let c = c1[1] + (c2[1] - c1[1]) * t;
+            let l = c1[2] + (c2[2] - c1[2]) * t;
+            
+            fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+        }
+
+        let jndStep = 3.0;
+        let samples = [];
+        if (fineSamples.length > 0) {
+            samples.push(fineSamples[0]);
+            let lastSample = fineSamples[0];
+            
+            for (let i = 1; i < fineSamples.length; i++) {
+                let current = fineSamples[i];
+                let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
+                if (dist >= jndStep) {
+                    samples.push(current);
+                    lastSample = current;
+                }
+            }
+            if (samples.length < 2 && fineSamples.length > 1) {
+                samples.push(fineSamples[fineSamples.length - 1]);
+            }
+        }
+        
+        if (samples.length < 2) return 0;
+
+        let minDeltaE = Number.MAX_VALUE;
+        
+        for (let i = 0; i < samples.length; i++) {
+            for (let j = i + 1; j < samples.length; j++) {
+                let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
+                if (deltaE < minDeltaE) {
+                    minDeltaE = deltaE;
+                }
+            }
+        }
+        
+        if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
+        min_color_diff = minDeltaE;
+        
+    } catch (e) {
+        console.warn("Error in smoothness calculation:", e);
+    }
+    return min_color_diff;
+}
+
 function getInterpolatedValues(arr, num) {
     const step_num = 500;
     let interpolated = [];
@@ -2624,6 +2691,26 @@ function createStaticMetricsBox() {
                 metrics.mean_category_deltaE = 'N/A';
             }
             
+            try {
+                // Min Color Diff - first convert to standardized colormap, then to HCL format
+                const colors = createStandardizedColormap(colormapObj);
+                if (colors && colors.length > 0) {
+                    const hclPalette = colors.map(color => {
+                        const rgbColor = d3.rgb(color.rgb[0], color.rgb[1], color.rgb[2]);
+                        const lab = d3.lab(rgbColor);
+                        const hcl = d3.hcl(lab);
+                        return [hcl.h, hcl.c, hcl.l];
+                    });
+                    metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette);
+                    console.log('Min Color Diff:', metrics.smoothness_min_diff);
+                } else {
+                    metrics.smoothness_min_diff = 'N/A';
+                }
+            } catch (e) {
+                console.error('Error calculating Min Color Diff:', e);
+                metrics.smoothness_min_diff = 'N/A';
+            }
+            
             // Format the values
             const formatValue = (val) => {
                 if (val === 'N/A' || typeof val === 'string') return val;
@@ -2636,14 +2723,15 @@ function createStaticMetricsBox() {
             html += '<table style="width: 100%; border-collapse: collapse;">';
             html += '<tr style="background: #e3f2fd;"><th style="text-align: left; padding: 8px; border: 1px solid #ddd;">Metric</th><th style="text-align: right; padding: 8px; border: 1px solid #ddd;">Value</th></tr>';
             
+            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Min Color Diff</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.smoothness_min_diff)}</td></tr>`;
+            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Hue Discriminative Power</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.discriminatory_hue)}</td></tr>`;
+            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Chromatic Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.chromatic_var)}</td></tr>`;
+            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Luminance Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.luminance_var)}</td></tr>`;
             html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>CIEDE2000 Discriminative Power</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.discriminatory_cie)}</td></tr>`;
             html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Contrast Sensitivity</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.discriminatory_contrast)}</td></tr>`;
-            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Hue Discriminative Power</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.discriminatory_hue)}</td></tr>`;
-            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Luminance Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.luminance_var)}</td></tr>`;
-            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Chromatic Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.chromatic_var)}</td></tr>`;
-            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>LAB Length</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.lab_length)}</td></tr>`;
-            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Color Name Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.color_name_var)}</td></tr>`;
-            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Color Categorization Tendency</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.categorization_tendency)}</td></tr>`;
+            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>LAB Length</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.lab_length)}</td></tr>`;
+            html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Color Name Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.color_name_var)}</td></tr>`;
+            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Color Categorization Tendency</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.categorization_tendency)}</td></tr>`;
             
             html += '</table>';
             html += '</div>';

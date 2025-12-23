@@ -19,11 +19,187 @@
             🎨 Generate All Colormaps
         </button>
         <p style="color: #666; margin: 10px 0 0 0; font-size: 14px;">Click the button to generate colormaps with quality metrics. Open Console (F12) to see detailed logs.</p>
+        
+        <!-- Statistics Panel -->
+        <div id="statisticsPanel" style="display: none; margin-top: 15px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #333; font-size: 16px;">📊 Statistics</h3>
+            <div style="border-bottom: 2px solid #e0e0e0; margin-bottom: 10px;"></div>
+            
+            <!-- Overall Statistics -->
+            <div id="overallStats" style="font-size: 14px; margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap;">
+                <div><strong>Total generated:</strong> <span id="totalCount">0</span></div>
+                <div style="color: #4CAF50;"><strong>✅ Min Color Diff ≥ 3:</strong> <span id="passCount">0</span> (<span id="passPercent">0</span>%)</div>
+                <div style="color: #f44336;"><strong>⚠️ Min Color Diff < 3:</strong> <span id="failCount">0</span> (<span id="failPercent">0</span>%)</div>
+            </div>
+            
+            <!-- Detailed Statistics (Collapsible) -->
+            <details style="margin-top: 10px;">
+                <summary style="cursor: pointer; font-weight: bold; color: #666; padding: 5px 0;">Detailed breakdown ▼</summary>
+                <div id="detailedStats" style="margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 4px; font-size: 13px;">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </details>
+            
+            <!-- Filter Controls -->
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                <div style="font-weight: bold; margin-bottom: 8px; color: #555;">Display mode:</div>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <label style="cursor: pointer;">
+                        <input type="radio" name="filterMode" value="all" checked onchange="applyFilter()"> 
+                        Show all (<span id="filterAllCount">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #4CAF50;">
+                        <input type="radio" name="filterMode" value="pass" onchange="applyFilter()"> 
+                        Only show Min Color Diff ≥ 3 (<span id="filterPassCount">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #f44336;">
+                        <input type="radio" name="filterMode" value="fail" onchange="applyFilter()"> 
+                        Only show Min Color Diff < 3 (<span id="filterFailCount">0</span>)
+                    </label>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 
 <!-- <script type="text/javascript" src="/static/js/metrics.js"></script> -->
 <script>
+    // Global variables for statistics and filtering
+    let allColormaps = [];
+    let colormapElements = [];
+    const MIN_COLOR_DIFF_THRESHOLD = 3;
+
+    // Helper function to get category labels
+    function getCategoryLabels(chroma, lumi) {
+        let chromaLabel = '';
+        let lumiLabel = '';
+        
+        if (chroma.length === 2 && chroma[0] === chroma[1]) {
+            chromaLabel = 'Constant';
+        } else if (chroma.length === 2) {
+            chromaLabel = 'Linear';
+        } else if (chroma.length === 3) {
+            chromaLabel = 'Diverging';
+        } else if (chroma.length === 5) {
+            chromaLabel = 'Thermal';
+        }
+        
+        if (lumi.length === 2 && lumi[0] === lumi[1]) {
+            lumiLabel = 'Constant';
+        } else if (lumi.length === 2) {
+            lumiLabel = 'Linear';
+        } else if (lumi.length === 3) {
+            lumiLabel = 'Diverging';
+        } else if (lumi.length === 5) {
+            lumiLabel = 'Thermal';
+        }
+        
+        return { chromaLabel, lumiLabel };
+    }
+
+    // Calculate and update statistics
+    function updateStatistics() {
+        const total = allColormaps.length;
+        const passCount = allColormaps.filter(cm => cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD).length;
+        const failCount = total - passCount;
+        const passPercent = total > 0 ? ((passCount / total) * 100).toFixed(1) : 0;
+        const failPercent = total > 0 ? ((failCount / total) * 100).toFixed(1) : 0;
+
+        document.getElementById('totalCount').textContent = total;
+        document.getElementById('passCount').textContent = passCount;
+        document.getElementById('failCount').textContent = failCount;
+        document.getElementById('passPercent').textContent = passPercent;
+        document.getElementById('failPercent').textContent = failPercent;
+        
+        document.getElementById('filterAllCount').textContent = total;
+        document.getElementById('filterPassCount').textContent = passCount;
+        document.getElementById('filterFailCount').textContent = failCount;
+
+        // Calculate detailed statistics
+        updateDetailedStatistics();
+
+        // Show statistics panel
+        document.getElementById('statisticsPanel').style.display = 'block';
+    }
+
+    // Calculate detailed breakdown statistics
+    function updateDetailedStatistics() {
+        const stats = {
+            byHue: {},
+            byChroma: {},
+            byLumi: {}
+        };
+
+        allColormaps.forEach(cm => {
+            const isPassing = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            
+            // By Hue
+            const hueKey = cm.hueCount === 3 ? '3 Hues' : cm.hueCount === 2 ? '5 Hues' : '7 Hues';
+            if (!stats.byHue[hueKey]) stats.byHue[hueKey] = { total: 0, pass: 0, fail: 0 };
+            stats.byHue[hueKey].total++;
+            if (isPassing) stats.byHue[hueKey].pass++;
+            else stats.byHue[hueKey].fail++;
+
+            // By Chroma
+            const chromaKey = cm.chromaLabel;
+            if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, pass: 0, fail: 0 };
+            stats.byChroma[chromaKey].total++;
+            if (isPassing) stats.byChroma[chromaKey].pass++;
+            else stats.byChroma[chromaKey].fail++;
+
+            // By Lumi
+            const lumiKey = cm.lumiLabel;
+            if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, pass: 0, fail: 0 };
+            stats.byLumi[lumiKey].total++;
+            if (isPassing) stats.byLumi[lumiKey].pass++;
+            else stats.byLumi[lumiKey].fail++;
+        });
+
+        // Render detailed statistics
+        let html = '';
+        
+        html += '<div style="margin-bottom: 15px;"><strong>By hue count:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue count</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+        Object.entries(stats.byHue).forEach(([key, val]) => {
+            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+        });
+        html += '</table></div>';
+
+        html += '<div style="margin-bottom: 15px;"><strong>By chroma profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+        Object.entries(stats.byChroma).forEach(([key, val]) => {
+            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+        });
+        html += '</table></div>';
+
+        html += '<div><strong>By luminance profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+        Object.entries(stats.byLumi).forEach(([key, val]) => {
+            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+        });
+        html += '</table></div>';
+
+        document.getElementById('detailedStats').innerHTML = html;
+    }
+
+    // Apply filter based on selected mode
+    function applyFilter() {
+        const filterMode = document.querySelector('input[name="filterMode"]:checked').value;
+        
+        colormapElements.forEach((elem, idx) => {
+            const colormap = allColormaps[idx];
+            const isPassing = colormap.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            
+            if (filterMode === 'all') {
+                elem.style.display = 'block';
+            } else if (filterMode === 'pass') {
+                elem.style.display = isPassing ? 'block' : 'none';
+            } else if (filterMode === 'fail') {
+                elem.style.display = isPassing ? 'none' : 'block';
+            }
+        });
+    }
+
     // read all colormaps, find the luminance and chroma range
     // testColormaps()
 
@@ -238,16 +414,13 @@
         m_xScale.domain(d3.extent(data[0], function (d) {
             return d[x];
         }));
-        if (name == "luminance") {
-            m_yScale.domain([0, 100]);
-        } else if (name == "chroma") {
-            m_yScale.domain([0, 120]);
-        } else {
-            m_yScale.domain([0, 360]);
-            // m_yScale.domain(d3.extent(data, function (d) {
-            //     return d[y];
-            // }));
-        }
+
+        const yMin = d3.min(data, line => d3.min(line, d => d[y]));
+        const yMax = d3.max(data, line => d3.max(line, d => d[y]));
+        const yRange = yMax - yMin;
+        const padding = yRange === 0 ? (yMin === 0 ? 1 : Math.abs(yMin) * 0.1) : yRange * 0.1;
+        m_yScale.domain([yMin - padding, yMax + padding]);
+
         // define the line
         let valueline = d3.line()
             .x(function (d) {
@@ -471,6 +644,73 @@
         return deltaE;
     }
 
+    function calcSmoothnessMinDiff(palette) {
+        let min_color_diff = 0;
+        try {
+            let fineSamples = [];
+            let numFineSamples = 1000;
+            for (let k = 0; k < numFineSamples; k++) {
+                let t_total = k / (numFineSamples - 1); 
+                let segmentIndex = Math.floor(t_total * (palette.length - 1));
+                if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+                let segmentLength = 1 / (palette.length - 1);
+                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+                
+                let c1 = palette[segmentIndex];
+                let c2 = palette[segmentIndex + 1];
+                
+                let h1 = c1[0], h2 = c2[0];
+                let diff = h2 - h1;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                let h = (h1 + diff * t + 360) % 360;
+                let c = c1[1] + (c2[1] - c1[1]) * t;
+                let l = c1[2] + (c2[2] - c1[2]) * t;
+                
+                fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+            }
+
+            let jndStep = 3.0;
+            let samples = [];
+            if (fineSamples.length > 0) {
+                samples.push(fineSamples[0]);
+                let lastSample = fineSamples[0];
+                
+                for (let i = 1; i < fineSamples.length; i++) {
+                    let current = fineSamples[i];
+                    let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
+                    if (dist >= jndStep) {
+                        samples.push(current);
+                        lastSample = current;
+                    }
+                }
+                if (samples.length < 2 && fineSamples.length > 1) {
+                    samples.push(fineSamples[fineSamples.length - 1]);
+                }
+            }
+            
+            if (samples.length < 2) return 0;
+
+            let minDeltaE = Number.MAX_VALUE;
+            
+            for (let i = 0; i < samples.length; i++) {
+                for (let j = i + 1; j < samples.length; j++) {
+                    let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
+                    if (deltaE < minDeltaE) {
+                        minDeltaE = deltaE;
+                    }
+                }
+            }
+            
+            if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
+            min_color_diff = minDeltaE;
+            
+        } catch (e) {
+            console.warn("Error in smoothness calculation:", e);
+        }
+        return min_color_diff;
+    }
+
     function satisfyDiscriminability(colormap, sampleNum = 10) {
         const sampled_colormap = [];
         for (let i = 0; i < colormap.length; i += Math.floor(colormap.length / sampleNum)) {
@@ -583,6 +823,13 @@
     }
 
     function generateAll() {
+        // Reset global arrays
+        allColormaps = [];
+        colormapElements = [];
+        
+        // Remove existing grid if present
+        d3.select("#colormapsGrid").remove();
+        
         // Create grid container for multi-column layout
         d3.select("body").append("div")
             .attr("id", "colormapsGrid")
@@ -627,6 +874,7 @@
         );
         console.log("perturbOffsets", perturbOffsets);
         let colormap_count = 0
+        let hue_index = 0;
         for (let hue of hue_targets) {
             for (let lumi of lumi_array) {
                 let luminance_target = lumi[1] - lumi[0];
@@ -648,7 +896,11 @@
                     }
                 }
             }
+            hue_index++;
         }
+        
+        // Update statistics after all colormaps are generated
+        updateStatistics();
     }
 
     function getHueDiff(h1, h2) {
@@ -671,16 +923,13 @@
             m_yScale = d3.scaleLinear().range([svg_height - margin * 2, 0]); // value -> display
         // Scale the range of the data
         m_xScale.domain([0, data[0].length - 1]);
-        if (name == "luminance") {
-            m_yScale.domain([0, 100]);
-        } else if (name == "chroma") {
-            m_yScale.domain([0, 120]);
-        } else {
-            m_yScale.domain([0, 360]);
-            // m_yScale.domain(d3.extent(data, function (d) {
-            //     return d[y];
-            // }));
-        }
+        
+        const yMin = d3.min(data, line => d3.min(line));
+        const yMax = d3.max(data, line => d3.max(line));
+        const yRange = yMax - yMin;
+        const padding = yRange === 0 ? (yMin === 0 ? 1 : Math.abs(yMin) * 0.1) : yRange * 0.1;
+        m_yScale.domain([yMin - padding, yMax + padding]);
+
         // define the line
         let valueline = d3.line()
             .x(function (d, i) {
@@ -778,12 +1027,42 @@
         const metrics = calculateAndDisplayMetrics(colormap, condition_name);
         if (metrics) {
             displayMetricsInDiv(div, metrics);
+            
+            // Store colormap data for statistics
+            const divNode = div.node();
+            allColormaps.push({
+                colormap: colormap,
+                metrics: metrics,
+                chromaLabel: 'Unknown',
+                lumiLabel: 'Unknown',
+                hueCount: 1,
+                condition: condition_name
+            });
+            colormapElements.push(divNode);
+            
+            // Update border color based on Min Color Diff threshold
+            const isPassing = metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            div.style("border-color", isPassing ? "#4CAF50" : "#f44336")
+               .style("border-width", "3px");
+            
+            // Add status badge
+            div.insert("div", ":first-child")
+                .style("position", "absolute")
+                .style("top", "5px")
+                .style("right", "5px")
+                .style("padding", "4px 8px")
+                .style("border-radius", "3px")
+                .style("font-size", "11px")
+                .style("font-weight", "bold")
+                .style("background", isPassing ? "#4CAF50" : "#f44336")
+                .style("color", "white")
+                .text(isPassing ? " Pass" : " Fail");
+            
+            div.style("position", "relative");
         }
     }
 
-    // ... (rest of the code remains the same)
-
-    // ========== Static Metrics Calculation Functions ==========
+// ========== Static Metrics Calculation Functions ==========
 
     // 辅助函数：将 RGB colormap 转换为标准格式
     function convertColormapToStandardFormat(colormap) {
@@ -1551,6 +1830,15 @@
             metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
             console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
 
+            // Convert colormap to HCL format for calcSmoothnessMinDiff
+            const hclPalette = colormap.map(color => {
+                const lab = d3.lab(color);
+                const hcl = d3.hcl(lab);
+                return [hcl.h, hcl.c, hcl.l];
+            });
+            metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette) || 0;
+            console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(3));
+
             console.log('==========================================\n');
 
             return metrics;
@@ -1585,11 +1873,12 @@
             .style("font-size", "11px");
 
         const metricsData = [
+            { name: "Min Color Diff", value: metrics.smoothness_min_diff, color: "#795548" },
+            { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
+            { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
+            { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
             { name: "CIEDE", value: metrics.discriminatory_cie, color: "#2196F3" },
             { name: "Contrast", value: metrics.discriminatory_contrast, color: "#FF9800" },
-            { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
-            { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
-            { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
             { name: "LAB Len", value: metrics.lab_length, color: "#607D8B" },
             { name: "CNV", value: metrics.color_name_var, color: "#00BCD4" },
             { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }

@@ -253,6 +253,138 @@
     <!-- 引入D3和依赖库 -->
     <script src="../../rainbows good or bad for/supplementary materials/experiment interface/jnd/lib/d3.min.js"></script>
     
+    <!-- 色彩度量函数 -->
+    <script>
+    function ciede2000(lab1, lab2) {
+        const [L1, a1, b1] = lab1;
+        const [L2, a2, b2] = lab2;
+
+        const avg_L = (L1 + L2) / 2.0;
+        const C1 = Math.sqrt(a1 * a1 + b1 * b1);
+        const C2 = Math.sqrt(a2 * a2 + b2 * b2);
+        const avg_C = (C1 + C2) / 2.0;
+
+        const G = 0.5 * (1 - Math.sqrt((avg_C ** 7) / ((avg_C ** 7) + (25 ** 7))));
+        const a1p = (1 + G) * a1;
+        const a2p = (1 + G) * a2;
+        const C1p = Math.sqrt(a1p * a1p + b1 * b1);
+        const C2p = Math.sqrt(a2p * a2p + b2 * b2);
+
+        const avg_Cp = (C1p + C2p) / 2.0;
+
+        const h1 = Math.atan2(b1, a1p), h2 = Math.atan2(b2, a2p);
+        const h1p = h1 * 180 / Math.PI + (h1 < 0 ? 360 : 0);
+        const h2p = h2 * 180 / Math.PI + (h2 < 0 ? 360 : 0);
+
+        const deltahp = (C1p * C2p === 0) ? 0 :
+            (Math.abs(h2p - h1p) <= 180) ? (h2p - h1p) :
+                (h2p <= h1p) ? (h2p - h1p + 360) : (h2p - h1p - 360);
+
+        const deltaLp = L2 - L1;
+        const deltaCp = C2p - C1p;
+        const deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((deltahp * Math.PI) / 360);
+
+        const avg_Lp = (L1 + L2) / 2.0;
+        let avg_hp;
+        if (Math.abs(h1p - h2p) <= 180) {
+            avg_hp = (h1p + h2p) / 2.0;
+        } else if ((h1p + h2p) < 360) {
+            avg_hp = (h1p + h2p + 360) / 2.0;
+        } else {
+            avg_hp = (h1p + h2p - 360) / 2.0;
+        }
+
+        const T = 1
+            - 0.17 * Math.cos((avg_hp - 30) * Math.PI / 180)
+            + 0.24 * Math.cos((2 * avg_hp) * Math.PI / 180)
+            + 0.32 * Math.cos((3 * avg_hp + 6) * Math.PI / 180)
+            - 0.20 * Math.cos((4 * avg_hp - 63) * Math.PI / 180);
+
+        const delta_ro = 30 * Math.exp(-(((avg_hp - 275) / 25) ** 2));
+        const RC = 2 * Math.sqrt((avg_Cp ** 7) / ((avg_Cp ** 7) + (25 ** 7)));
+        const SL = 1 + (0.015 * ((avg_Lp - 50) ** 2)) / Math.sqrt(20 + ((avg_Lp - 50) ** 2));
+        const SC = 1 + 0.045 * avg_Cp;
+        const SH = 1 + 0.015 * avg_Cp * T;
+        const RT = -Math.sin(2 * delta_ro * Math.PI / 180) * RC;
+
+        const deltaE = Math.sqrt(
+            (deltaLp / SL) ** 2 +
+            (deltaCp / SC) ** 2 +
+            (deltaHp / SH) ** 2 +
+            RT * (deltaCp / SC) * (deltaHp / SH)
+        );
+
+        return deltaE;
+    }
+
+    function calcSmoothnessMinDiff(palette) {
+        let min_color_diff = 0;
+        try {
+            let fineSamples = [];
+            let numFineSamples = 1000;
+            for (let k = 0; k < numFineSamples; k++) {
+                let t_total = k / (numFineSamples - 1); 
+                let segmentIndex = Math.floor(t_total * (palette.length - 1));
+                if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+                let segmentLength = 1 / (palette.length - 1);
+                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+                
+                let c1 = palette[segmentIndex];
+                let c2 = palette[segmentIndex + 1];
+                
+                let h1 = c1[0], h2 = c2[0];
+                let diff = h2 - h1;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                let h = (h1 + diff * t + 360) % 360;
+                let c = c1[1] + (c2[1] - c1[1]) * t;
+                let l = c1[2] + (c2[2] - c1[2]) * t;
+                
+                fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+            }
+
+            let jndStep = 3.0;
+            let samples = [];
+            if (fineSamples.length > 0) {
+                samples.push(fineSamples[0]);
+                let lastSample = fineSamples[0];
+                
+                for (let i = 1; i < fineSamples.length; i++) {
+                    let current = fineSamples[i];
+                    let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
+                    if (dist >= jndStep) {
+                        samples.push(current);
+                        lastSample = current;
+                    }
+                }
+                if (samples.length < 2 && fineSamples.length > 1) {
+                    samples.push(fineSamples[fineSamples.length - 1]);
+                }
+            }
+            
+            if (samples.length < 2) return 0;
+
+            let minDeltaE = Number.MAX_VALUE;
+            
+            for (let i = 0; i < samples.length; i++) {
+                for (let j = i + 1; j < samples.length; j++) {
+                    let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
+                    if (deltaE < minDeltaE) {
+                        minDeltaE = deltaE;
+                    }
+                }
+            }
+            
+            if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
+            min_color_diff = minDeltaE;
+            
+        } catch (e) {
+            console.warn("Error in smoothness calculation:", e);
+        }
+        return min_color_diff;
+    }
+    </script>
+    
     <!-- 引入现有的高斯分布相关模块 -->
     <script src="../../rainbows good or bad for/supplementary materials/experiment interface/src/scalar.js"></script>
     <script src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix.js"></script>
