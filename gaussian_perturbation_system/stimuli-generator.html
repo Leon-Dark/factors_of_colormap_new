@@ -704,6 +704,7 @@
 
     function calcSmoothnessMinDiff(palette) {
         let min_color_diff = 0;
+        let sampleCount = 0;
         try {
             let fineSamples = [];
             let numFineSamples = 1000;
@@ -747,7 +748,9 @@
                 }
             }
             
-            if (samples.length < 2) return 0;
+            sampleCount = samples.length;
+            
+            if (samples.length < 2) return { minDiff: 0, sampleCount: sampleCount };
 
             let minDeltaE = Number.MAX_VALUE;
             
@@ -766,7 +769,7 @@
         } catch (e) {
             console.warn("Error in smoothness calculation:", e);
         }
-        return min_color_diff;
+        return { minDiff: min_color_diff, sampleCount: sampleCount };
     }
 
     function satisfyDiscriminability(colormap, sampleNum = 10) {
@@ -1894,8 +1897,10 @@
                 const hcl = d3.hcl(lab);
                 return [hcl.h, hcl.c, hcl.l];
             });
-            metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette) || 0;
-            console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(2));
+            const smoothnessResult = calcSmoothnessMinDiff(hclPalette) || { minDiff: 0, sampleCount: 0 };
+            metrics.smoothness_min_diff = smoothnessResult.minDiff;
+            metrics.smoothness_sample_count = smoothnessResult.sampleCount;
+            console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(2), '(sample number=' + metrics.smoothness_sample_count + ')');
 
             console.log('==========================================\n');
 
@@ -1931,7 +1936,7 @@
             .style("font-size", "11px");
 
         const metricsData = [
-            { name: "Min Color Diff", value: metrics.smoothness_min_diff, color: "#795548" },
+            { name: "Min Color Diff", value: metrics.smoothness_min_diff, sampleCount: metrics.smoothness_sample_count, color: "#795548" },
             { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
             { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
             { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
@@ -1956,13 +1961,16 @@
                 .style("width", "30%")
                 .html(`<span style="color: ${metric1.color}; font-size: 12px;">●</span> ${metric1.name}`);
             
+            const valueText1 = metric1.sampleCount !== undefined 
+                ? `${metric1.value.toFixed(2)} (n=${metric1.sampleCount})`
+                : metric1.value.toFixed(2);
             row.append("td")
                 .style("padding", "4px 6px")
                 .style("text-align", "right")
                 .style("font-weight", "bold")
                 .style("color", metric1.color)
                 .style("width", "20%")
-                .text(metric1.value.toFixed(2));
+                .text(valueText1);
 
             // 第二个指标（如果存在）
             if (i + 1 < metricsData.length) {
@@ -1975,13 +1983,16 @@
                     .style("padding-left", "10px")
                     .html(`<span style="color: ${metric2.color}; font-size: 12px;">●</span> ${metric2.name}`);
                 
+                const valueText2 = metric2.sampleCount !== undefined 
+                    ? `${metric2.value.toFixed(2)} (n=${metric2.sampleCount})`
+                    : metric2.value.toFixed(2);
                 row.append("td")
                     .style("padding", "4px 6px")
                     .style("text-align", "right")
                     .style("font-weight", "bold")
                     .style("color", metric2.color)
                     .style("width", "20%")
-                    .text(metric2.value.toFixed(2));
+                    .text(valueText2);
             } else {
                 // 如果是奇数个指标，填充空列
                 row.append("td").attr("colspan", "2");
