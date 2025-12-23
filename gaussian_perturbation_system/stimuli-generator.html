@@ -125,7 +125,7 @@
     // Calculate detailed breakdown statistics
     function updateDetailedStatistics() {
         const stats = {
-            byHue: {},
+            byHueDiff: {},
             byChroma: {},
             byLumi: {}
         };
@@ -133,48 +133,106 @@
         allColormaps.forEach(cm => {
             const isPassing = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
             
-            // By Hue
-            const hueKey = cm.hueCount === 3 ? '3 Hues' : cm.hueCount === 2 ? '5 Hues' : '7 Hues';
-            if (!stats.byHue[hueKey]) stats.byHue[hueKey] = { total: 0, pass: 0, fail: 0 };
-            stats.byHue[hueKey].total++;
-            if (isPassing) stats.byHue[hueKey].pass++;
-            else stats.byHue[hueKey].fail++;
+            // Parse condition string to extract hue diff, chroma profile, and lumi profile
+            // Format: "H diff=100, C=[70,70], L=[55,55], ..."
+            const condition = cm.condition;
+            
+            // Extract hue diff
+            const hueDiffMatch = condition.match(/H diff=(\d+)/);
+            const hueDiff = hueDiffMatch ? hueDiffMatch[1] : 'Unknown';
+            const hueKey = `Hue diff = ${hueDiff}`;
+            if (!stats.byHueDiff[hueKey]) stats.byHueDiff[hueKey] = { total: 0, pass: 0, fail: 0 };
+            stats.byHueDiff[hueKey].total++;
+            if (isPassing) stats.byHueDiff[hueKey].pass++;
+            else stats.byHueDiff[hueKey].fail++;
 
-            // By Chroma
-            const chromaKey = cm.chromaLabel;
-            if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, pass: 0, fail: 0 };
-            stats.byChroma[chromaKey].total++;
-            if (isPassing) stats.byChroma[chromaKey].pass++;
-            else stats.byChroma[chromaKey].fail++;
+            // Extract chroma profile
+            const chromaMatch = condition.match(/C=\[([^\]]+)\]/);
+            if (chromaMatch) {
+                const chromaValues = chromaMatch[1].split(',').map(v => parseFloat(v.trim()));
+                let chromaKey;
+                if (chromaValues.length === 2 && chromaValues[0] === chromaValues[1]) {
+                    chromaKey = 'Constant';
+                } else if (chromaValues.length === 2) {
+                    chromaKey = 'Linear';
+                } else if (chromaValues.length === 3) {
+                    chromaKey = 'Diverging';
+                } else if (chromaValues.length === 5) {
+                    chromaKey = 'Thermal';
+                } else {
+                    chromaKey = 'Unknown';
+                }
+                
+                if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, pass: 0, fail: 0 };
+                stats.byChroma[chromaKey].total++;
+                if (isPassing) stats.byChroma[chromaKey].pass++;
+                else stats.byChroma[chromaKey].fail++;
+            }
 
-            // By Lumi
-            const lumiKey = cm.lumiLabel;
-            if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, pass: 0, fail: 0 };
-            stats.byLumi[lumiKey].total++;
-            if (isPassing) stats.byLumi[lumiKey].pass++;
-            else stats.byLumi[lumiKey].fail++;
+            // Extract luminance profile
+            const lumiMatch = condition.match(/L=\[([^\]]+)\]/);
+            if (lumiMatch) {
+                const lumiValues = lumiMatch[1].split(',').map(v => parseFloat(v.trim()));
+                let lumiKey;
+                if (lumiValues.length === 2 && lumiValues[0] === lumiValues[1]) {
+                    lumiKey = 'Constant';
+                } else if (lumiValues.length === 2) {
+                    lumiKey = 'Linear';
+                } else if (lumiValues.length === 3) {
+                    lumiKey = 'Diverging';
+                } else if (lumiValues.length === 5) {
+                    lumiKey = 'Thermal';
+                } else {
+                    lumiKey = 'Unknown';
+                }
+                
+                if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, pass: 0, fail: 0 };
+                stats.byLumi[lumiKey].total++;
+                if (isPassing) stats.byLumi[lumiKey].pass++;
+                else stats.byLumi[lumiKey].fail++;
+            }
         });
 
         // Render detailed statistics
         let html = '';
         
-        html += '<div style="margin-bottom: 15px;"><strong>By hue count:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue count</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
-        Object.entries(stats.byHue).forEach(([key, val]) => {
+        // Sort hue diff keys numerically
+        const sortedHueDiffKeys = Object.keys(stats.byHueDiff).sort((a, b) => {
+            const numA = parseInt(a.match(/\d+/)[0]);
+            const numB = parseInt(b.match(/\d+/)[0]);
+            return numA - numB;
+        });
+        
+        html += '<div style="margin-bottom: 15px;"><strong>By hue diff:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue diff</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+        sortedHueDiffKeys.forEach(key => {
+            const val = stats.byHueDiff[key];
             html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
         });
         html += '</table></div>';
+
+        // Define profile order
+        const profileOrder = ['Constant', 'Linear', 'Diverging', 'Thermal'];
+        const sortedChromaKeys = Object.keys(stats.byChroma).sort((a, b) => {
+            return profileOrder.indexOf(a) - profileOrder.indexOf(b);
+        });
 
         html += '<div style="margin-bottom: 15px;"><strong>By chroma profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
         html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
-        Object.entries(stats.byChroma).forEach(([key, val]) => {
+        sortedChromaKeys.forEach(key => {
+            const val = stats.byChroma[key];
             html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
         });
         html += '</table></div>';
 
+        const sortedLumiKeys = Object.keys(stats.byLumi).sort((a, b) => {
+            return profileOrder.indexOf(a) - profileOrder.indexOf(b);
+        });
+
         html += '<div><strong>By luminance profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
         html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
-        Object.entries(stats.byLumi).forEach(([key, val]) => {
+        sortedLumiKeys.forEach(key => {
+            const val = stats.byLumi[key];
             html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
         });
         html += '</table></div>';
@@ -1807,28 +1865,28 @@
             const metrics = {};
 
             metrics.discriminatory_cie = discriminatory_cie(colormap) || 0;
-            console.log('CIEDE2000 Discriminative Power:', metrics.discriminatory_cie.toFixed(3));
+            console.log('CIEDE2000 Discriminative Power:', metrics.discriminatory_cie.toFixed(2));
 
             metrics.discriminatory_contrast = discriminatory_contrast_sensitivity(colormap) || 0;
-            console.log('Contrast Sensitivity:', metrics.discriminatory_contrast.toFixed(3));
+            console.log('Contrast Sensitivity:', metrics.discriminatory_contrast.toFixed(2));
 
             metrics.discriminatory_hue = discriminatory_hue(colormap) || 0;
-            console.log('Hue Discriminative Power:', metrics.discriminatory_hue.toFixed(3));
+            console.log('Hue Discriminative Power:', metrics.discriminatory_hue.toFixed(2));
 
             metrics.luminance_var = luminance_variation(colormap) || 0;
-            console.log('Luminance Variation:', metrics.luminance_var.toFixed(3));
+            console.log('Luminance Variation:', metrics.luminance_var.toFixed(2));
 
             metrics.chromatic_var = chromatic_variation(colormap) || 0;
-            console.log('Chromatic Variation:', metrics.chromatic_var.toFixed(3));
+            console.log('Chromatic Variation:', metrics.chromatic_var.toFixed(2));
 
             metrics.lab_length = calculate_lab_length(colormap) || 0;
-            console.log('LAB Length:', metrics.lab_length.toFixed(3));
+            console.log('LAB Length:', metrics.lab_length.toFixed(2));
 
             metrics.color_name_var = calculate_color_name_variation(colormap) || 0;
-            console.log('Color Name Variation:', metrics.color_name_var.toFixed(3));
+            console.log('Color Name Variation:', metrics.color_name_var.toFixed(2));
 
             metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
-            console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
+            console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(2));
 
             // Convert colormap to HCL format for calcSmoothnessMinDiff
             const hclPalette = colormap.map(color => {
@@ -1837,7 +1895,7 @@
                 return [hcl.h, hcl.c, hcl.l];
             });
             metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette) || 0;
-            console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(3));
+            console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(2));
 
             console.log('==========================================\n');
 
