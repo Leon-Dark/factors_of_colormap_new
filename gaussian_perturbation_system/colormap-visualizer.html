@@ -679,6 +679,7 @@ function ciede2000(lab1, lab2) {
 
 function calcSmoothnessMinDiff(palette) {
     let min_color_diff = 0;
+    let sampleCount = 0;
     try {
         let fineSamples = [];
         let numFineSamples = 1000;
@@ -722,7 +723,9 @@ function calcSmoothnessMinDiff(palette) {
             }
         }
         
-        if (samples.length < 2) return 0;
+        sampleCount = samples.length;
+        
+        if (samples.length < 2) return { minDiff: 0, sampleCount: sampleCount };
 
         let minDeltaE = Number.MAX_VALUE;
         
@@ -741,7 +744,7 @@ function calcSmoothnessMinDiff(palette) {
     } catch (e) {
         console.warn("Error in smoothness calculation:", e);
     }
-    return min_color_diff;
+    return { minDiff: min_color_diff, sampleCount: sampleCount };
 }
 
 function getInterpolatedValues(arr, num) {
@@ -2701,14 +2704,18 @@ function createStaticMetricsBox() {
                         const hcl = d3.hcl(lab);
                         return [hcl.h, hcl.c, hcl.l];
                     });
-                    metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette);
-                    console.log('Min Color Diff:', metrics.smoothness_min_diff);
+                    const smoothnessResult = calcSmoothnessMinDiff(hclPalette);
+                    metrics.smoothness_min_diff = smoothnessResult.minDiff;
+                    metrics.smoothness_sample_count = smoothnessResult.sampleCount;
+                    console.log('Min Color Diff:', metrics.smoothness_min_diff, '(sample number=' + metrics.smoothness_sample_count + ')');
                 } else {
                     metrics.smoothness_min_diff = 'N/A';
+                    metrics.smoothness_sample_count = 'N/A';
                 }
             } catch (e) {
                 console.error('Error calculating Min Color Diff:', e);
                 metrics.smoothness_min_diff = 'N/A';
+                metrics.smoothness_sample_count = 'N/A';
             }
             
             // Format the values
@@ -2723,7 +2730,11 @@ function createStaticMetricsBox() {
             html += '<table style="width: 100%; border-collapse: collapse;">';
             html += '<tr style="background: #e3f2fd;"><th style="text-align: left; padding: 8px; border: 1px solid #ddd;">Metric</th><th style="text-align: right; padding: 8px; border: 1px solid #ddd;">Value</th></tr>';
             
-            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Min Color Diff</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.smoothness_min_diff)}</td></tr>`;
+            const minColorDiffValue = metrics.smoothness_min_diff === 'N/A' ? 'N/A' : 
+                (metrics.smoothness_sample_count !== 'N/A' ? 
+                    `${formatValue(metrics.smoothness_min_diff)} (n=${metrics.smoothness_sample_count})` : 
+                    formatValue(metrics.smoothness_min_diff));
+            html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Min Color Diff</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${minColorDiffValue}</td></tr>`;
             html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Hue Discriminative Power</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.discriminatory_hue)}</td></tr>`;
             html += `<tr><td style="padding: 6px; border: 1px solid #ddd;"><strong>Chromatic Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.chromatic_var)}</td></tr>`;
             html += `<tr style="background: #f9f9f9;"><td style="padding: 6px; border: 1px solid #ddd;"><strong>Luminance Variation</strong></td><td style="text-align: right; padding: 6px; border: 1px solid #ddd;">${formatValue(metrics.luminance_var)}</td></tr>`;
