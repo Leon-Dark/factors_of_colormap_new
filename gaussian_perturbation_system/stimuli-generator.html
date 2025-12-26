@@ -28,8 +28,10 @@
             <!-- Overall Statistics -->
             <div id="overallStats" style="font-size: 14px; margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap;">
                 <div><strong>Total generated:</strong> <span id="totalCount">0</span></div>
-                <div style="color: #4CAF50;"><strong>✅ Min Color Diff ≥ 3:</strong> <span id="passCount">0</span> (<span id="passPercent">0</span>%)</div>
-                <div style="color: #f44336;"><strong>⚠️ Min Color Diff < 3:</strong> <span id="failCount">0</span> (<span id="failPercent">0</span>%)</div>
+                <div style="color: #4CAF50;"><strong>✅ Pass both conditions:</strong> <span id="passCount">0</span> (<span id="passPercent">0</span>%)</div>
+                <div style="color: #FF9800;"><strong>⚠️ Fail Condition 1 only:</strong> <span id="failCond1Count">0</span> (<span id="failCond1Percent">0</span>%)</div>
+                <div style="color: #9C27B0;"><strong>⚠️ Fail Condition 2 only:</strong> <span id="failCond2Count">0</span> (<span id="failCond2Percent">0</span>%)</div>
+                <div style="color: #f44336;"><strong>❌ Fail both conditions:</strong> <span id="failBothCount">0</span> (<span id="failBothPercent">0</span>%)</div>
             </div>
             
             <!-- Detailed Statistics (Collapsible) -->
@@ -39,6 +41,48 @@
                     <!-- Will be populated by JavaScript -->
                 </div>
             </details>
+            
+            <!-- Threshold Adjustment Panel -->
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                <div style="font-weight: bold; margin-bottom: 12px; color: #555;">🎚️ Filter conditions:</div>
+                
+                <!-- Condition 1: Min Color Diff -->
+                <div style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
+                    <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📏 Condition 1: Min Color Diff (JND-based)</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="thresholdSlider" style="min-width: 100px; font-size: 13px;">Threshold ≥</label>
+                        <input type="range" id="thresholdSlider" min="0" max="10" step="0.1" value="3" 
+                               style="flex: 1; cursor: pointer;" oninput="updateThreshold(this.value)">
+                        <input type="number" id="thresholdValue" min="0" max="10" step="0.1" value="3" 
+                               style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                               oninput="updateThreshold(this.value)">
+                    </div>
+                </div>
+                
+                <!-- Condition 2: Sample Interval Check -->
+                <div style="padding: 10px; background: #f0f8ff; border-radius: 4px;">
+                    <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📐 Condition 2: Sample Interval Color Diff</div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <label for="intervalKSlider" style="min-width: 100px; font-size: 13px;">Interval k =</label>
+                        <input type="range" id="intervalKSlider" min="1" max="20" step="1" value="5" 
+                               style="flex: 1; cursor: pointer;" oninput="updateIntervalParams(this.value, document.getElementById('intervalJValue').value)">
+                        <input type="number" id="intervalKValue" min="1" max="20" step="1" value="5" 
+                               style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                               oninput="updateIntervalParams(this.value, document.getElementById('intervalJValue').value)">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="intervalJSlider" style="min-width: 100px; font-size: 13px;">Min Diff j ≥</label>
+                        <input type="range" id="intervalJSlider" min="0" max="50" step="0.5" value="10" 
+                               style="flex: 1; cursor: pointer;" oninput="updateIntervalParams(document.getElementById('intervalKValue').value, this.value)">
+                        <input type="number" id="intervalJValue" min="0" max="50" step="0.5" value="10" 
+                               style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                               oninput="updateIntervalParams(document.getElementById('intervalKValue').value, this.value)">
+                    </div>
+                    <div style="font-size: 11px; color: #666; margin-top: 6px; font-style: italic;">
+                        Check: Color diff between sample[i] and sample[i+k] ≥ j
+                    </div>
+                </div>
+            </div>
             
             <!-- Filter Controls -->
             <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
@@ -50,11 +94,23 @@
                     </label>
                     <label style="cursor: pointer; color: #4CAF50;">
                         <input type="radio" name="filterMode" value="pass" onchange="applyFilter()"> 
-                        Only show Min Color Diff ≥ 3 (<span id="filterPassCount">0</span>)
+                        Pass both (<span id="filterPassCount">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #FF9800;">
+                        <input type="radio" name="filterMode" value="failCond1" onchange="applyFilter()"> 
+                        Fail Cond 1 only (<span id="filterFailCond1Count">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #9C27B0;">
+                        <input type="radio" name="filterMode" value="failCond2" onchange="applyFilter()"> 
+                        Fail Cond 2 only (<span id="filterFailCond2Count">0</span>)
                     </label>
                     <label style="cursor: pointer; color: #f44336;">
-                        <input type="radio" name="filterMode" value="fail" onchange="applyFilter()"> 
-                        Only show Min Color Diff < 3 (<span id="filterFailCount">0</span>)
+                        <input type="radio" name="filterMode" value="failBoth" onchange="applyFilter()"> 
+                        Fail both (<span id="filterFailBothCount">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #999;">
+                        <input type="radio" name="filterMode" value="failAny" onchange="applyFilter()"> 
+                        Fail any (<span id="filterFailAnyCount">0</span>)
                     </label>
                 </div>
             </div>
@@ -67,7 +123,9 @@
     // Global variables for statistics and filtering
     let allColormaps = [];
     let colormapElements = [];
-    const MIN_COLOR_DIFF_THRESHOLD = 3;
+    let MIN_COLOR_DIFF_THRESHOLD = 3;
+    let SAMPLE_INTERVAL_K = 5;
+    let MIN_INTERVAL_DIFF_J = 10;
 
     // Helper function to get category labels
     function getCategoryLabels(chroma, lumi) {
@@ -100,20 +158,46 @@
     // Calculate and update statistics
     function updateStatistics() {
         const total = allColormaps.length;
-        const passCount = allColormaps.filter(cm => cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD).length;
-        const failCount = total - passCount;
-        const passPercent = total > 0 ? ((passCount / total) * 100).toFixed(1) : 0;
-        const failPercent = total > 0 ? ((failCount / total) * 100).toFixed(1) : 0;
+        
+        // Categorize colormaps by which conditions they pass/fail
+        let passBoth = 0, failCond1Only = 0, failCond2Only = 0, failBoth = 0;
+        
+        allColormaps.forEach(cm => {
+            const passCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+            
+            if (passCond1 && passCond2) {
+                passBoth++;
+            } else if (!passCond1 && passCond2) {
+                failCond1Only++;
+            } else if (passCond1 && !passCond2) {
+                failCond2Only++;
+            } else {
+                failBoth++;
+            }
+        });
+        
+        const failAny = failCond1Only + failCond2Only + failBoth;
 
         document.getElementById('totalCount').textContent = total;
-        document.getElementById('passCount').textContent = passCount;
-        document.getElementById('failCount').textContent = failCount;
-        document.getElementById('passPercent').textContent = passPercent;
-        document.getElementById('failPercent').textContent = failPercent;
+        document.getElementById('passCount').textContent = passBoth;
+        document.getElementById('passPercent').textContent = total > 0 ? ((passBoth / total) * 100).toFixed(1) : 0;
+        
+        document.getElementById('failCond1Count').textContent = failCond1Only;
+        document.getElementById('failCond1Percent').textContent = total > 0 ? ((failCond1Only / total) * 100).toFixed(1) : 0;
+        
+        document.getElementById('failCond2Count').textContent = failCond2Only;
+        document.getElementById('failCond2Percent').textContent = total > 0 ? ((failCond2Only / total) * 100).toFixed(1) : 0;
+        
+        document.getElementById('failBothCount').textContent = failBoth;
+        document.getElementById('failBothPercent').textContent = total > 0 ? ((failBoth / total) * 100).toFixed(1) : 0;
         
         document.getElementById('filterAllCount').textContent = total;
-        document.getElementById('filterPassCount').textContent = passCount;
-        document.getElementById('filterFailCount').textContent = failCount;
+        document.getElementById('filterPassCount').textContent = passBoth;
+        document.getElementById('filterFailCond1Count').textContent = failCond1Only;
+        document.getElementById('filterFailCond2Count').textContent = failCond2Only;
+        document.getElementById('filterFailBothCount').textContent = failBoth;
+        document.getElementById('filterFailAnyCount').textContent = failAny;
 
         // Calculate detailed statistics
         updateDetailedStatistics();
@@ -125,136 +209,178 @@
     // Calculate detailed breakdown statistics
     function updateDetailedStatistics() {
         const stats = {
-            byHueDiff: {},
+            byHue: {},
             byChroma: {},
             byLumi: {}
         };
 
         allColormaps.forEach(cm => {
-            const isPassing = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            const isPassingCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            const isPassingCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
             
-            // Parse condition string to extract hue diff, chroma profile, and lumi profile
-            // Format: "H diff=100, C=[70,70], L=[55,55], ..."
-            const condition = cm.condition;
-            
-            // Extract hue diff
-            const hueDiffMatch = condition.match(/H diff=(\d+)/);
-            const hueDiff = hueDiffMatch ? hueDiffMatch[1] : 'Unknown';
-            const hueKey = `Hue diff = ${hueDiff}`;
-            if (!stats.byHueDiff[hueKey]) stats.byHueDiff[hueKey] = { total: 0, pass: 0, fail: 0 };
-            stats.byHueDiff[hueKey].total++;
-            if (isPassing) stats.byHueDiff[hueKey].pass++;
-            else stats.byHueDiff[hueKey].fail++;
+            // By Hue
+            const hueKey = cm.hueCount === 3 ? '3 Hues' : cm.hueCount === 2 ? '5 Hues' : '7 Hues';
+            if (!stats.byHue[hueKey]) stats.byHue[hueKey] = { total: 0, passBoth: 0, failCond1Only: 0, failCond2Only: 0, failBoth: 0 };
+            stats.byHue[hueKey].total++;
+            if (isPassingCond1 && isPassingCond2) stats.byHue[hueKey].passBoth++;
+            else if (!isPassingCond1 && isPassingCond2) stats.byHue[hueKey].failCond1Only++;
+            else if (isPassingCond1 && !isPassingCond2) stats.byHue[hueKey].failCond2Only++;
+            else stats.byHue[hueKey].failBoth++;
 
-            // Extract chroma profile
-            const chromaMatch = condition.match(/C=\[([^\]]+)\]/);
-            if (chromaMatch) {
-                const chromaValues = chromaMatch[1].split(',').map(v => parseFloat(v.trim()));
-                let chromaKey;
-                if (chromaValues.length === 2 && chromaValues[0] === chromaValues[1]) {
-                    chromaKey = 'Constant';
-                } else if (chromaValues.length === 2) {
-                    chromaKey = 'Linear';
-                } else if (chromaValues.length === 3) {
-                    chromaKey = 'Diverging';
-                } else if (chromaValues.length === 5) {
-                    chromaKey = 'Thermal';
-                } else {
-                    chromaKey = 'Unknown';
-                }
-                
-                if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, pass: 0, fail: 0 };
-                stats.byChroma[chromaKey].total++;
-                if (isPassing) stats.byChroma[chromaKey].pass++;
-                else stats.byChroma[chromaKey].fail++;
-            }
+            // By Chroma
+            const chromaKey = cm.chromaLabel;
+            if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, passBoth: 0, failCond1Only: 0, failCond2Only: 0, failBoth: 0 };
+            stats.byChroma[chromaKey].total++;
+            if (isPassingCond1 && isPassingCond2) stats.byChroma[chromaKey].passBoth++;
+            else if (!isPassingCond1 && isPassingCond2) stats.byChroma[chromaKey].failCond1Only++;
+            else if (isPassingCond1 && !isPassingCond2) stats.byChroma[chromaKey].failCond2Only++;
+            else stats.byChroma[chromaKey].failBoth++;
 
-            // Extract luminance profile
-            const lumiMatch = condition.match(/L=\[([^\]]+)\]/);
-            if (lumiMatch) {
-                const lumiValues = lumiMatch[1].split(',').map(v => parseFloat(v.trim()));
-                let lumiKey;
-                if (lumiValues.length === 2 && lumiValues[0] === lumiValues[1]) {
-                    lumiKey = 'Constant';
-                } else if (lumiValues.length === 2) {
-                    lumiKey = 'Linear';
-                } else if (lumiValues.length === 3) {
-                    lumiKey = 'Diverging';
-                } else if (lumiValues.length === 5) {
-                    lumiKey = 'Thermal';
-                } else {
-                    lumiKey = 'Unknown';
-                }
-                
-                if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, pass: 0, fail: 0 };
-                stats.byLumi[lumiKey].total++;
-                if (isPassing) stats.byLumi[lumiKey].pass++;
-                else stats.byLumi[lumiKey].fail++;
-            }
+            // By Lumi
+            const lumiKey = cm.lumiLabel;
+            if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, passBoth: 0, failCond1Only: 0, failCond2Only: 0, failBoth: 0 };
+            stats.byLumi[lumiKey].total++;
+            if (isPassingCond1 && isPassingCond2) stats.byLumi[lumiKey].passBoth++;
+            else if (!isPassingCond1 && isPassingCond2) stats.byLumi[lumiKey].failCond1Only++;
+            else if (isPassingCond1 && !isPassingCond2) stats.byLumi[lumiKey].failCond2Only++;
+            else stats.byLumi[lumiKey].failBoth++;
         });
 
         // Render detailed statistics
         let html = '';
         
-        // Sort hue diff keys numerically
-        const sortedHueDiffKeys = Object.keys(stats.byHueDiff).sort((a, b) => {
-            const numA = parseInt(a.match(/\d+/)[0]);
-            const numB = parseInt(b.match(/\d+/)[0]);
-            return numA - numB;
-        });
-        
-        html += '<div style="margin-bottom: 15px;"><strong>By hue diff:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue diff</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
-        sortedHueDiffKeys.forEach(key => {
-            const val = stats.byHueDiff[key];
-            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+        html += '<div style="margin-bottom: 15px;"><strong>By hue count:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue count</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
+        Object.entries(stats.byHue).forEach(([key, val]) => {
+            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
         });
         html += '</table></div>';
-
-        // Define profile order
-        const profileOrder = ['Constant', 'Linear', 'Diverging', 'Thermal'];
-        const sortedChromaKeys = Object.keys(stats.byChroma).sort((a, b) => {
-            return profileOrder.indexOf(a) - profileOrder.indexOf(b);
-        });
 
         html += '<div style="margin-bottom: 15px;"><strong>By chroma profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
-        sortedChromaKeys.forEach(key => {
-            const val = stats.byChroma[key];
-            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
+        Object.entries(stats.byChroma).forEach(([key, val]) => {
+            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
         });
         html += '</table></div>';
 
-        const sortedLumiKeys = Object.keys(stats.byLumi).sort((a, b) => {
-            return profileOrder.indexOf(a) - profileOrder.indexOf(b);
-        });
-
         html += '<div><strong>By luminance profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
-        sortedLumiKeys.forEach(key => {
-            const val = stats.byLumi[key];
-            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
+        Object.entries(stats.byLumi).forEach(([key, val]) => {
+            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
         });
         html += '</table></div>';
 
         document.getElementById('detailedStats').innerHTML = html;
     }
 
+    // Update threshold value and refresh statistics
+    function updateThreshold(value) {
+        const threshold = parseFloat(value);
+        MIN_COLOR_DIFF_THRESHOLD = threshold;
+        
+        // Sync slider and number input
+        document.getElementById('thresholdSlider').value = threshold;
+        document.getElementById('thresholdValue').value = threshold;
+        
+        // Update statistics and apply filter
+        updateStatistics();
+        applyFilter();
+        updateColormapBorders();
+    }
+    
+    // Update interval parameters (k and j) and refresh statistics
+    function updateIntervalParams(k, j) {
+        const intervalK = parseInt(k);
+        const minDiffJ = parseFloat(j);
+        
+        SAMPLE_INTERVAL_K = intervalK;
+        MIN_INTERVAL_DIFF_J = minDiffJ;
+        
+        // Sync sliders and number inputs
+        document.getElementById('intervalKSlider').value = intervalK;
+        document.getElementById('intervalKValue').value = intervalK;
+        document.getElementById('intervalJSlider').value = minDiffJ;
+        document.getElementById('intervalJValue').value = minDiffJ;
+        
+        // Recalculate condition 2 for all colormaps
+        allColormaps.forEach(cm => {
+            const hclPalette = cm.colormap.map(color => {
+                const lab = d3.lab(color);
+                const hcl = d3.hcl(lab);
+                return [hcl.h, hcl.c, hcl.l];
+            });
+            cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(hclPalette, intervalK);
+        });
+        
+        // Update statistics and apply filter
+        updateStatistics();
+        applyFilter();
+        updateColormapBorders();
+    }
+    
     // Apply filter based on selected mode
     function applyFilter() {
         const filterMode = document.querySelector('input[name="filterMode"]:checked').value;
         
         colormapElements.forEach((elem, idx) => {
-            const colormap = allColormaps[idx];
-            const isPassing = colormap.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            const cm = allColormaps[idx];
+            const passCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+            
+            let shouldShow = false;
             
             if (filterMode === 'all') {
-                elem.style.display = 'block';
+                shouldShow = true;
             } else if (filterMode === 'pass') {
-                elem.style.display = isPassing ? 'block' : 'none';
-            } else if (filterMode === 'fail') {
-                elem.style.display = isPassing ? 'none' : 'block';
+                shouldShow = passCond1 && passCond2;
+            } else if (filterMode === 'failCond1') {
+                shouldShow = !passCond1 && passCond2;
+            } else if (filterMode === 'failCond2') {
+                shouldShow = passCond1 && !passCond2;
+            } else if (filterMode === 'failBoth') {
+                shouldShow = !passCond1 && !passCond2;
+            } else if (filterMode === 'failAny') {
+                shouldShow = !passCond1 || !passCond2;
             }
+            
+            elem.style.display = shouldShow ? 'block' : 'none';
+        });
+    }
+    
+    // Update colormap border colors based on current threshold
+    function updateColormapBorders() {
+        colormapElements.forEach((elem, idx) => {
+            const cm = allColormaps[idx];
+            const passCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
+            const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+            
+            let borderColor, badgeColor, badgeText;
+            
+            if (passCond1 && passCond2) {
+                borderColor = '#4CAF50';
+                badgeColor = '#4CAF50';
+                badgeText = '✅ Pass';
+            } else if (!passCond1 && passCond2) {
+                borderColor = '#FF9800';
+                badgeColor = '#FF9800';
+                badgeText = '⚠️ Fail C1';
+            } else if (passCond1 && !passCond2) {
+                borderColor = '#9C27B0';
+                badgeColor = '#9C27B0';
+                badgeText = '⚠️ Fail C2';
+            } else {
+                borderColor = '#f44336';
+                badgeColor = '#f44336';
+                badgeText = '❌ Fail Both';
+            }
+            
+            // Update border color
+            d3.select(elem).style('border-color', borderColor);
+            
+            // Update badge - find the first div child which is the badge
+            d3.select(elem).select('div')
+                .style('background', badgeColor)
+                .text(badgeText);
         });
     }
 
@@ -702,9 +828,79 @@
         return deltaE;
     }
 
+    // Calculate min color diff for samples at interval k
+    function calcSampleIntervalMinDiff(palette, intervalK) {
+        let min_interval_diff = Number.MAX_VALUE;
+        try {
+            // Generate fine samples using JND-based sampling
+            let fineSamples = [];
+            let numFineSamples = 1000;
+            for (let k = 0; k < numFineSamples; k++) {
+                let t_total = k / (numFineSamples - 1); 
+                let segmentIndex = Math.floor(t_total * (palette.length - 1));
+                if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+                let segmentLength = 1 / (palette.length - 1);
+                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+                
+                let c1 = palette[segmentIndex];
+                let c2 = palette[segmentIndex + 1];
+                
+                let h1 = c1[0], h2 = c2[0];
+                let diff = h2 - h1;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                let h = (h1 + diff * t + 360) % 360;
+                let c = c1[1] + (c2[1] - c1[1]) * t;
+                let l = c1[2] + (c2[2] - c1[2]) * t;
+                
+                fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+            }
+
+            let jndStep = 3.0;
+            let samples = [];
+            if (fineSamples.length > 0) {
+                samples.push(fineSamples[0]);
+                let lastSample = fineSamples[0];
+                
+                for (let i = 1; i < fineSamples.length; i++) {
+                    let current = fineSamples[i];
+                    let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
+                    if (dist >= jndStep) {
+                        samples.push(current);
+                        lastSample = current;
+                    }
+                }
+                if (samples.length < 2 && fineSamples.length > 1) {
+                    samples.push(fineSamples[fineSamples.length - 1]);
+                }
+            }
+            
+            if (samples.length < intervalK + 1) {
+                return 0;
+            }
+
+            // Check color diff between samples at interval k
+            for (let i = 0; i + intervalK < samples.length; i++) {
+                let deltaE = ciede2000(
+                    [samples[i].l, samples[i].a, samples[i].b],
+                    [samples[i + intervalK].l, samples[i + intervalK].a, samples[i + intervalK].b]
+                );
+                if (deltaE < min_interval_diff) {
+                    min_interval_diff = deltaE;
+                }
+            }
+            
+            if (min_interval_diff === Number.MAX_VALUE) min_interval_diff = 0;
+            
+        } catch (e) {
+            console.warn("Error in interval diff calculation:", e);
+            return 0;
+        }
+        return min_interval_diff;
+    }
+
     function calcSmoothnessMinDiff(palette) {
         let min_color_diff = 0;
-        let sampleCount = 0;
         try {
             let fineSamples = [];
             let numFineSamples = 1000;
@@ -748,9 +944,7 @@
                 }
             }
             
-            sampleCount = samples.length;
-            
-            if (samples.length < 2) return { minDiff: 0, sampleCount: sampleCount };
+            if (samples.length < 2) return 0;
 
             let minDeltaE = Number.MAX_VALUE;
             
@@ -769,7 +963,7 @@
         } catch (e) {
             console.warn("Error in smoothness calculation:", e);
         }
-        return { minDiff: min_color_diff, sampleCount: sampleCount };
+        return min_color_diff;
     }
 
     function satisfyDiscriminability(colormap, sampleNum = 10) {
@@ -1868,89 +2062,91 @@
             const metrics = {};
 
             metrics.discriminatory_cie = discriminatory_cie(colormap) || 0;
-            console.log('CIEDE2000 Discriminative Power:', metrics.discriminatory_cie.toFixed(2));
+            console.log('CIEDE2000 Discriminative Power:', metrics.discriminatory_cie.toFixed(3));
 
             metrics.discriminatory_contrast = discriminatory_contrast_sensitivity(colormap) || 0;
-            console.log('Contrast Sensitivity:', metrics.discriminatory_contrast.toFixed(2));
+            console.log('Contrast Sensitivity:', metrics.discriminatory_contrast.toFixed(3));
 
             metrics.discriminatory_hue = discriminatory_hue(colormap) || 0;
-            console.log('Hue Discriminative Power:', metrics.discriminatory_hue.toFixed(2));
+            console.log('Hue Discriminative Power:', metrics.discriminatory_hue.toFixed(3));
 
             metrics.luminance_var = luminance_variation(colormap) || 0;
-            console.log('Luminance Variation:', metrics.luminance_var.toFixed(2));
+            console.log('Luminance Variation:', metrics.luminance_var.toFixed(3));
 
             metrics.chromatic_var = chromatic_variation(colormap) || 0;
-            console.log('Chromatic Variation:', metrics.chromatic_var.toFixed(2));
+            console.log('Chromatic Variation:', metrics.chromatic_var.toFixed(3));
 
             metrics.lab_length = calculate_lab_length(colormap) || 0;
-            console.log('LAB Length:', metrics.lab_length.toFixed(2));
+            console.log('LAB Length:', metrics.lab_length.toFixed(3));
 
             metrics.color_name_var = calculate_color_name_variation(colormap) || 0;
-            console.log('Color Name Variation:', metrics.color_name_var.toFixed(2));
 
-            metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
-            console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(2));
+                metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
+                console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
 
-            // Convert colormap to HCL format for calcSmoothnessMinDiff
-            const hclPalette = colormap.map(color => {
-                const lab = d3.lab(color);
-                const hcl = d3.hcl(lab);
-                return [hcl.h, hcl.c, hcl.l];
-            });
-            const smoothnessResult = calcSmoothnessMinDiff(hclPalette) || { minDiff: 0, sampleCount: 0 };
-            metrics.smoothness_min_diff = smoothnessResult.minDiff;
-            metrics.smoothness_sample_count = smoothnessResult.sampleCount;
-            console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(2), '(sample number=' + metrics.smoothness_sample_count + ')');
+                // Convert colormap to HCL format for calcSmoothnessMinDiff
+                const hclPalette = colormap.map(color => {
+                    const lab = d3.lab(color);
+                    const hcl = d3.hcl(lab);
+                    return [hcl.h, hcl.c, hcl.l];
+                });
+                metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette) || 0;
+                console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(3));
+                
+                // Calculate condition 2: sample interval min diff
+                metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(hclPalette, SAMPLE_INTERVAL_K) || 0;
+                console.log(`Sample Interval Min Diff (k=${SAMPLE_INTERVAL_K}):`, metrics.sample_interval_min_diff.toFixed(3));
 
-            console.log('==========================================\n');
+                console.log('==========================================\n');
 
-            return metrics;
-        } catch (error) {
-            console.error('Error calculating metrics:', error);
-            console.error('Error stack:', error.stack);
-            return null;
+                return metrics;
+            } catch (error) {
+                console.error('Error calculating metrics:', error);
+                console.error('Error stack:', error.stack);
+                return null;
+            }
         }
-    }
 
-    // 在 div 中显示 metrics（表格布局）
-    function displayMetricsInDiv(div, metrics) {
-        const metricsDiv = div.append("div")
-            .style("margin-top", "0")
-            .style("padding", "8px")
-            .style("background", "white")
-            .style("border", "1px solid #ddd")
-            .style("border-radius", "4px");
+        // 在 div 中显示 metrics（表格布局）
+        function displayMetricsInDiv(div, metrics) {
+            const metricsDiv = div.append("div")
+                .style("margin-top", "0")
+                .style("padding", "8px")
+                .style("background", "white")
+                .style("border", "1px solid #ddd")
+                .style("border-radius", "4px");
 
-        metricsDiv.append("h4")
-            .text("📊 Metrics")
-            .style("margin", "0 0 6px 0")
-            .style("color", "#333")
-            .style("font-size", "12px")
-            .style("border-bottom", "1px solid #4CAF50")
-            .style("padding-bottom", "3px");
+            metricsDiv.append("h4")
+                .text("📊 Metrics")
+                .style("margin", "0 0 6px 0")
+                .style("color", "#333")
+                .style("font-size", "12px")
+                .style("border-bottom", "1px solid #4CAF50")
+                .style("padding-bottom", "3px");
 
-        // 创建一个表格布局
-        const table = metricsDiv.append("table")
-            .style("width", "100%")
-            .style("border-collapse", "collapse")
-            .style("font-size", "11px");
+            // 创建一个表格布局
+            const table = metricsDiv.append("table")
+                .style("width", "100%")
+                .style("border-collapse", "collapse")
+                .style("font-size", "11px");
 
-        const metricsData = [
-            { name: "Min Color Diff", value: metrics.smoothness_min_diff, sampleCount: metrics.smoothness_sample_count, color: "#795548" },
-            { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
-            { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
-            { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
-            { name: "CIEDE", value: metrics.discriminatory_cie, color: "#2196F3" },
-            { name: "Contrast", value: metrics.discriminatory_contrast, color: "#FF9800" },
-            { name: "LAB Len", value: metrics.lab_length, color: "#607D8B" },
-            { name: "CNV", value: metrics.color_name_var, color: "#00BCD4" },
-            { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
-        ];
+            const metricsData = [
+                { name: "Min Color Diff (C1)", value: metrics.smoothness_min_diff, color: "#795548" },
+                { name: "Interval Diff (C2)", value: metrics.sample_interval_min_diff, color: "#00897B" },
+                { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
+                { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
+                { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
+                { name: "CIEDE", value: metrics.discriminatory_cie, color: "#2196F3" },
+                { name: "Contrast", value: metrics.discriminatory_contrast, color: "#FF9800" },
+                { name: "LAB Len", value: metrics.lab_length, color: "#607D8B" },
+                { name: "CNV", value: metrics.color_name_var, color: "#00BCD4" },
+                { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
+            ];
 
-        // 两列布局：每行显示两个指标
-        for (let i = 0; i < metricsData.length; i += 2) {
-            const row = table.append("tr")
-                .style("border-bottom", i < metricsData.length - 2 ? "1px solid #eee" : "none");
+            // 两列布局：每行显示两个指标
+            for (let i = 0; i < metricsData.length; i += 2) {
+                const row = table.append("tr")
+                    .style("border-bottom", i < metricsData.length - 2 ? "1px solid #eee" : "none");
 
             // 第一个指标
             const metric1 = metricsData[i];
@@ -1961,16 +2157,13 @@
                 .style("width", "30%")
                 .html(`<span style="color: ${metric1.color}; font-size: 12px;">●</span> ${metric1.name}`);
             
-            const valueText1 = metric1.sampleCount !== undefined 
-                ? `${metric1.value.toFixed(2)} (n=${metric1.sampleCount})`
-                : metric1.value.toFixed(2);
             row.append("td")
                 .style("padding", "4px 6px")
                 .style("text-align", "right")
                 .style("font-weight", "bold")
                 .style("color", metric1.color)
                 .style("width", "20%")
-                .text(valueText1);
+                .text(metric1.value.toFixed(2));
 
             // 第二个指标（如果存在）
             if (i + 1 < metricsData.length) {
@@ -1983,16 +2176,13 @@
                     .style("padding-left", "10px")
                     .html(`<span style="color: ${metric2.color}; font-size: 12px;">●</span> ${metric2.name}`);
                 
-                const valueText2 = metric2.sampleCount !== undefined 
-                    ? `${metric2.value.toFixed(2)} (n=${metric2.sampleCount})`
-                    : metric2.value.toFixed(2);
                 row.append("td")
                     .style("padding", "4px 6px")
                     .style("text-align", "right")
                     .style("font-weight", "bold")
                     .style("color", metric2.color)
                     .style("width", "20%")
-                    .text(valueText2);
+                    .text(metric2.value.toFixed(2));
             } else {
                 // 如果是奇数个指标，填充空列
                 row.append("td").attr("colspan", "2");
