@@ -28,10 +28,10 @@
             <!-- Overall Statistics -->
             <div id="overallStats" style="font-size: 14px; margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap;">
                 <div><strong>Total generated:</strong> <span id="totalCount">0</span></div>
-                <div style="color: #4CAF50;"><strong>✅ Pass both conditions:</strong> <span id="passCount">0</span> (<span id="passPercent">0</span>%)</div>
-                <div style="color: #FF9800;"><strong>⚠️ Fail Condition 1 only:</strong> <span id="failCond1Count">0</span> (<span id="failCond1Percent">0</span>%)</div>
-                <div style="color: #9C27B0;"><strong>⚠️ Fail Condition 2 only:</strong> <span id="failCond2Count">0</span> (<span id="failCond2Percent">0</span>%)</div>
-                <div style="color: #f44336;"><strong>❌ Fail both conditions:</strong> <span id="failBothCount">0</span> (<span id="failBothPercent">0</span>%)</div>
+                <div style="color: #4CAF50;"><strong>✅ Pass both:</strong> <span id="passCount">0</span> (<span id="passPercent">0</span>%)</div>
+                <div style="color: #FF9800;"><strong>⚠️ Fail Cond 1:</strong> <span id="failCond1Count">0</span> (<span id="failCond1Percent">0</span>%)</div>
+                <div style="color: #9C27B0;"><strong>⚠️ Fail Cond 2:</strong> <span id="failCond2Count">0</span> (<span id="failCond2Percent">0</span>%)</div>
+                <div style="color: #f44336;"><strong>❌ Fail both:</strong> <span id="failBothCount">0</span> (<span id="failBothPercent">0</span>%)</div>
             </div>
             
             <!-- Detailed Statistics (Collapsible) -->
@@ -42,44 +42,100 @@
                 </div>
             </details>
             
-            <!-- Threshold Adjustment Panel -->
+            <!-- Sampling Mode Selection Panel -->
             <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
-                <div style="font-weight: bold; margin-bottom: 12px; color: #555;">🎚️ Filter conditions:</div>
+                <div style="font-weight: bold; margin-bottom: 12px; color: #555;">🎯 Sampling Mode:</div>
                 
-                <!-- Condition 1: Min Color Diff -->
-                <div style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
-                    <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📏 Condition 1: Min Color Diff (JND-based)</div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label for="thresholdSlider" style="min-width: 100px; font-size: 13px;">Threshold ≥</label>
-                        <input type="range" id="thresholdSlider" min="0" max="10" step="0.1" value="3" 
-                               style="flex: 1; cursor: pointer;" oninput="updateThreshold(this.value)">
-                        <input type="number" id="thresholdValue" min="0" max="10" step="0.1" value="3" 
-                               style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
-                               oninput="updateThreshold(this.value)">
+                <!-- Mode Selection -->
+                <div style="display: flex; gap: 20px; margin-bottom: 15px;">
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                        <input type="radio" name="samplingMode" value="jnd" checked onchange="switchSamplingMode()">
+                        <span style="font-weight: 500;">JND-based Sampling</span>
+                    </label>
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                        <input type="radio" name="samplingMode" value="uniform" onchange="switchSamplingMode()">
+                        <span style="font-weight: 500;">Uniform Sampling</span>
+                    </label>
+                </div>
+                
+                <!-- JND Mode Parameters -->
+                <div id="jndModePanel" style="display: block;">
+                    <div style="margin-bottom: 12px; padding: 10px; background: #fff9e6; border-radius: 4px; border: 1px solid #ffe066;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📊 JND Step Size</div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="min-width: 120px; font-size: 13px;">JND step =</label>
+                            <input type="range" id="jndStepSlider" min="0.5" max="10" step="0.1" value="3" 
+                                   style="flex: 1; cursor: pointer;" oninput="updateJndStep(this.value)">
+                            <input type="number" id="jndStepValue" min="0.5" max="10" step="0.1" value="3" 
+                                   style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                   oninput="updateJndStep(this.value)">
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 4px; font-style: italic;">
+                            Controls spacing between JND samples
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 12px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📏 Condition 1: JND Consistency Check</div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-style: italic;">
+                            Min color diff between JND samples ≥ JND step
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 10px; background: #f0f8ff; border-radius: 4px;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📐 Condition 2: Sample Interval Check</div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <label style="min-width: 120px; font-size: 13px;">Interval k =</label>
+                            <input type="range" id="intervalKSlider" min="1" max="20" step="1" value="5" 
+                                   style="flex: 1; cursor: pointer;" oninput="updateJndInterval(this.value, document.getElementById('intervalJValue').value)">
+                            <input type="number" id="intervalKValue" min="1" max="20" step="1" value="5" 
+                                   style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                   oninput="updateJndInterval(this.value, document.getElementById('intervalJValue').value)">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="min-width: 120px; font-size: 13px;">Min Diff j ≥</label>
+                            <input type="range" id="intervalJSlider" min="0" max="50" step="0.5" value="10" 
+                                   style="flex: 1; cursor: pointer;" oninput="updateJndInterval(document.getElementById('intervalKValue').value, this.value)">
+                            <input type="number" id="intervalJValue" min="0" max="50" step="0.5" value="10" 
+                                   style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                   oninput="updateJndInterval(document.getElementById('intervalKValue').value, this.value)">
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 6px; font-style: italic;">
+                            Check: Color diff between sample[i] and sample[i+k] ≥ j
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Condition 2: Sample Interval Check -->
-                <div style="padding: 10px; background: #f0f8ff; border-radius: 4px;">
-                    <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📐 Condition 2: Sample Interval Color Diff</div>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                        <label for="intervalKSlider" style="min-width: 100px; font-size: 13px;">Interval k =</label>
-                        <input type="range" id="intervalKSlider" min="1" max="20" step="1" value="5" 
-                               style="flex: 1; cursor: pointer;" oninput="updateIntervalParams(this.value, document.getElementById('intervalJValue').value)">
-                        <input type="number" id="intervalKValue" min="1" max="20" step="1" value="5" 
-                               style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
-                               oninput="updateIntervalParams(this.value, document.getElementById('intervalJValue').value)">
+                <!-- Uniform Mode Parameters -->
+                <div id="uniformModePanel" style="display: none;">
+                    <div style="margin-bottom: 12px; padding: 10px; background: #fff9e6; border-radius: 4px; border: 1px solid #ffe066;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">🔢 Sample Count</div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="min-width: 120px; font-size: 13px;">Sample count =</label>
+                            <input type="range" id="uniformCountSlider" min="5" max="50" step="1" value="10" 
+                                   style="flex: 1; cursor: pointer;" oninput="updateUniformCount(this.value)">
+                            <input type="number" id="uniformCountValue" min="5" max="50" step="1" value="10" 
+                                   style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                   oninput="updateUniformCount(this.value)">
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 4px; font-style: italic;">
+                            Number of evenly-spaced samples
+                        </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label for="intervalJSlider" style="min-width: 100px; font-size: 13px;">Min Diff j ≥</label>
-                        <input type="range" id="intervalJSlider" min="0" max="50" step="0.5" value="10" 
-                               style="flex: 1; cursor: pointer;" oninput="updateIntervalParams(document.getElementById('intervalKValue').value, this.value)">
-                        <input type="number" id="intervalJValue" min="0" max="50" step="0.5" value="10" 
-                               style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
-                               oninput="updateIntervalParams(document.getElementById('intervalKValue').value, this.value)">
-                    </div>
-                    <div style="font-size: 11px; color: #666; margin-top: 6px; font-style: italic;">
-                        Check: Color diff between sample[i] and sample[i+k] ≥ j
+                    
+                    <div style="padding: 10px; background: #f9f9f9; border-radius: 4px;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📏 Condition: Min Color Diff</div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="min-width: 120px; font-size: 13px;">Min color diff ≥</label>
+                            <input type="range" id="uniformThresholdSlider" min="0" max="50" step="0.5" value="10" 
+                                   style="flex: 1; cursor: pointer;" oninput="updateUniformThreshold(this.value)">
+                            <input type="number" id="uniformThresholdValue" min="0" max="50" step="0.5" value="10" 
+                                   style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                   oninput="updateUniformThreshold(this.value)">
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 6px; font-style: italic;">
+                            Check: Min color diff among all sample pairs ≥ threshold
+                        </div>
                     </div>
                 </div>
             </div>
@@ -98,19 +154,15 @@
                     </label>
                     <label style="cursor: pointer; color: #FF9800;">
                         <input type="radio" name="filterMode" value="failCond1" onchange="applyFilter()"> 
-                        Fail Cond 1 only (<span id="filterFailCond1Count">0</span>)
+                        Fail Cond 1 (<span id="filterFailCond1Count">0</span>)
                     </label>
                     <label style="cursor: pointer; color: #9C27B0;">
                         <input type="radio" name="filterMode" value="failCond2" onchange="applyFilter()"> 
-                        Fail Cond 2 only (<span id="filterFailCond2Count">0</span>)
+                        Fail Cond 2 (<span id="filterFailCond2Count">0</span>)
                     </label>
                     <label style="cursor: pointer; color: #f44336;">
                         <input type="radio" name="filterMode" value="failBoth" onchange="applyFilter()"> 
                         Fail both (<span id="filterFailBothCount">0</span>)
-                    </label>
-                    <label style="cursor: pointer; color: #999;">
-                        <input type="radio" name="filterMode" value="failAny" onchange="applyFilter()"> 
-                        Fail any (<span id="filterFailAnyCount">0</span>)
                     </label>
                 </div>
             </div>
@@ -123,9 +175,18 @@
     // Global variables for statistics and filtering
     let allColormaps = [];
     let colormapElements = [];
-    let MIN_COLOR_DIFF_THRESHOLD = 3;
+    
+    // Sampling mode: 'jnd' or 'uniform'
+    let SAMPLING_MODE = 'jnd';
+    
+    // JND mode parameters
+    let JND_STEP = 3.0;
     let SAMPLE_INTERVAL_K = 5;
     let MIN_INTERVAL_DIFF_J = 10;
+    
+    // Uniform mode parameters
+    let UNIFORM_SAMPLE_COUNT = 10;
+    let UNIFORM_MIN_DIFF_THRESHOLD = 10;
 
     // Helper function to get category labels
     function getCategoryLabels(chroma, lumi) {
@@ -159,45 +220,78 @@
     function updateStatistics() {
         const total = allColormaps.length;
         
-        // Categorize colormaps by which conditions they pass/fail
-        let passBoth = 0, failCond1Only = 0, failCond2Only = 0, failBoth = 0;
-        
-        allColormaps.forEach(cm => {
-            const passCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
-            const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+        if (SAMPLING_MODE === 'jnd') {
+            // JND Mode: Two conditions
+            let passBoth = 0, failCond1 = 0, failCond2 = 0, failBoth = 0;
             
-            if (passCond1 && passCond2) {
-                passBoth++;
-            } else if (!passCond1 && passCond2) {
-                failCond1Only++;
-            } else if (passCond1 && !passCond2) {
-                failCond2Only++;
-            } else {
-                failBoth++;
-            }
-        });
-        
-        const failAny = failCond1Only + failCond2Only + failBoth;
+            allColormaps.forEach(cm => {
+                const passCond1 = cm.metrics.jnd_consistency >= JND_STEP;
+                const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+                
+                if (passCond1 && passCond2) {
+                    passBoth++;
+                }
+                if (!passCond1) {
+                    failCond1++;
+                }
+                if (!passCond2) {
+                    failCond2++;
+                }
+                if (!passCond1 && !passCond2) {
+                    failBoth++;
+                }
+            });
 
-        document.getElementById('totalCount').textContent = total;
-        document.getElementById('passCount').textContent = passBoth;
-        document.getElementById('passPercent').textContent = total > 0 ? ((passBoth / total) * 100).toFixed(1) : 0;
-        
-        document.getElementById('failCond1Count').textContent = failCond1Only;
-        document.getElementById('failCond1Percent').textContent = total > 0 ? ((failCond1Only / total) * 100).toFixed(1) : 0;
-        
-        document.getElementById('failCond2Count').textContent = failCond2Only;
-        document.getElementById('failCond2Percent').textContent = total > 0 ? ((failCond2Only / total) * 100).toFixed(1) : 0;
-        
-        document.getElementById('failBothCount').textContent = failBoth;
-        document.getElementById('failBothPercent').textContent = total > 0 ? ((failBoth / total) * 100).toFixed(1) : 0;
-        
-        document.getElementById('filterAllCount').textContent = total;
-        document.getElementById('filterPassCount').textContent = passBoth;
-        document.getElementById('filterFailCond1Count').textContent = failCond1Only;
-        document.getElementById('filterFailCond2Count').textContent = failCond2Only;
-        document.getElementById('filterFailBothCount').textContent = failBoth;
-        document.getElementById('filterFailAnyCount').textContent = failAny;
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('passCount').textContent = passBoth;
+            document.getElementById('passPercent').textContent = total > 0 ? ((passBoth / total) * 100).toFixed(1) : 0;
+            
+            document.getElementById('failCond1Count').textContent = failCond1;
+            document.getElementById('failCond1Percent').textContent = total > 0 ? ((failCond1 / total) * 100).toFixed(1) : 0;
+            
+            document.getElementById('failCond2Count').textContent = failCond2;
+            document.getElementById('failCond2Percent').textContent = total > 0 ? ((failCond2 / total) * 100).toFixed(1) : 0;
+            
+            document.getElementById('failBothCount').textContent = failBoth;
+            document.getElementById('failBothPercent').textContent = total > 0 ? ((failBoth / total) * 100).toFixed(1) : 0;
+            
+            document.getElementById('filterAllCount').textContent = total;
+            document.getElementById('filterPassCount').textContent = passBoth;
+            document.getElementById('filterFailCond1Count').textContent = failCond1;
+            document.getElementById('filterFailCond2Count').textContent = failCond2;
+            document.getElementById('filterFailBothCount').textContent = failBoth;
+        } else {
+            // Uniform Mode: Single condition
+            let pass = 0, fail = 0;
+            
+            allColormaps.forEach(cm => {
+                const passing = cm.metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+                if (passing) {
+                    pass++;
+                } else {
+                    fail++;
+                }
+            });
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('passCount').textContent = pass;
+            document.getElementById('passPercent').textContent = total > 0 ? ((pass / total) * 100).toFixed(1) : 0;
+            
+            document.getElementById('failCond1Count').textContent = fail;
+            document.getElementById('failCond1Percent').textContent = total > 0 ? ((fail / total) * 100).toFixed(1) : 0;
+            
+            // Hide Cond2 and Both columns for Uniform mode
+            document.getElementById('failCond2Count').textContent = '-';
+            document.getElementById('failCond2Percent').textContent = '-';
+            document.getElementById('failBothCount').textContent = '-';
+            document.getElementById('failBothPercent').textContent = '-';
+            
+            document.getElementById('filterAllCount').textContent = total;
+            document.getElementById('filterPassCount').textContent = pass;
+            document.getElementById('filterFailCond1Count').textContent = fail;
+            document.getElementById('filterFailCond2Count').textContent = '-';
+            document.getElementById('filterFailBothCount').textContent = '-';
+        }
 
         // Calculate detailed statistics
         updateDetailedStatistics();
@@ -214,82 +308,174 @@
             byLumi: {}
         };
 
-        allColormaps.forEach(cm => {
-            const isPassingCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
-            const isPassingCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+        if (SAMPLING_MODE === 'jnd') {
+            allColormaps.forEach(cm => {
+                const isPassingCond1 = cm.metrics.jnd_consistency >= JND_STEP;
+                const isPassingCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
             
-            // By Hue
-            const hueKey = cm.hueCount === 3 ? '3 Hues' : cm.hueCount === 2 ? '5 Hues' : '7 Hues';
-            if (!stats.byHue[hueKey]) stats.byHue[hueKey] = { total: 0, passBoth: 0, failCond1Only: 0, failCond2Only: 0, failBoth: 0 };
-            stats.byHue[hueKey].total++;
-            if (isPassingCond1 && isPassingCond2) stats.byHue[hueKey].passBoth++;
-            else if (!isPassingCond1 && isPassingCond2) stats.byHue[hueKey].failCond1Only++;
-            else if (isPassingCond1 && !isPassingCond2) stats.byHue[hueKey].failCond2Only++;
-            else stats.byHue[hueKey].failBoth++;
+                // By Hue Diff
+                const hueKey = `Hue diff = ${cm.hueDiff}`;
+                if (!stats.byHue[hueKey]) stats.byHue[hueKey] = { total: 0, passBoth: 0, failCond1: 0, failCond2: 0, failBoth: 0 };
+                stats.byHue[hueKey].total++;
+                if (isPassingCond1 && isPassingCond2) stats.byHue[hueKey].passBoth++;
+                if (!isPassingCond1) stats.byHue[hueKey].failCond1++;
+                if (!isPassingCond2) stats.byHue[hueKey].failCond2++;
+                if (!isPassingCond1 && !isPassingCond2) stats.byHue[hueKey].failBoth++;
 
-            // By Chroma
-            const chromaKey = cm.chromaLabel;
-            if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, passBoth: 0, failCond1Only: 0, failCond2Only: 0, failBoth: 0 };
-            stats.byChroma[chromaKey].total++;
-            if (isPassingCond1 && isPassingCond2) stats.byChroma[chromaKey].passBoth++;
-            else if (!isPassingCond1 && isPassingCond2) stats.byChroma[chromaKey].failCond1Only++;
-            else if (isPassingCond1 && !isPassingCond2) stats.byChroma[chromaKey].failCond2Only++;
-            else stats.byChroma[chromaKey].failBoth++;
+                // By Chroma Profile
+                const chromaKey = cm.chromaLabel;
+                if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, passBoth: 0, failCond1: 0, failCond2: 0, failBoth: 0 };
+                stats.byChroma[chromaKey].total++;
+                if (isPassingCond1 && isPassingCond2) stats.byChroma[chromaKey].passBoth++;
+                if (!isPassingCond1) stats.byChroma[chromaKey].failCond1++;
+                if (!isPassingCond2) stats.byChroma[chromaKey].failCond2++;
+                if (!isPassingCond1 && !isPassingCond2) stats.byChroma[chromaKey].failBoth++;
 
-            // By Lumi
-            const lumiKey = cm.lumiLabel;
-            if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, passBoth: 0, failCond1Only: 0, failCond2Only: 0, failBoth: 0 };
-            stats.byLumi[lumiKey].total++;
-            if (isPassingCond1 && isPassingCond2) stats.byLumi[lumiKey].passBoth++;
-            else if (!isPassingCond1 && isPassingCond2) stats.byLumi[lumiKey].failCond1Only++;
-            else if (isPassingCond1 && !isPassingCond2) stats.byLumi[lumiKey].failCond2Only++;
-            else stats.byLumi[lumiKey].failBoth++;
-        });
+                // By Luminance Profile
+                const lumiKey = cm.lumiLabel;
+                if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, passBoth: 0, failCond1: 0, failCond2: 0, failBoth: 0 };
+                stats.byLumi[lumiKey].total++;
+                if (isPassingCond1 && isPassingCond2) stats.byLumi[lumiKey].passBoth++;
+                if (!isPassingCond1) stats.byLumi[lumiKey].failCond1++;
+                if (!isPassingCond2) stats.byLumi[lumiKey].failCond2++;
+                if (!isPassingCond1 && !isPassingCond2) stats.byLumi[lumiKey].failBoth++;
+            });
 
-        // Render detailed statistics
-        let html = '';
-        
-        html += '<div style="margin-bottom: 15px;"><strong>By hue count:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue count</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
-        Object.entries(stats.byHue).forEach(([key, val]) => {
-            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
-        });
-        html += '</table></div>';
+            // Render JND mode HTML
+            let html = '';
+            html += '<div style="margin-bottom: 15px;"><strong>By hue diff:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+            html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue diff</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
+            Object.entries(stats.byHue).forEach(([key, val]) => {
+                html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
+            });
+            html += '</table></div>';
 
-        html += '<div style="margin-bottom: 15px;"><strong>By chroma profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
-        Object.entries(stats.byChroma).forEach(([key, val]) => {
-            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
-        });
-        html += '</table></div>';
+            html += '<div style="margin-bottom: 15px;"><strong>By chroma profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+            html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
+            Object.entries(stats.byChroma).forEach(([key, val]) => {
+                html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
+            });
+            html += '</table></div>';
 
-        html += '<div><strong>By luminance profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
-        html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2 only</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
-        Object.entries(stats.byLumi).forEach(([key, val]) => {
-            html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2Only}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
-        });
-        html += '</table></div>';
+            html += '<div><strong>By luminance profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+            html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass both</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">Fail Cond 1</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">Fail Cond 2</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail both</td></tr>';
+            Object.entries(stats.byLumi).forEach(([key, val]) => {
+                html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.passBoth}</td><td style="padding: 4px; border: 1px solid #ccc; color: #FF9800;">${val.failCond1}</td><td style="padding: 4px; border: 1px solid #ccc; color: #9C27B0;">${val.failCond2}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.failBoth}</td></tr>`;
+            });
+            html += '</table></div>';
 
-        document.getElementById('detailedStats').innerHTML = html;
+            document.getElementById('detailedStats').innerHTML = html;
+        } else {
+            // Uniform Mode: Single condition
+            allColormaps.forEach(cm => {
+                const isPassing = cm.metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+                
+                const hueKey = `Hue diff = ${cm.hueDiff}`;
+                if (!stats.byHue[hueKey]) stats.byHue[hueKey] = { total: 0, pass: 0, fail: 0 };
+                stats.byHue[hueKey].total++;
+                if (isPassing) stats.byHue[hueKey].pass++; else stats.byHue[hueKey].fail++;
+
+                const chromaKey = cm.chromaLabel;
+                if (!stats.byChroma[chromaKey]) stats.byChroma[chromaKey] = { total: 0, pass: 0, fail: 0 };
+                stats.byChroma[chromaKey].total++;
+                if (isPassing) stats.byChroma[chromaKey].pass++; else stats.byChroma[chromaKey].fail++;
+
+                const lumiKey = cm.lumiLabel;
+                if (!stats.byLumi[lumiKey]) stats.byLumi[lumiKey] = { total: 0, pass: 0, fail: 0 };
+                stats.byLumi[lumiKey].total++;
+                if (isPassing) stats.byLumi[lumiKey].pass++; else stats.byLumi[lumiKey].fail++;
+            });
+
+            // Render Uniform mode HTML
+            let html = '';
+            html += '<div style="margin-bottom: 15px;"><strong>By hue diff:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+            html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Hue diff</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+            Object.entries(stats.byHue).forEach(([key, val]) => {
+                html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+            });
+            html += '</table></div>';
+
+            html += '<div style="margin-bottom: 15px;"><strong>By chroma profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+            html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Chroma profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+            Object.entries(stats.byChroma).forEach(([key, val]) => {
+                html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+            });
+            html += '</table></div>';
+
+            html += '<div><strong>By luminance profile:</strong><table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+            html += '<tr style="background: #e0e0e0; font-weight: bold;"><td style="padding: 4px; border: 1px solid #ccc;">Luminance profile</td><td style="padding: 4px; border: 1px solid #ccc;">Total</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">Pass</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">Fail</td></tr>';
+            Object.entries(stats.byLumi).forEach(([key, val]) => {
+                html += `<tr><td style="padding: 4px; border: 1px solid #ccc;">${key}</td><td style="padding: 4px; border: 1px solid #ccc;">${val.total}</td><td style="padding: 4px; border: 1px solid #ccc; color: #4CAF50;">${val.pass}</td><td style="padding: 4px; border: 1px solid #ccc; color: #f44336;">${val.fail}</td></tr>`;
+            });
+            html += '</table></div>';
+
+            document.getElementById('detailedStats').innerHTML = html;
+        }
     }
 
-    // Update threshold value and refresh statistics
-    function updateThreshold(value) {
-        const threshold = parseFloat(value);
-        MIN_COLOR_DIFF_THRESHOLD = threshold;
+    // Switch between JND and Uniform sampling modes
+    function switchSamplingMode() {
+        const mode = document.querySelector('input[name="samplingMode"]:checked').value;
+        SAMPLING_MODE = mode;
         
-        // Sync slider and number input
-        document.getElementById('thresholdSlider').value = threshold;
-        document.getElementById('thresholdValue').value = threshold;
+        // Toggle panel visibility
+        if (mode === 'jnd') {
+            document.getElementById('jndModePanel').style.display = 'block';
+            document.getElementById('uniformModePanel').style.display = 'none';
+        } else {
+            document.getElementById('jndModePanel').style.display = 'none';
+            document.getElementById('uniformModePanel').style.display = 'block';
+        }
         
-        // Update statistics and apply filter
+        // Recalculate metrics for all colormaps
+        allColormaps.forEach(cm => {
+            const hclPalette = cm.colormap.map(color => {
+                const lab = d3.lab(color);
+                const hcl = d3.hcl(lab);
+                return [hcl.h, hcl.c, hcl.l];
+            });
+            
+            if (mode === 'jnd') {
+                cm.metrics.jnd_consistency = calcJndConsistency(hclPalette, JND_STEP);
+                cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(hclPalette, SAMPLE_INTERVAL_K, JND_STEP);
+            } else {
+                cm.metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT);
+            }
+        });
+        
+        // Update statistics and display
         updateStatistics();
         applyFilter();
         updateColormapBorders();
     }
     
-    // Update interval parameters (k and j) and refresh statistics
-    function updateIntervalParams(k, j) {
+    // JND Mode: Update JND step size
+    function updateJndStep(value) {
+        const step = parseFloat(value);
+        JND_STEP = step;
+        
+        // Sync slider and number input
+        document.getElementById('jndStepSlider').value = step;
+        document.getElementById('jndStepValue').value = step;
+        
+        // Recalculate JND metrics for all colormaps
+        allColormaps.forEach(cm => {
+            const hclPalette = cm.colormap.map(color => {
+                const lab = d3.lab(color);
+                const hcl = d3.hcl(lab);
+                return [hcl.h, hcl.c, hcl.l];
+            });
+            cm.metrics.jnd_consistency = calcJndConsistency(hclPalette, step);
+            cm.metrics.jnd_interval = calcSampleIntervalMinDiff(hclPalette, SAMPLE_INTERVAL_K, step);
+        });
+        
+        updateStatistics();
+        applyFilter();
+        updateColormapBorders();
+    }
+    
+    // JND Mode: Update interval parameters (k and j)
+    function updateJndInterval(k, j) {
         const intervalK = parseInt(k);
         const minDiffJ = parseFloat(j);
         
@@ -309,10 +495,47 @@
                 const hcl = d3.hcl(lab);
                 return [hcl.h, hcl.c, hcl.l];
             });
-            cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(hclPalette, intervalK);
+            cm.metrics.jnd_interval = calcSampleIntervalMinDiff(hclPalette, intervalK, JND_STEP);
         });
         
-        // Update statistics and apply filter
+        updateStatistics();
+        applyFilter();
+        updateColormapBorders();
+    }
+    
+    // Uniform Mode: Update sample count
+    function updateUniformCount(value) {
+        const count = parseInt(value);
+        UNIFORM_SAMPLE_COUNT = count;
+        
+        // Sync slider and number input
+        document.getElementById('uniformCountSlider').value = count;
+        document.getElementById('uniformCountValue').value = count;
+        
+        // Recalculate uniform metric for all colormaps
+        allColormaps.forEach(cm => {
+            const hclPalette = cm.colormap.map(color => {
+                const lab = d3.lab(color);
+                const hcl = d3.hcl(lab);
+                return [hcl.h, hcl.c, hcl.l];
+            });
+            cm.metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, count);
+        });
+        
+        updateStatistics();
+        applyFilter();
+        updateColormapBorders();
+    }
+    
+    // Uniform Mode: Update threshold
+    function updateUniformThreshold(value) {
+        const threshold = parseFloat(value);
+        UNIFORM_MIN_DIFF_THRESHOLD = threshold;
+        
+        // Sync slider and number input
+        document.getElementById('uniformThresholdSlider').value = threshold;
+        document.getElementById('uniformThresholdValue').value = threshold;
+        
         updateStatistics();
         applyFilter();
         updateColormapBorders();
@@ -324,54 +547,78 @@
         
         colormapElements.forEach((elem, idx) => {
             const cm = allColormaps[idx];
-            const passCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
-            const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
-            
             let shouldShow = false;
             
-            if (filterMode === 'all') {
-                shouldShow = true;
-            } else if (filterMode === 'pass') {
-                shouldShow = passCond1 && passCond2;
-            } else if (filterMode === 'failCond1') {
-                shouldShow = !passCond1 && passCond2;
-            } else if (filterMode === 'failCond2') {
-                shouldShow = passCond1 && !passCond2;
-            } else if (filterMode === 'failBoth') {
-                shouldShow = !passCond1 && !passCond2;
-            } else if (filterMode === 'failAny') {
-                shouldShow = !passCond1 || !passCond2;
+            if (SAMPLING_MODE === 'jnd') {
+                const passCond1 = cm.metrics.jnd_consistency >= JND_STEP;
+                const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+                
+                if (filterMode === 'all') {
+                    shouldShow = true;
+                } else if (filterMode === 'pass') {
+                    shouldShow = passCond1 && passCond2;
+                } else if (filterMode === 'failCond1') {
+                    shouldShow = !passCond1;
+                } else if (filterMode === 'failCond2') {
+                    shouldShow = !passCond2;
+                } else if (filterMode === 'failBoth') {
+                    shouldShow = !passCond1 && !passCond2;
+                }
+            } else {
+                const passing = cm.metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+                
+                if (filterMode === 'all') {
+                    shouldShow = true;
+                } else if (filterMode === 'pass') {
+                    shouldShow = passing;
+                } else if (filterMode === 'failCond1') {
+                    shouldShow = !passing;
+                }
             }
             
             elem.style.display = shouldShow ? 'block' : 'none';
         });
     }
     
-    // Update colormap border colors based on current threshold
+    // Update colormap border colors based on current mode
     function updateColormapBorders() {
         colormapElements.forEach((elem, idx) => {
             const cm = allColormaps[idx];
-            const passCond1 = cm.metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
-            const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
-            
             let borderColor, badgeColor, badgeText;
             
-            if (passCond1 && passCond2) {
-                borderColor = '#4CAF50';
-                badgeColor = '#4CAF50';
-                badgeText = '✅ Pass';
-            } else if (!passCond1 && passCond2) {
-                borderColor = '#FF9800';
-                badgeColor = '#FF9800';
-                badgeText = '⚠️ Fail C1';
-            } else if (passCond1 && !passCond2) {
-                borderColor = '#9C27B0';
-                badgeColor = '#9C27B0';
-                badgeText = '⚠️ Fail C2';
+            if (SAMPLING_MODE === 'jnd') {
+                const passCond1 = cm.metrics.jnd_consistency >= JND_STEP;
+                const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+                
+                if (passCond1 && passCond2) {
+                    borderColor = '#4CAF50';
+                    badgeColor = '#4CAF50';
+                    badgeText = '✅ Pass';
+                } else if (!passCond1 && passCond2) {
+                    borderColor = '#FF9800';
+                    badgeColor = '#FF9800';
+                    badgeText = '⚠️ Fail C1';
+                } else if (passCond1 && !passCond2) {
+                    borderColor = '#9C27B0';
+                    badgeColor = '#9C27B0';
+                    badgeText = '⚠️ Fail C2';
+                } else {
+                    borderColor = '#f44336';
+                    badgeColor = '#f44336';
+                    badgeText = '❌ Fail Both';
+                }
             } else {
-                borderColor = '#f44336';
-                badgeColor = '#f44336';
-                badgeText = '❌ Fail Both';
+                const passing = cm.metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+                
+                if (passing) {
+                    borderColor = '#4CAF50';
+                    badgeColor = '#4CAF50';
+                    badgeText = '✅ Pass';
+                } else {
+                    borderColor = '#f44336';
+                    badgeColor = '#f44336';
+                    badgeText = '❌ Fail';
+                }
             }
             
             // Update border color
@@ -828,8 +1075,76 @@
         return deltaE;
     }
 
-    // Calculate min color diff for samples at interval k
-    function calcSampleIntervalMinDiff(palette, intervalK) {
+    // JND Mode: Check consistency - min diff between JND samples should >= JND step
+    function calcJndConsistency(palette, jndStep) {
+        let min_color_diff = Number.MAX_VALUE;
+        try {
+            // Generate fine samples
+            let fineSamples = [];
+            let numFineSamples = 1000;
+            for (let k = 0; k < numFineSamples; k++) {
+                let t_total = k / (numFineSamples - 1);
+                let segmentIndex = Math.floor(t_total * (palette.length - 1));
+                if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+                let segmentLength = 1 / (palette.length - 1);
+                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+                
+                let c1 = palette[segmentIndex];
+                let c2 = palette[segmentIndex + 1];
+                
+                let h1 = c1[0], h2 = c2[0];
+                let diff = h2 - h1;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                let h = (h1 + diff * t + 360) % 360;
+                let c = c1[1] + (c2[1] - c1[1]) * t;
+                let l = c1[2] + (c2[2] - c1[2]) * t;
+                
+                fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+            }
+
+            // Sample using JND step
+            let samples = [];
+            if (fineSamples.length > 0) {
+                samples.push(fineSamples[0]);
+                let lastSample = fineSamples[0];
+                
+                for (let i = 1; i < fineSamples.length; i++) {
+                    let current = fineSamples[i];
+                    let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
+                    if (dist >= jndStep) {
+                        samples.push(current);
+                        lastSample = current;
+                    }
+                }
+                if (samples.length < 2 && fineSamples.length > 1) {
+                    samples.push(fineSamples[fineSamples.length - 1]);
+                }
+            }
+            
+            if (samples.length < 2) return jndStep;
+
+            // Check min diff between all JND samples
+            for (let i = 0; i < samples.length; i++) {
+                for (let j = i + 1; j < samples.length; j++) {
+                    let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
+                    if (deltaE < min_color_diff) {
+                        min_color_diff = deltaE;
+                    }
+                }
+            }
+            
+            if (min_color_diff === Number.MAX_VALUE) min_color_diff = jndStep;
+            
+        } catch (e) {
+            console.warn("Error in JND consistency calculation:", e);
+            return jndStep;
+        }
+        return min_color_diff;
+    }
+
+    // JND Mode: Calculate min color diff for samples at interval k
+    function calcSampleIntervalMinDiff(palette, intervalK, jndStep) {
         let min_interval_diff = Number.MAX_VALUE;
         try {
             // Generate fine samples using JND-based sampling
@@ -855,8 +1170,6 @@
                 
                 fineSamples.push(d3.lab(d3.hcl(h, c, l)));
             }
-
-            let jndStep = 3.0;
             let samples = [];
             if (fineSamples.length > 0) {
                 samples.push(fineSamples[0]);
@@ -899,17 +1212,18 @@
         return min_interval_diff;
     }
 
-    function calcSmoothnessMinDiff(palette) {
-        let min_color_diff = 0;
+    // Uniform Mode: Calculate min color diff among uniformly sampled points
+    function calcUniformMinDiff(palette, sampleCount) {
+        let min_color_diff = Number.MAX_VALUE;
         try {
-            let fineSamples = [];
-            let numFineSamples = 1000;
-            for (let k = 0; k < numFineSamples; k++) {
-                let t_total = k / (numFineSamples - 1); 
-                let segmentIndex = Math.floor(t_total * (palette.length - 1));
+            // Uniformly sample points from the palette
+            let samples = [];
+            for (let i = 0; i < sampleCount; i++) {
+                let t = i / (sampleCount - 1);
+                let segmentIndex = Math.floor(t * (palette.length - 1));
                 if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
                 let segmentLength = 1 / (palette.length - 1);
-                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+                let localT = (t - segmentIndex * segmentLength) / segmentLength;
                 
                 let c1 = palette[segmentIndex];
                 let c2 = palette[segmentIndex + 1];
@@ -918,50 +1232,30 @@
                 let diff = h2 - h1;
                 if (diff > 180) diff -= 360;
                 if (diff < -180) diff += 360;
-                let h = (h1 + diff * t + 360) % 360;
-                let c = c1[1] + (c2[1] - c1[1]) * t;
-                let l = c1[2] + (c2[2] - c1[2]) * t;
+                let h = (h1 + diff * localT + 360) % 360;
+                let c = c1[1] + (c2[1] - c1[1]) * localT;
+                let l = c1[2] + (c2[2] - c1[2]) * localT;
                 
-                fineSamples.push(d3.lab(d3.hcl(h, c, l)));
-            }
-
-            let jndStep = 3.0;
-            let samples = [];
-            if (fineSamples.length > 0) {
-                samples.push(fineSamples[0]);
-                let lastSample = fineSamples[0];
-                
-                for (let i = 1; i < fineSamples.length; i++) {
-                    let current = fineSamples[i];
-                    let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
-                    if (dist >= jndStep) {
-                        samples.push(current);
-                        lastSample = current;
-                    }
-                }
-                if (samples.length < 2 && fineSamples.length > 1) {
-                    samples.push(fineSamples[fineSamples.length - 1]);
-                }
+                samples.push(d3.lab(d3.hcl(h, c, l)));
             }
             
             if (samples.length < 2) return 0;
-
-            let minDeltaE = Number.MAX_VALUE;
             
+            // Check min diff between all sample pairs
             for (let i = 0; i < samples.length; i++) {
                 for (let j = i + 1; j < samples.length; j++) {
                     let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
-                    if (deltaE < minDeltaE) {
-                        minDeltaE = deltaE;
+                    if (deltaE < min_color_diff) {
+                        min_color_diff = deltaE;
                     }
                 }
             }
             
-            if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
-            min_color_diff = minDeltaE;
+            if (min_color_diff === Number.MAX_VALUE) min_color_diff = 0;
             
         } catch (e) {
-            console.warn("Error in smoothness calculation:", e);
+            console.warn("Error in uniform sampling calculation:", e);
+            return 0;
         }
         return min_color_diff;
     }
@@ -1285,19 +1579,92 @@
             
             // Store colormap data for statistics
             const divNode = div.node();
+            
+            // Extract hue diff from condition_name (e.g., "H diff=100")
+            const hueDiffMatch = condition_name.match(/H diff=(\d+)/);
+            const hueDiff = hueDiffMatch ? parseInt(hueDiffMatch[1]) : 0;
+            
+            // Extract chroma profile from condition_name (e.g., "C=[70, 70]" or "C=[20, 120]")
+            const chromaMatch = condition_name.match(/C=\[([^\]]+)\]/);
+            let chromaLabel = 'Unknown';
+            if (chromaMatch) {
+                const chromaVals = chromaMatch[1].split(',').map(v => parseFloat(v.trim()));
+                if (chromaVals.length === 2 && chromaVals[0] === chromaVals[1]) {
+                    chromaLabel = 'Constant';
+                } else if (chromaVals.length === 2) {
+                    chromaLabel = 'Linear';
+                } else if (chromaVals.length === 3) {
+                    chromaLabel = 'Diverging';
+                } else if (chromaVals.length === 5) {
+                    chromaLabel = 'Thermal';
+                }
+            }
+            
+            // Extract luminance profile from condition_name (e.g., "L=[55, 55]" or "L=[20, 90]")
+            const lumiMatch = condition_name.match(/L=\[([^\]]+)\]/);
+            let lumiLabel = 'Unknown';
+            if (lumiMatch) {
+                const lumiVals = lumiMatch[1].split(',').map(v => parseFloat(v.trim()));
+                if (lumiVals.length === 2 && lumiVals[0] === lumiVals[1]) {
+                    lumiLabel = 'Constant';
+                } else if (lumiVals.length === 2) {
+                    lumiLabel = 'Linear';
+                } else if (lumiVals.length === 3) {
+                    lumiLabel = 'Diverging';
+                } else if (lumiVals.length === 5) {
+                    lumiLabel = 'Thermal';
+                }
+            }
+            
             allColormaps.push({
                 colormap: colormap,
                 metrics: metrics,
-                chromaLabel: 'Unknown',
-                lumiLabel: 'Unknown',
-                hueCount: 1,
+                hueDiff: hueDiff,
+                chromaLabel: chromaLabel,
+                lumiLabel: lumiLabel,
                 condition: condition_name
             });
             colormapElements.push(divNode);
             
-            // Update border color based on Min Color Diff threshold
-            const isPassing = metrics.smoothness_min_diff >= MIN_COLOR_DIFF_THRESHOLD;
-            div.style("border-color", isPassing ? "#4CAF50" : "#f44336")
+            // Update border color and badge based on current sampling mode
+            let borderColor, badgeColor, badgeText;
+            
+            if (SAMPLING_MODE === 'jnd') {
+                const passCond1 = metrics.jnd_consistency >= JND_STEP;
+                const passCond2 = metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+                
+                if (passCond1 && passCond2) {
+                    borderColor = '#4CAF50';
+                    badgeColor = '#4CAF50';
+                    badgeText = '✅ Pass';
+                } else if (!passCond1 && passCond2) {
+                    borderColor = '#FF9800';
+                    badgeColor = '#FF9800';
+                    badgeText = '⚠️ Fail C1';
+                } else if (passCond1 && !passCond2) {
+                    borderColor = '#9C27B0';
+                    badgeColor = '#9C27B0';
+                    badgeText = '⚠️ Fail C2';
+                } else {
+                    borderColor = '#f44336';
+                    badgeColor = '#f44336';
+                    badgeText = '❌ Fail Both';
+                }
+            } else {
+                const isPassing = metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+                
+                if (isPassing) {
+                    borderColor = '#4CAF50';
+                    badgeColor = '#4CAF50';
+                    badgeText = '✅ Pass';
+                } else {
+                    borderColor = '#f44336';
+                    badgeColor = '#f44336';
+                    badgeText = '❌ Fail';
+                }
+            }
+            
+            div.style("border-color", borderColor)
                .style("border-width", "3px");
             
             // Add status badge
@@ -1309,9 +1676,9 @@
                 .style("border-radius", "3px")
                 .style("font-size", "11px")
                 .style("font-weight", "bold")
-                .style("background", isPassing ? "#4CAF50" : "#f44336")
+                .style("background", badgeColor)
                 .style("color", "white")
-                .text(isPassing ? " Pass" : " Fail");
+                .text(badgeText);
             
             div.style("position", "relative");
         }
@@ -2081,74 +2448,91 @@
 
             metrics.color_name_var = calculate_color_name_variation(colormap) || 0;
 
-                metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
-                console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
+            metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
+            console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
 
-                // Convert colormap to HCL format for calcSmoothnessMinDiff
-                const hclPalette = colormap.map(color => {
-                    const lab = d3.lab(color);
-                    const hcl = d3.hcl(lab);
-                    return [hcl.h, hcl.c, hcl.l];
-                });
-                metrics.smoothness_min_diff = calcSmoothnessMinDiff(hclPalette) || 0;
-                console.log('Min Color Diff:', metrics.smoothness_min_diff.toFixed(3));
+            // Convert colormap to HCL format for sampling metrics
+            const hclPalette = colormap.map(color => {
+                const lab = d3.lab(color);
+                const hcl = d3.hcl(lab);
+                return [hcl.h, hcl.c, hcl.l];
+            });
+            
+            // Calculate metrics based on current sampling mode
+            if (SAMPLING_MODE === 'jnd') {
+                // JND Mode: Calculate both conditions
+                metrics.jnd_consistency = calcJndConsistency(hclPalette, JND_STEP) || 0;
+                console.log('JND Consistency:', metrics.jnd_consistency.toFixed(3));
                 
-                // Calculate condition 2: sample interval min diff
-                metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(hclPalette, SAMPLE_INTERVAL_K) || 0;
+                metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(hclPalette, SAMPLE_INTERVAL_K, JND_STEP) || 0;
                 console.log(`Sample Interval Min Diff (k=${SAMPLE_INTERVAL_K}):`, metrics.sample_interval_min_diff.toFixed(3));
-
-                console.log('==========================================\n');
-
-                return metrics;
-            } catch (error) {
-                console.error('Error calculating metrics:', error);
-                console.error('Error stack:', error.stack);
-                return null;
+            } else {
+                // Uniform Mode: Calculate single condition
+                metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT) || 0;
+                console.log(`Uniform Min Diff (n=${UNIFORM_SAMPLE_COUNT}):`, metrics.uniform_min_diff.toFixed(3));
             }
+
+            console.log('==========================================\n');
+
+            return metrics;
+        } catch (error) {
+            console.error('Error calculating metrics:', error);
+            console.error('Error stack:', error.stack);
+            return null;
+        }
+    }
+
+    // Display metrics in div (table layout)
+    function displayMetricsInDiv(div, metrics) {
+        const metricsDiv = div.append("div")
+            .style("margin-top", "0")
+            .style("padding", "8px")
+            .style("background", "white")
+            .style("border", "1px solid #ddd")
+            .style("border-radius", "4px");
+
+        metricsDiv.append("h4")
+            .text("📊 Metrics")
+            .style("margin", "0 0 6px 0")
+            .style("color", "#333")
+            .style("font-size", "12px")
+            .style("border-bottom", "1px solid #4CAF50")
+            .style("padding-bottom", "3px");
+
+        const table = metricsDiv.append("table")
+            .style("width", "100%")
+            .style("border-collapse", "collapse")
+            .style("font-size", "11px");
+
+        // Build metrics data based on sampling mode
+        let metricsData = [
+            { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
+            { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
+            { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
+            { name: "CIEDE", value: metrics.discriminatory_cie, color: "#2196F3" },
+            { name: "Contrast", value: metrics.discriminatory_contrast, color: "#FF9800" },
+            { name: "LAB Len", value: metrics.lab_length, color: "#607D8B" },
+            { name: "CNV", value: metrics.color_name_var, color: "#00BCD4" },
+            { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
+        ];
+
+        // Add mode-specific metrics at the beginning
+        if (SAMPLING_MODE === 'jnd') {
+            metricsData.unshift(
+                { name: "JND Consistency", value: metrics.jnd_consistency, color: "#795548" },
+                { name: "Interval Diff", value: metrics.sample_interval_min_diff, color: "#00897B" }
+            );
+        } else {
+            metricsData.unshift(
+                { name: "Uniform Min Diff", value: metrics.uniform_min_diff, color: "#795548" }
+            );
         }
 
-        // 在 div 中显示 metrics（表格布局）
-        function displayMetricsInDiv(div, metrics) {
-            const metricsDiv = div.append("div")
-                .style("margin-top", "0")
-                .style("padding", "8px")
-                .style("background", "white")
-                .style("border", "1px solid #ddd")
-                .style("border-radius", "4px");
+        // Two-column layout
+        for (let i = 0; i < metricsData.length; i += 2) {
+            const row = table.append("tr")
+                .style("border-bottom", i < metricsData.length - 2 ? "1px solid #eee" : "none");
 
-            metricsDiv.append("h4")
-                .text("📊 Metrics")
-                .style("margin", "0 0 6px 0")
-                .style("color", "#333")
-                .style("font-size", "12px")
-                .style("border-bottom", "1px solid #4CAF50")
-                .style("padding-bottom", "3px");
-
-            // 创建一个表格布局
-            const table = metricsDiv.append("table")
-                .style("width", "100%")
-                .style("border-collapse", "collapse")
-                .style("font-size", "11px");
-
-            const metricsData = [
-                { name: "Min Color Diff (C1)", value: metrics.smoothness_min_diff, color: "#795548" },
-                { name: "Interval Diff (C2)", value: metrics.sample_interval_min_diff, color: "#00897B" },
-                { name: "Hue", value: metrics.discriminatory_hue, color: "#9C27B0" },
-                { name: "Chroma Var", value: metrics.chromatic_var, color: "#F44336" },
-                { name: "Lumi Var", value: metrics.luminance_var, color: "#4CAF50" },
-                { name: "CIEDE", value: metrics.discriminatory_cie, color: "#2196F3" },
-                { name: "Contrast", value: metrics.discriminatory_contrast, color: "#FF9800" },
-                { name: "LAB Len", value: metrics.lab_length, color: "#607D8B" },
-                { name: "CNV", value: metrics.color_name_var, color: "#00BCD4" },
-                { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
-            ];
-
-            // 两列布局：每行显示两个指标
-            for (let i = 0; i < metricsData.length; i += 2) {
-                const row = table.append("tr")
-                    .style("border-bottom", i < metricsData.length - 2 ? "1px solid #eee" : "none");
-
-            // 第一个指标
             const metric1 = metricsData[i];
             row.append("td")
                 .style("padding", "4px 6px")
@@ -2165,7 +2549,6 @@
                 .style("width", "20%")
                 .text(metric1.value.toFixed(2));
 
-            // 第二个指标（如果存在）
             if (i + 1 < metricsData.length) {
                 const metric2 = metricsData[i + 1];
                 row.append("td")
@@ -2184,7 +2567,6 @@
                     .style("width", "20%")
                     .text(metric2.value.toFixed(2));
             } else {
-                // 如果是奇数个指标，填充空列
                 row.append("td").attr("colspan", "2");
             }
         }
