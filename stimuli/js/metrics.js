@@ -381,6 +381,8 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
 
     // Pre-compute distance matrix
     const distMatrix = new Array(samples.length);
+    let minDist = Infinity, maxDist = -Infinity, sumDist = 0, distCount = 0;
+    
     for (let i = 0; i < samples.length; i++) {
         distMatrix[i] = new Array(samples.length);
         for (let j = 0; j < samples.length; j++) {
@@ -388,16 +390,29 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
                 distMatrix[i][j] = 0;
             } else if (j > i) {
                 distMatrix[i][j] = getNameDifference(samples[i], samples[j]);
+                const dist = distMatrix[i][j];
+                if (!isNaN(dist) && isFinite(dist)) {
+                    minDist = Math.min(minDist, dist);
+                    maxDist = Math.max(maxDist, dist);
+                    sumDist += dist;
+                    distCount++;
+                }
             } else {
                 distMatrix[i][j] = distMatrix[j][i];
             }
         }
     }
+    
+    const avgDist = distCount > 0 ? sumDist / distCount : 0;
+    console.log(`Distance stats: min=${minDist.toFixed(3)}, max=${maxDist.toFixed(3)}, avg=${avgDist.toFixed(3)}, threshold=${dissimilarityThreshold}`);
 
     const clusters = agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold);
     const K = clusters.length;
+    
+    console.log(`Clustering result: K=${K} clusters from ${samples.length} samples`);
 
     if (K < 2) {
+        console.warn('Only 1 cluster found, returning 0');
         return 0;
     }
 

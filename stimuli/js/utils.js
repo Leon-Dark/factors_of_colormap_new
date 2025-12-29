@@ -176,21 +176,32 @@ function getColorNameIndex(c) {
 }
 
 // Get name difference between two colors
+let _debugCallCount = 0;
 function getNameDifference(c0, c1) {
     if (typeof c3 === 'undefined' || !c3.color) {
+        // Fallback: use LAB color difference (normalized to 0-1 range similar to Hellinger distance)
         var lab0 = d3.lab(c0);
         var lab1 = d3.lab(c1);
         var lVal0 = lab0.l !== undefined ? lab0.l : lab0.L;
         var lVal1 = lab1.l !== undefined ? lab1.l : lab1.L;
-        return Math.sqrt(
+        var labDiff = Math.sqrt(
             Math.pow(lVal1 - lVal0, 2) +
             Math.pow(lab1.a - lab0.a, 2) +
             Math.pow(lab1.b - lab0.b, 2)
-        ) / 100;
+        );
+        // Normalize to approximate Hellinger distance range (0-1)
+        // Typical max LAB distance ~150-200, so divide by 150
+        return Math.min(1.0, labDiff / 150);
     }
 
     var i0 = getColorNameIndex(c0);
     var i1 = getColorNameIndex(c1);
+
+    // Debug first few calls
+    if (_debugCallCount < 5) {
+        console.log(`getNameDifference call ${_debugCallCount}: i0=${i0}, i1=${i1}, same=${i0===i1}`);
+        _debugCallCount++;
+    }
 
     if (i0 === i1) {
         return 0;
@@ -198,8 +209,13 @@ function getNameDifference(c0, c1) {
 
     try {
         var hellinger = c3.color.hellinger(i0, i1);
+        if (_debugCallCount === 5) {
+            console.log(`First non-zero hellinger: ${hellinger} (i0=${i0}, i1=${i1})`);
+            _debugCallCount++;
+        }
         return hellinger;
     } catch (e) {
+        console.error('Error in c3.color.hellinger:', e);
         return 0;
     }
 }

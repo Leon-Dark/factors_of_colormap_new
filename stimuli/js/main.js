@@ -69,4 +69,26 @@ function generateAll() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Stimuli Generator loaded - Modular version');
     console.log('Current sampling mode:', SAMPLING_MODE);
+    
+    // Initialize c3 color naming library (async)
+    if (typeof c3 !== 'undefined' && typeof d3 !== 'undefined') {
+        try {
+            // Use async loading to avoid synchronous XMLHttpRequest issues
+            c3.load('../rainbows good or bad for/supplementary materials/experiment interface/lib/colorname/c3_data.json', true);
+            console.log('c3 color naming library loading (async)...');
+            
+            // Check after a delay if c3.color is available
+            setTimeout(function() {
+                if (c3.color && c3.color.length > 0) {
+                    console.log('c3 initialized successfully with', c3.color.length, 'colors');
+                } else {
+                    console.warn('c3 not fully initialized, using LAB color difference fallback');
+                }
+            }, 1000);
+        } catch (e) {
+            console.warn('Failed to initialize c3 (using fallback):', e.message);
+        }
+    } else {
+        console.warn('c3 or d3 not available, using LAB color difference fallback');
+    }
 });
