@@ -10,6 +10,7 @@ class GaussianPerturbationApp {
         // 核心组件
         this.generator = null;
         this.perturbation = null;
+        this.softAttribution = null;
         this.visualization = null;
         
         // 配置
@@ -24,7 +25,9 @@ class GaussianPerturbationApp {
         // 状态
         this.state = {
             hasGenerated: false,
-            hasPerturbation: false
+            hasPerturbation: false,
+            useSoftAttribution: true,
+            softAttributionData: null
         };
     }
     
@@ -41,6 +44,7 @@ class GaussianPerturbationApp {
         );
         
         this.perturbation = new PerturbationSystem(this.generator);
+        this.softAttribution = new SoftAttributionPerturbation(this.generator);
         this.visualization = new MultiViewVisualization();
         this.visualization.initializeViews();
         this.visualization.setGenerator(this.generator);
@@ -122,6 +126,30 @@ class GaussianPerturbationApp {
         
         // Colormap 选择器
         this.ui.colormapSelect = document.getElementById('colormap-select');
+        
+        // 软归因门控参数
+        this.ui.softAttribution = {
+            enable: document.getElementById('use-soft-attribution'),
+            params: document.getElementById('soft-attribution-params'),
+            sigmaE: document.getElementById('sigma-e'),
+            sigmaEValue: document.getElementById('sigma-e-value'),
+            tauLow: document.getElementById('tau-low'),
+            tauLowValue: document.getElementById('tau-low-value'),
+            tauHigh: document.getElementById('tau-high'),
+            tauHighValue: document.getElementById('tau-high-value'),
+            sigmaM: document.getElementById('sigma-m'),
+            sigmaMValue: document.getElementById('sigma-m-value'),
+            lambdaLow: document.getElementById('lambda-low'),
+            lambdaLowValue: document.getElementById('lambda-low-value'),
+            lambdaMid: document.getElementById('lambda-mid'),
+            lambdaMidValue: document.getElementById('lambda-mid-value'),
+            lambdaHigh: document.getElementById('lambda-high'),
+            lambdaHighValue: document.getElementById('lambda-high-value')
+        };
+        
+        // 归因权重和门控视图的频段选择
+        this.ui.attributionBandRadios = document.querySelectorAll('input[name="attribution-band"]');
+        this.ui.gatingBandRadios = document.querySelectorAll('input[name="gating-band"]');
     }
     
     /**
@@ -207,9 +235,74 @@ class GaussianPerturbationApp {
             this.handleToggleGrid(e.target.checked);
         });
         
+        // 梯度归一化开关
+        document.getElementById('use-gradient-norm').addEventListener('change', (e) => {
+            this.handleToggleGradientNorm(e.target.checked);
+        });
+        
         // Colormap 选择器
         this.ui.colormapSelect.addEventListener('change', (e) => {
             this.handleColormapChange(e.target.value);
+        });
+        
+        // 软归因门控开关
+        this.ui.softAttribution.enable.addEventListener('change', (e) => {
+            this.handleToggleSoftAttribution(e.target.checked);
+        });
+        
+        // 软归因门控参数滑块
+        const saParams = this.ui.softAttribution;
+        
+        saParams.sigmaE.addEventListener('input', (e) => {
+            saParams.sigmaEValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updateSoftAttributionParams();
+        });
+        
+        saParams.tauLow.addEventListener('input', (e) => {
+            saParams.tauLowValue.textContent = parseFloat(e.target.value).toFixed(2);
+            this.updateSoftAttributionParams();
+        });
+        
+        saParams.tauHigh.addEventListener('input', (e) => {
+            saParams.tauHighValue.textContent = parseFloat(e.target.value).toFixed(2);
+            this.updateSoftAttributionParams();
+        });
+        
+        saParams.sigmaM.addEventListener('input', (e) => {
+            saParams.sigmaMValue.textContent = e.target.value;
+            this.updateSoftAttributionParams();
+        });
+        
+        saParams.lambdaLow.addEventListener('input', (e) => {
+            saParams.lambdaLowValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updateSoftAttributionParams();
+        });
+        
+        saParams.lambdaMid.addEventListener('input', (e) => {
+            saParams.lambdaMidValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updateSoftAttributionParams();
+        });
+        
+        saParams.lambdaHigh.addEventListener('input', (e) => {
+            saParams.lambdaHighValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updateSoftAttributionParams();
+        });
+        
+        // 归因权重和门控视图的频段选择
+        this.ui.attributionBandRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (this.state.softAttributionData) {
+                    this.renderAttributionView();
+                }
+            });
+        });
+        
+        this.ui.gatingBandRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (this.state.softAttributionData) {
+                    this.renderGatingView();
+                }
+            });
         });
         
         // Canvas点击事件（显示高斯信息）
@@ -335,8 +428,13 @@ class GaussianPerturbationApp {
             
             this.state.hasPerturbation = true;
             
-            // 更新可视化
-            this.visualization.updateAllViews();
+            // 如果启用软归因门控，应用门控扰动
+            if (this.state.useSoftAttribution) {
+                this.applySoftAttributionPerturbation();
+            } else {
+                // 否则使用传统方法更新可视化
+                this.visualization.updateAllViews();
+            }
             
             // 更新统计
             this.updateStatistics();
@@ -372,6 +470,24 @@ class GaussianPerturbationApp {
         this.visualization.views.difference.options.showGridLines = show;
         
         // 重新渲染当前视图
+        if (this.state.hasGenerated) {
+            this.visualization.updateAllViews();
+        }
+    }
+    
+    /**
+     * 处理梯度归一化开关
+     */
+    handleToggleGradientNorm(useGradientNorm) {
+        console.log('Toggle gradient normalization:', useGradientNorm);
+        
+        // 更新所有视图的梯度归一化选项
+        this.visualization.views.original.options.useGradientNormalization = useGradientNorm;
+        this.visualization.views.perturbed.options.useGradientNormalization = useGradientNorm;
+        this.visualization.views.heatmap.options.useGradientNormalization = useGradientNorm;
+        this.visualization.views.difference.options.useGradientNormalization = useGradientNorm;
+        
+        // 如果已经生成了数据，重新渲染所有视图
         if (this.state.hasGenerated) {
             this.visualization.updateAllViews();
         }
@@ -479,6 +595,138 @@ class GaussianPerturbationApp {
         this.ui.stats.perturbedGaussians.textContent = stats.perturbedGaussians;
         
         // SSIM已在差异视图中更新
+    }
+    
+    /**
+     * 处理软归因门控开关
+     */
+    handleToggleSoftAttribution(enabled) {
+        this.state.useSoftAttribution = enabled;
+        this.ui.softAttribution.params.style.display = enabled ? 'block' : 'none';
+        console.log('Soft attribution gating:', enabled ? 'enabled' : 'disabled');
+    }
+    
+    /**
+     * 更新软归因门控参数
+     */
+    updateSoftAttributionParams() {
+        if (!this.state.useSoftAttribution) return;
+        
+        const params = {
+            sigma_E: parseFloat(this.ui.softAttribution.sigmaE.value),
+            tau_low: parseFloat(this.ui.softAttribution.tauLow.value),
+            tau_high: parseFloat(this.ui.softAttribution.tauHigh.value),
+            sigma_m: parseFloat(this.ui.softAttribution.sigmaM.value),
+            lambda: {
+                low: parseFloat(this.ui.softAttribution.lambdaLow.value),
+                mid: parseFloat(this.ui.softAttribution.lambdaMid.value),
+                high: parseFloat(this.ui.softAttribution.lambdaHigh.value)
+            }
+        };
+        
+        this.softAttribution.setParams(params);
+        console.log('Soft attribution params updated:', params);
+        
+        // 如果已经应用了扰动，重新计算
+        if (this.state.hasPerturbation) {
+            this.applySoftAttributionPerturbation();
+        }
+    }
+    
+    /**
+     * 应用软归因门控扰动
+     */
+    applySoftAttributionPerturbation() {
+        if (!this.state.useSoftAttribution || !this.state.hasPerturbation) return;
+        
+        console.log('Applying soft attribution gated perturbation...');
+        
+        const result = this.softAttribution.performGatedPerturbation(
+            this.config.canvasWidth,
+            this.config.canvasHeight
+        );
+        
+        this.state.softAttributionData = result;
+        
+        // 更新扰动后的视图
+        this.visualization.renderPerturbedWithData(result.perturbedTotal);
+        this.visualization.updateDifferenceView();
+        
+        // 关键修复：如果你正盯着归因权重或门控Mask看，它们也应该实时更新！
+        // Critical fix: update Attribution/Gating views if they are currently active
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab) {
+            const viewType = activeTab.getAttribute('data-view');
+            if (viewType === 'attribution') {
+                this.renderAttributionView();
+            } else if (viewType === 'gating') {
+                this.renderGatingView();
+            }
+        }
+        
+        console.log('Soft attribution gating applied successfully');
+    }
+    
+    /**
+     * 渲染归因权重视图
+     */
+    renderAttributionView() {
+        if (!this.state.softAttributionData) return;
+        
+        const selectedBand = document.querySelector('input[name="attribution-band"]:checked').value;
+        const weights = this.state.softAttributionData.attributionWeights[selectedBand];
+        
+        const canvas = document.getElementById('canvas-attribution');
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(canvas.width, canvas.height);
+        const pixels = imageData.data;
+        
+        for (let i = 0; i < weights.length; i++) {
+            const value = weights[i];
+            const color = valueToColor(value, 'viridis');
+            
+            const pixelIndex = i * 4;
+            pixels[pixelIndex] = color[0];
+            pixels[pixelIndex + 1] = color[1];
+            pixels[pixelIndex + 2] = color[2];
+            pixels[pixelIndex + 3] = 255;
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        
+        document.getElementById('info-attribution').textContent = 
+            `${selectedBand.toUpperCase()} 频段归因权重 / ${selectedBand.toUpperCase()} band attribution`;
+    }
+    
+    /**
+     * 渲染门控mask视图
+     */
+    renderGatingView() {
+        if (!this.state.softAttributionData) return;
+        
+        const selectedBand = document.querySelector('input[name="gating-band"]:checked').value;
+        const mask = this.state.softAttributionData.gatingMasks[selectedBand];
+        
+        const canvas = document.getElementById('canvas-gating');
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(canvas.width, canvas.height);
+        const pixels = imageData.data;
+        
+        for (let i = 0; i < mask.length; i++) {
+            const value = mask[i];
+            const color = valueToColor(value, 'magma');
+            
+            const pixelIndex = i * 4;
+            pixels[pixelIndex] = color[0];
+            pixels[pixelIndex + 1] = color[1];
+            pixels[pixelIndex + 2] = color[2];
+            pixels[pixelIndex + 3] = 255;
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        
+        document.getElementById('info-gating').textContent = 
+            `${selectedBand.toUpperCase()} 频段门控Mask / ${selectedBand.toUpperCase()} band gating mask`;
     }
     
     

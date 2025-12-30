@@ -4,6 +4,23 @@
  */
 
 /**
+ * 扩展 biGauss 原型：添加 getBoundingBox 方法
+ */
+if (typeof biGauss !== 'undefined') {
+    biGauss.prototype.getBoundingBox = function(sigmaMultiplier = 3) {
+        const rangeX = this.sX * sigmaMultiplier;
+        const rangeY = this.sY * sigmaMultiplier;
+        
+        return {
+            minX: this.mX - rangeX,
+            maxX: this.mX + rangeX,
+            minY: this.mY - rangeY,
+            maxY: this.mY + rangeY
+        };
+    };
+}
+
+/**
  * 生成随机数（指定范围）
  */
 function randomRange(min, max) {
@@ -22,6 +39,144 @@ function clamp(value, min, max) {
  */
 function distance(x1, y1, x2, y2) {
     return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+}
+
+/**
+ * Smoothstep 函数（平滑阶跃）
+ * @param {number} x - 输入值
+ * @param {number} edge0 - 下边界
+ * @param {number} edge1 - 上边界
+ * @returns {number} 平滑插值结果 [0, 1]
+ */
+function smoothstep(x, edge0 = 0.3, edge1 = 0.7) {
+    const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+}
+
+/**
+ * 生成1D高斯核
+ * @param {number} sigma - 标准差
+ * @returns {Float32Array} 高斯核
+ */
+function makeGaussianKernel(sigma) {
+    const kernelSize = Math.ceil(sigma * 3) * 2 + 1;
+    const kernel = new Float32Array(kernelSize);
+    const center = Math.floor(kernelSize / 2);
+    let sum = 0;
+    
+    for (let i = 0; i < kernelSize; i++) {
+        const x = i - center;
+        kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
+        sum += kernel[i];
+    }
+    
+    // 归一化
+    for (let i = 0; i < kernelSize; i++) {
+        kernel[i] /= sum;
+    }
+    
+    return kernel;
+}
+
+/**
+ * 1D卷积（水平或垂直）
+ * @param {Float32Array} field - 2D场（按行优先存储）
+ * @param {number} width - 场宽度
+ * @param {number} height - 场高度
+ * @param {Float32Array} kernel - 1D卷积核
+ * @param {string} direction - 'horizontal' 或 'vertical'
+ * @returns {Float32Array} 卷积结果
+ */
+function convolve1D(field, width, height, kernel, direction) {
+    const result = new Float32Array(width * height);
+    const halfKernel = Math.floor(kernel.length / 2);
+    
+    if (direction === 'horizontal') {
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let sum = 0;
+                for (let k = 0; k < kernel.length; k++) {
+                    const sx = x + k - halfKernel;
+                    if (sx >= 0 && sx < width) {
+                        sum += field[y * width + sx] * kernel[k];
+                    }
+                }
+                result[y * width + x] = sum;
+            }
+        }
+    } else { // vertical
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                let sum = 0;
+                for (let k = 0; k < kernel.length; k++) {
+                    const sy = y + k - halfKernel;
+                    if (sy >= 0 && sy < height) {
+                        sum += field[sy * width + x] * kernel[k];
+                    }
+                }
+                result[y * width + x] = sum;
+            }
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * 2D高斯模糊（分离卷积）
+ * @param {Float32Array} field - 2D场
+ * @param {number} width - 场宽度
+ * @param {number} height - 场高度
+ * @param {number} sigma - 高斯标准差
+ * @returns {Float32Array} 模糊后的场
+ */
+function gaussianBlur2D(field, width, height, sigma) {
+    if (sigma <= 0) return new Float32Array(field);
+    
+    const kernel = makeGaussianKernel(sigma);
+    const temp = convolve1D(field, width, height, kernel, 'horizontal');
+    return convolve1D(temp, width, height, kernel, 'vertical');
+}
+
+/**
+ * 计算2D场的梯度幅值平方
+ * @param {Float32Array} field - 2D场
+ * @param {number} width - 场宽度
+ * @param {number} height - 场高度
+ * @returns {Float32Array} 梯度幅值平方场
+ */
+function computeGradientMagnitudeSquared(field, width, height) {
+    const gradientSq = new Float32Array(width * height);
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            
+            // x方向梯度（中心差分）
+            let gradX = 0;
+            if (x > 0 && x < width - 1) {
+                gradX = (field[y * width + (x + 1)] - field[y * width + (x - 1)]) / 2;
+            } else if (x === 0 && width > 1) {
+                gradX = field[y * width + 1] - field[y * width];
+            } else if (x === width - 1 && width > 1) {
+                gradX = field[y * width + x] - field[y * width + (x - 1)];
+            }
+            
+            // y方向梯度（中心差分）
+            let gradY = 0;
+            if (y > 0 && y < height - 1) {
+                gradY = (field[(y + 1) * width + x] - field[(y - 1) * width + x]) / 2;
+            } else if (y === 0 && height > 1) {
+                gradY = field[width + x] - field[x];
+            } else if (y === height - 1 && height > 1) {
+                gradY = field[y * width + x] - field[(y - 1) * width + x];
+            }
+            
+            gradientSq[idx] = gradX * gradX + gradY * gradY;
+        }
+    }
+    
+    return gradientSq;
 }
 
 /**

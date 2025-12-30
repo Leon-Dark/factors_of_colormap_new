@@ -236,8 +236,9 @@ function updateMetricsDisplay(divElement, metrics) {
     ];
 
     if (SAMPLING_MODE === 'jnd') {
+        const jndLabel = metrics.jnd_sample_count ? `JND Consistency (n=${metrics.jnd_sample_count})` : "JND Consistency";
         metricsData.unshift(
-            { name: "JND Consistency", value: metrics.jnd_consistency, color: "#795548" },
+            { name: jndLabel, value: metrics.jnd_consistency, color: "#795548" },
             { name: "Interval Diff", value: metrics.sample_interval_min_diff, color: "#00897B" }
         );
     } else {
@@ -323,8 +324,9 @@ function displayMetricsInDiv(div, metrics) {
     ];
 
     if (SAMPLING_MODE === 'jnd') {
+        const jndLabel = metrics.jnd_sample_count ? `JND Consistency (n=${metrics.jnd_sample_count})` : "JND Consistency";
         metricsData.unshift(
-            { name: "JND Consistency", value: metrics.jnd_consistency, color: "#795548" },
+            { name: jndLabel, value: metrics.jnd_consistency, color: "#795548" },
             { name: "Interval Diff", value: metrics.sample_interval_min_diff, color: "#00897B" }
         );
     } else {

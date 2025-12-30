@@ -145,6 +145,111 @@
                     </button>
                 </div>
 
+                <!-- 软归因门控参数 -->
+                <div class="control-section">
+                    <h3>3. 软归因门控参数 / Soft Attribution Gating</h3>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
+                        基于梯度能量的频段主导性门控，避免硬边界引入假高频<br>
+                        <em>Gradient energy-based frequency attribution gating to avoid artifacts from hard boundaries</em>
+                    </p>
+                    
+                    <div class="control-group">
+                        <label title="Enable pixel-wise selective perturbation based on frequency band dominance">
+                            <input type="checkbox" id="use-soft-attribution" checked> 
+                            启用软归因门控 / Enable Soft Attribution
+                        </label>
+                        <p style="font-size: 11px; color: #888; margin: 5px 0 0 20px; font-style: italic;">
+                            Apply perturbations only in regions where each frequency band dominates
+                        </p>
+                    </div>
+                    
+                    <div id="soft-attribution-params">
+                        <div class="control-group">
+                            <label for="sigma-e" title="Gaussian blur sigma for smoothing gradient energy fields">
+                                能量平滑 σ_E / Energy Smoothing:
+                            </label>
+                            <input type="range" id="sigma-e" min="1" max="10" value="4" step="0.5" 
+                                   title="Controls spatial smoothing of gradient energy. Higher = more global energy estimation">
+                            <span id="sigma-e-value" style="font-weight: bold;">4.0</span>
+                            <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
+                                Smooths E_k(x) = GaussianBlur(||∇B_k||², σ_E). Larger values → more global energy estimation
+                            </p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="tau-low" title="Lower threshold for smoothstep function">
+                                阈值下界 τ_low / Threshold Low:
+                            </label>
+                            <input type="range" id="tau-low" min="0" max="0.5" value="0.3" step="0.05"
+                                   title="Attribution weight below this value will be suppressed to 0">
+                            <span id="tau-low-value" style="font-weight: bold;">0.30</span>
+                            <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
+                                When α_k(x) < τ_low, mask → 0 (perturbation suppressed)
+                            </p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="tau-high" title="Upper threshold for smoothstep function">
+                                阈值上界 τ_high / Threshold High:
+                            </label>
+                            <input type="range" id="tau-high" min="0.5" max="1" value="0.7" step="0.05"
+                                   title="Attribution weight above this value will be amplified to 1">
+                            <span id="tau-high-value" style="font-weight: bold;">0.70</span>
+                            <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
+                                When α_k(x) > τ_high, mask → 1 (perturbation fully applied)
+                            </p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="sigma-m" title="Gaussian blur sigma for feathering gating masks">
+                                门控羽化 σ_m / Mask Feathering:
+                            </label>
+                            <input type="range" id="sigma-m" min="2" max="20" value="8" step="1"
+                                   title="Controls edge smoothness of gating masks. Higher = softer transitions">
+                            <span id="sigma-m-value" style="font-weight: bold;">8</span>
+                            <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
+                                Feathers mask boundaries to avoid introducing spurious high frequencies
+                            </p>
+                        </div>
+                        
+                        <div class="control-group">
+                            <label style="display: block; margin-bottom: 5px;" 
+                                   title="Per-band perturbation injection strength">
+                                频段扰动强度 λ / Band Strength:
+                            </label>
+                            <p style="font-size: 10px; color: #999; margin: 0 0 5px 0; font-style: italic;">
+                                Controls how strongly each band's perturbation is injected: I'(x) = I(x) + Σ_k [λ_k · m_k(x) · Δ_k(x)]
+                            </p>
+                            <div style="margin-left: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                    <label style="width: 60px; font-size: 13px;" title="Low frequency band strength (large sigma Gaussians)">
+                                        低频 Low:
+                                    </label>
+                                    <input type="range" id="lambda-low" min="0" max="2" value="1" step="0.1" style="flex: 1;"
+                                           title="0 = disable low-freq perturbation, 1 = standard, 2 = enhanced">
+                                    <span id="lambda-low-value" style="font-weight: bold; width: 35px;">1.0</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                    <label style="width: 60px; font-size: 13px;" title="Mid frequency band strength (medium sigma Gaussians)">
+                                        中频 Mid:
+                                    </label>
+                                    <input type="range" id="lambda-mid" min="0" max="2" value="1" step="0.1" style="flex: 1;"
+                                           title="0 = disable mid-freq perturbation, 1 = standard, 2 = enhanced">
+                                    <span id="lambda-mid-value" style="font-weight: bold; width: 35px;">1.0</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label style="width: 60px; font-size: 13px;" title="High frequency band strength (small sigma Gaussians)">
+                                        高频 High:
+                                    </label>
+                                    <input type="range" id="lambda-high" min="0" max="2" value="1" step="0.1" style="flex: 1;"
+                                           title="0 = disable high-freq perturbation, 1 = standard, 2 = enhanced">
+                                    <span id="lambda-high-value" style="font-weight: bold; width: 35px;">1.0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 统计信息 -->
                 <div class="control-section" style="background: #f8f9fa; border-radius: 5px; padding: 15px;">
                     <h3>实时统计 / Statistics</h3>
@@ -211,11 +316,16 @@
                     <div class="view-tabs">
                         <button class="tab-btn active" data-view="difference">差异图 / Diff</button>
                         <button class="tab-btn" data-view="heatmap">热力图 / Heatmap</button>
+                        <button class="tab-btn" data-view="attribution">归因权重 / Attribution</button>
+                        <button class="tab-btn" data-view="gating">门控Mask / Gating</button>
                         <label style="margin-left: 20px; font-size: 14px;">
                             <input type="checkbox" id="show-centers" checked> 显示中心点 / Show Centers
                         </label>
                         <label style="margin-left: 15px; font-size: 14px;">
                             <input type="checkbox" id="show-grid" checked> 显示网格线 / Show Grid
+                        </label>
+                        <label style="margin-left: 15px; font-size: 14px;" title="对每个频段高斯单独进行梯度能量归一化">
+                            <input type="checkbox" id="use-gradient-norm" checked> 梯度归一化 / Gradient Norm
                         </label>
                     </div>
 
@@ -235,6 +345,56 @@
                             <div class="canvas-info">
                                 <span id="info-heatmap">需要先生成 / Generate first</span>
                             </div>
+                        </div>
+                        
+                        <div class="canvas-wrapper" id="view-attribution" style="display: none;">
+                            <h3>频段归因权重 / Attribution Weights</h3>
+                            <p style="font-size: 11px; color: #666; margin: 0 0 8px 0; font-style: italic;">
+                                Shows α_k(x) = E_k / (E_L + E_M + E_H), indicating which frequency band dominates at each pixel
+                            </p>
+                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <label style="font-size: 13px;" title="Low frequency band (large sigma Gaussians)">
+                                    <input type="radio" name="attribution-band" value="low" checked> 低频 Low
+                                </label>
+                                <label style="font-size: 13px;" title="Mid frequency band (medium sigma Gaussians)">
+                                    <input type="radio" name="attribution-band" value="mid"> 中频 Mid
+                                </label>
+                                <label style="font-size: 13px;" title="High frequency band (small sigma Gaussians)">
+                                    <input type="radio" name="attribution-band" value="high"> 高频 High
+                                </label>
+                            </div>
+                            <canvas id="canvas-attribution" width="200" height="200"></canvas>
+                            <div class="canvas-info">
+                                <span id="info-attribution">需要先应用扰动 / Apply perturbation first</span>
+                            </div>
+                            <p style="font-size: 10px; color: #888; margin: 5px 0 0 0; font-style: italic;">
+                                Brighter = higher dominance. This determines where perturbations will be applied.
+                            </p>
+                        </div>
+                        
+                        <div class="canvas-wrapper" id="view-gating" style="display: none;">
+                            <h3>门控Mask / Gating Mask</h3>
+                            <p style="font-size: 11px; color: #666; margin: 0 0 8px 0; font-style: italic;">
+                                Shows m_k(x) = GaussianBlur(smoothstep(α_k; τ), σ_m), controlling perturbation strength at each pixel
+                            </p>
+                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <label style="font-size: 13px;" title="Low frequency gating mask">
+                                    <input type="radio" name="gating-band" value="low" checked> 低频 Low
+                                </label>
+                                <label style="font-size: 13px;" title="Mid frequency gating mask">
+                                    <input type="radio" name="gating-band" value="mid"> 中频 Mid
+                                </label>
+                                <label style="font-size: 13px;" title="High frequency gating mask">
+                                    <input type="radio" name="gating-band" value="high"> 高频 High
+                                </label>
+                            </div>
+                            <canvas id="canvas-gating" width="200" height="200"></canvas>
+                            <div class="canvas-info">
+                                <span id="info-gating">需要先应用扰动 / Apply perturbation first</span>
+                            </div>
+                            <p style="font-size: 10px; color: #888; margin: 5px 0 0 0; font-style: italic;">
+                                Brighter = perturbation fully applied (mask=1). Darker = perturbation suppressed (mask=0).
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -397,6 +557,7 @@
     <script src="js/utils.js"></script>
     <script src="js/gaussianGenerator.js"></script>
     <script src="js/perturbation.js"></script>
+    <script src="js/softAttributionPerturbation.js"></script>
     <script src="js/visualization.js"></script>
     <script src="js/main.js"></script>
 </body>

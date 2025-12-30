@@ -23,7 +23,8 @@ class VisualizationSystem {
             showGaussianCenters: true,
             showGridLines: true,  // 新增：是否显示四宫格网格线
             highlightPerturbed: true,
-            normalizeIntensity: true
+            normalizeIntensity: true,
+            useGradientNormalization: true  // 新增：是否使用梯度能量归一化
         };
         
         // 全局 colormap（所有视图共享）
@@ -40,8 +41,11 @@ class VisualizationSystem {
      * @param {boolean} useOriginal - 是否使用原始参数
      */
     renderGaussians(generator, useOriginal = false) {
-        // 生成数据
-        const data = generator.renderTo1DArray(this.width, this.height, useOriginal);
+        // 生成数据，使用梯度归一化选项
+        const useGradientNorm = this.options.useGradientNormalization !== undefined 
+            ? this.options.useGradientNormalization 
+            : true;
+        const data = generator.renderTo1DArray(this.width, this.height, useOriginal, useGradientNorm);
         
         // 归一化
         let max = 0;
@@ -505,8 +509,8 @@ class MultiViewVisualization {
      * 切换视图
      */
     switchView(viewName) {
-        // 原始和扰动视图始终显示，只切换差异图和热力图
-        const analysisViews = ['difference', 'heatmap'];
+        // 原始和扰动视图始终显示，只切换分析视图
+        const analysisViews = ['difference', 'heatmap', 'attribution', 'gating'];
         
         // 隐藏所有分析视图
         for (const name of analysisViews) {
@@ -519,9 +523,63 @@ class MultiViewVisualization {
         // 显示选中的视图（如果是分析视图）
         if (analysisViews.includes(viewName)) {
             document.getElementById(`view-${viewName}`).style.display = 'block';
+            
+            // 如果切换到归因或门控视图，触发渲染
+            if (viewName === 'attribution' && window.app && window.app.state.softAttributionData) {
+                window.app.renderAttributionView();
+            } else if (viewName === 'gating' && window.app && window.app.state.softAttributionData) {
+                window.app.renderGatingView();
+            }
         }
         
         this.currentView = viewName;
+    }
+    
+    /**
+     * 使用自定义数据渲染扰动视图
+     */
+    renderPerturbedWithData(data) {
+        if (!data) return;
+        
+        const canvas = document.getElementById('canvas-perturbed');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        
+        // 归一化数据
+        let max = 0;
+        for (let i = 0; i < data.length; i++) {
+            max = Math.max(max, data[i]);
+        }
+        
+        if (max === 0) {
+            console.warn('All values are zero');
+            return;
+        }
+        
+        const normalizedData = new Float32Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            normalizedData[i] = data[i] / max;
+        }
+        
+        // 渲染到canvas
+        this.views.perturbed.renderDataToCanvas(normalizedData);
+        
+        // 更新扰动数据
+        this.perturbedData = normalizedData;
+        
+        const perturbedCount = this.generator.getAllGaussians().filter(g => g.isPerturbed).length;
+        document.getElementById('info-perturbed').textContent = 
+            `${perturbedCount} perturbed (soft gating) / 已扰动 ${perturbedCount} 个（软门控）`;
+    }
+    
+    /**
+     * 更新差异视图
+     */
+    updateDifferenceView() {
+        if (this.originalData && this.perturbedData) {
+            this.renderDifference();
+        }
     }
     
     /**

@@ -585,6 +585,9 @@ function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
             const jndSamples = generateJndSamples(hclPalette, JND_STEP);
             console.log(`Generated ${jndSamples.length} JND samples with step=${JND_STEP}`);
             
+            // Save sample count for display
+            metrics.jnd_sample_count = jndSamples.length;
+            
             // Calculate both conditions using shared JND samples
             metrics.jnd_consistency = calcJndConsistency(jndSamples, JND_STEP) || 0;
             console.log('JND Consistency:', metrics.jnd_consistency.toFixed(3));
