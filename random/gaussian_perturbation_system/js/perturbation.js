@@ -14,7 +14,7 @@ class PerturbationSystem {
         this.generator = generator;
         this.perturbationHistory = [];
     }
-    
+
     /**
      * 扰动单个高斯
      * @param {biGauss} gauss - 高斯对象
@@ -31,53 +31,57 @@ class PerturbationSystem {
         } else {
             perturbTypes = [perturbType];
         }
-        
+
         for (const type of perturbTypes) {
-            switch(type) {
+            switch (type) {
                 case 'position':
                     // 扰动位置（中心点）
-                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * 0.5;
+                    // Magnified by 2.0
+                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * 1.0;
                     gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
                     gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
                     break;
-                    
+
                 case 'stretch':
                     // 扰动形状 - 只改变标准差（拉伸/压缩）
-                    const sigmaChange = magnitude * 0.3; // 最多30%的变化
+                    // Magnified by 2.0 (0.3 -> 0.6)
+                    const sigmaChange = magnitude * 0.6;
                     gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange);
                     gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange);
                     break;
-                
+
                 case 'rotation':
                     // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
-                    const rhoChange = magnitude * 0.4;
+                    // Magnified by 2.0 (0.4 -> 0.8)
+                    const rhoChange = magnitude * 0.8;
                     const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
                     gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho)));
                     break;
-                    
+
                 case 'shape':
                     // 向后兼容：shape = stretch + rotation
                     const sigmaChange2 = magnitude * 0.3;
                     gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
                     gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
-                    
+
                     const rhoChange2 = magnitude * 0.4;
                     const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;
                     gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho2)));
                     break;
-                    
+
                 case 'amplitude':
                     // 扰动幅值
-                    const ampChange = magnitude * 0.4;
+                    // Magnified by 2.0 (0.4 -> 0.8)
+                    const ampChange = magnitude * 0.8;
                     gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
                     gauss.scaler = Math.max(0.1, gauss.scaler); // 确保不为负或太小
                     break;
             }
         }
-        
+
         gauss.isPerturbed = true;
     }
-    
+
     /**
      * 重置高斯扰动
      * @param {biGauss} gauss - 高斯对象
@@ -93,7 +97,7 @@ class PerturbationSystem {
             gauss.isPerturbed = false;
         }
     }
-    
+
     /**
      * 应用全局扰动
      * @param {number} magnitude - 扰动幅度 (0-1)
@@ -103,22 +107,22 @@ class PerturbationSystem {
      */
     applyGlobalPerturbation(magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
         let gaussians = this.getTargetGaussians(targetLevel);
-        
+
         if (gaussians.length === 0) {
             console.warn('No Gaussians selected for perturbation');
             return [];
         }
         const perturbCount = Math.floor(gaussians.length * ratio);
-        
+
         // 随机选择要扰动的高斯
         const shuffled = this.shuffleArray([...gaussians]);
         const toPerturb = shuffled.slice(0, perturbCount);
-        
+
         // 应用扰动
         for (const gauss of toPerturb) {
             this.perturbGaussian(gauss, magnitude, perturbType);
         }
-        
+
         // 记录历史
         this.perturbationHistory.push({
             type: 'global',
@@ -129,11 +133,11 @@ class PerturbationSystem {
             count: toPerturb.length,
             timestamp: Date.now()
         });
-        
+
         console.log(`Applied global perturbation to ${toPerturb.length} Gaussians across entire space`);
         return toPerturb;
     }
-    
+
     /**
      * 应用局部扰动（自动选择最紧密的m个高斯）
      * @param {number} targetCount - 目标扰动的高斯数量
@@ -144,26 +148,26 @@ class PerturbationSystem {
      */
     applyLocalPerturbation(targetCount, magnitude, ratio, targetLevel = 'all', perturbType = 'all') {
         let gaussians = this.getTargetGaussians(targetLevel);
-        
+
         if (gaussians.length === 0) {
             console.warn('No Gaussians available for perturbation');
             return [];
         }
-        
+
         // 计算实际要扰动的数量（targetCount 是簇大小，ratio 是在簇中扰动的比例）
         // 为了让用户直观理解，我们让 targetCount 直接表示要扰动的数量
         // 簇大小设为 targetCount 的 1.5-2 倍，确保有足够的紧密邻居
         const perturbCount = Math.min(targetCount, gaussians.length);
         const clusterSize = Math.min(Math.ceil(perturbCount * 1.5), gaussians.length);
-        
+
         // 找到最紧密的簇
         const compactCluster = this.findMostCompactCluster(gaussians, clusterSize);
-        
+
         // 计算包围圆
         const circle = this.calculateBoundingCircle(compactCluster);
-        
+
         console.log(`Found compact cluster of ${clusterSize} Gaussians with radius ${circle.radius.toFixed(2)}px at (${circle.centerX.toFixed(1)}, ${circle.centerY.toFixed(1)})`);
-        
+
         // 在簇中选择最中心的 perturbCount 个高斯进行扰动
         const gaussWithDist = compactCluster.map(g => ({
             gauss: g,
@@ -171,16 +175,16 @@ class PerturbationSystem {
         }));
         gaussWithDist.sort((a, b) => a.dist - b.dist);
         const toPerturb = gaussWithDist.slice(0, perturbCount).map(item => item.gauss);
-        
+
         // 应用扰动（根据距离调整幅度）
         for (const gauss of toPerturb) {
             const dist = distance(circle.centerX, circle.centerY, gauss.mX, gauss.mY);
             const distFactor = circle.radius > 0 ? 1 - (dist / circle.radius) : 1;
             const adjustedMagnitude = magnitude * Math.max(0.5, distFactor); // 最小保持50%强度
-            
+
             this.perturbGaussian(gauss, adjustedMagnitude, perturbType);
         }
-        
+
         // 记录历史
         this.perturbationHistory.push({
             type: 'local',
@@ -194,11 +198,11 @@ class PerturbationSystem {
             count: toPerturb.length,
             timestamp: Date.now()
         });
-        
+
         console.log(`Applied local perturbation to ${toPerturb.length} Gaussians in cluster of ${clusterSize}`);
         return { perturbed: toPerturb, cluster: compactCluster, circle };
     }
-    
+
     /**
      * 找到最紧密的m个高斯（最小包围圆）
      * 优化算法：使用采样+密度启发式，降低时间复杂度
@@ -207,13 +211,13 @@ class PerturbationSystem {
         if (m >= gaussians.length) {
             return gaussians;
         }
-        
+
         const n = gaussians.length;
-        
+
         // 小规模数据：遍历所有点
         // 大规模数据：采样 sqrt(n) 或最多50个种子点
         const maxSeeds = n < 100 ? n : Math.min(50, Math.ceil(Math.sqrt(n)));
-        
+
         // 第一步：如果需要采样，选择候选种子
         let seeds;
         if (maxSeeds < n) {
@@ -222,32 +226,32 @@ class PerturbationSystem {
             const gridSize = Math.ceil(Math.sqrt(maxSeeds));
             const cellWidth = this.generator.width / gridSize;
             const cellHeight = this.generator.height / gridSize;
-            
+
             const grid = new Map();
             for (const g of gaussians) {
                 const cellX = Math.floor(g.mX / cellWidth);
                 const cellY = Math.floor(g.mY / cellHeight);
                 const key = `${cellX},${cellY}`;
-                
+
                 if (!grid.has(key)) {
                     grid.set(key, []);
                 }
                 grid.get(key).push(g);
             }
-            
+
             // 从每个非空格子中选择一个代表点（选最中心的）
             seeds = [];
             for (const [key, points] of grid.entries()) {
                 if (points.length === 0) continue;
-                
+
                 // 计算格子中心
                 const centerX = points.reduce((sum, g) => sum + g.mX, 0) / points.length;
                 const centerY = points.reduce((sum, g) => sum + g.mY, 0) / points.length;
-                
+
                 // 选择最接近中心的点
                 let closest = points[0];
                 let minDist = distance(centerX, centerY, closest.mX, closest.mY);
-                
+
                 for (const p of points) {
                     const d = distance(centerX, centerY, p.mX, p.mY);
                     if (d < minDist) {
@@ -255,10 +259,10 @@ class PerturbationSystem {
                         closest = p;
                     }
                 }
-                
+
                 seeds.push(closest);
             }
-            
+
             // 如果种子数不够，随机补充
             if (seeds.length < maxSeeds) {
                 const remaining = this.shuffleArray(
@@ -269,35 +273,35 @@ class PerturbationSystem {
         } else {
             seeds = gaussians;
         }
-        
+
         // 第二步：对每个种子，找最紧密的m个高斯
         let bestCluster = null;
         let minRadius = Infinity;
-        
+
         for (const seed of seeds) {
             // 计算所有高斯到seed的距离
             const distances = gaussians.map(g => ({
                 gauss: g,
                 dist: distance(seed.mX, seed.mY, g.mX, g.mY)
             }));
-            
+
             // 按距离排序，取最近的m个
             distances.sort((a, b) => a.dist - b.dist);
             const cluster = distances.slice(0, m).map(d => d.gauss);
-            
+
             // 计算这个簇的包围圆半径
             const circle = this.calculateBoundingCircle(cluster);
-            
+
             // 如果这个簇更紧密，更新最佳结果
             if (circle.radius < minRadius) {
                 minRadius = circle.radius;
                 bestCluster = cluster;
             }
         }
-        
+
         return bestCluster;
     }
-    
+
     /**
      * 计算一组高斯的最小包围圆（近似算法）
      */
@@ -305,11 +309,11 @@ class PerturbationSystem {
         if (gaussians.length === 0) {
             return { centerX: 0, centerY: 0, radius: 0 };
         }
-        
+
         if (gaussians.length === 1) {
             return { centerX: gaussians[0].mX, centerY: gaussians[0].mY, radius: 0 };
         }
-        
+
         // 计算质心作为圆心
         let sumX = 0, sumY = 0;
         for (const g of gaussians) {
@@ -318,7 +322,7 @@ class PerturbationSystem {
         }
         const centerX = sumX / gaussians.length;
         const centerY = sumY / gaussians.length;
-        
+
         // 计算最远点的距离作为半径
         let maxDist = 0;
         for (const g of gaussians) {
@@ -327,10 +331,10 @@ class PerturbationSystem {
                 maxDist = dist;
             }
         }
-        
+
         return { centerX, centerY, radius: maxDist };
     }
-    
+
     /**
      * 应用频率选择性扰动
      * @param {string} frequencyRange - 频率范围 ('high', 'mid', 'low')
@@ -340,8 +344,8 @@ class PerturbationSystem {
      */
     applyFrequencySelectivePerturbation(frequencyRange, magnitude, ratio, perturbType = 'all') {
         let targetLevels = [];
-        
-        switch(frequencyRange) {
+
+        switch (frequencyRange) {
             case 'high':
                 targetLevels = ['small'];
                 break;
@@ -354,19 +358,19 @@ class PerturbationSystem {
             default:
                 targetLevels = ['small', 'medium', 'large'];
         }
-        
-        const gaussians = this.generator.getAllGaussians().filter(g => 
+
+        const gaussians = this.generator.getAllGaussians().filter(g =>
             targetLevels.includes(g.sizeLevel)
         );
-        
+
         const perturbCount = Math.floor(gaussians.length * ratio);
         const shuffled = this.shuffleArray([...gaussians]);
         const toPerturb = shuffled.slice(0, perturbCount);
-        
+
         for (const gauss of toPerturb) {
             this.perturbGaussian(gauss, magnitude, perturbType);
         }
-        
+
         this.perturbationHistory.push({
             type: 'frequency-selective',
             frequencyRange,
@@ -376,11 +380,11 @@ class PerturbationSystem {
             count: toPerturb.length,
             timestamp: Date.now()
         });
-        
+
         console.log(`Applied frequency-selective perturbation to ${toPerturb.length} Gaussians`);
         return toPerturb;
     }
-    
+
     /**
      * 应用结构化扰动（局部群组扰动）
      * @param {number} numClusters - 扰动簇的数量
@@ -392,19 +396,19 @@ class PerturbationSystem {
         const width = this.generator.width;
         const height = this.generator.height;
         const perturbedGaussians = new Set();
-        
+
         // 生成随机簇中心
         for (let i = 0; i < numClusters; i++) {
             const centerX = randomRange(clusterRadius, width - clusterRadius);
             const centerY = randomRange(clusterRadius, height - clusterRadius);
-            
+
             const perturbed = this.applyLocalPerturbation(
                 centerX, centerY, clusterRadius, magnitude, 1.0, targetLevel, 'all'
             );
-            
+
             perturbed.forEach(g => perturbedGaussians.add(g));
         }
-        
+
         this.perturbationHistory.push({
             type: 'structured',
             numClusters,
@@ -414,11 +418,11 @@ class PerturbationSystem {
             count: perturbedGaussians.size,
             timestamp: Date.now()
         });
-        
+
         console.log(`Applied structured perturbation to ${perturbedGaussians.size} Gaussians`);
         return Array.from(perturbedGaussians);
     }
-    
+
     /**
      * 重置所有扰动
      */
@@ -433,7 +437,7 @@ class PerturbationSystem {
         });
         console.log('Reset all perturbations');
     }
-    
+
     /**
      * 获取目标高斯列表
      * @param {string|string[]} targetLevel - 目标级别（单个或数组）
@@ -445,27 +449,27 @@ class PerturbationSystem {
             const allGaussians = this.generator.getAllGaussians();
             return allGaussians.filter(g => targetLevel.includes(g.sizeLevel));
         }
-        
+
         // 单个级别的处理
         if (targetLevel === 'all') {
             return this.generator.getAllGaussians();
         } else if (targetLevel === 'small') {
-            return this.generator.getAllGaussians().filter(g => 
+            return this.generator.getAllGaussians().filter(g =>
                 g.sizeLevel === 'small'
             );
         } else if (targetLevel === 'medium') {
-            return this.generator.getAllGaussians().filter(g => 
+            return this.generator.getAllGaussians().filter(g =>
                 g.sizeLevel === 'medium'
             );
         } else if (targetLevel === 'large') {
-            return this.generator.getAllGaussians().filter(g => 
+            return this.generator.getAllGaussians().filter(g =>
                 g.sizeLevel === 'large'
             );
         } else {
             return this.generator.getGaussiansByLevel(targetLevel);
         }
     }
-    
+
     /**
      * 洗牌数组（Fisher-Yates算法）
      */
@@ -477,7 +481,7 @@ class PerturbationSystem {
         }
         return arr;
     }
-    
+
     /**
      * 获取扰动统计
      */
@@ -487,36 +491,36 @@ class PerturbationSystem {
             perturbedGaussians: this.generator.getAllGaussians().filter(g => g.isPerturbed).length,
             byLevel: {}
         };
-        
+
         const levels = ['small', 'medium', 'large'];
         for (const level of levels) {
             const levelGaussians = this.generator.getGaussiansByLevel(level);
             stats.byLevel[level] = {
                 total: levelGaussians.length,
                 perturbed: levelGaussians.filter(g => g.isPerturbed).length,
-                ratio: levelGaussians.length > 0 
+                ratio: levelGaussians.length > 0
                     ? (levelGaussians.filter(g => g.isPerturbed).length / levelGaussians.length).toFixed(2)
                     : 0
             };
         }
-        
+
         return stats;
     }
-    
+
     /**
      * 获取扰动历史
      */
     getHistory() {
         return this.perturbationHistory;
     }
-    
+
     /**
      * 清除历史
      */
     clearHistory() {
         this.perturbationHistory = [];
     }
-    
+
     /**
      * 重置所有高斯到原始状态
      */
@@ -534,7 +538,7 @@ class PerturbationSystem {
         this.clearHistory();
         console.log('Reset all Gaussians to original state');
     }
-    
+
     /**
      * 导出扰动配置
      */
