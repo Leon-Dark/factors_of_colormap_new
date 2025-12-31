@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>高斯分布随机生成与扰动可视化系统</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -17,70 +19,88 @@
             <!-- 控制面板 -->
             <div class="control-panel">
                 <h2>控制面板 / Control Panel</h2>
-                
+
                 <!-- 高斯参数 -->
                 <div class="control-section">
                     <h3>1. 高斯参数设置 / Gaussian Parameters</h3>
                     <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
                         在整个空间随机生成高斯分布，可自定义各频率数量 / Random generation across entire space, customizable frequency counts
                     </p>
-                    
+
                     <!-- 高频 -->
-                    <div style="background: #f0f8ff; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #377eb8;">
+                    <div
+                        style="background: #f0f8ff; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #377eb8;">
                         <div style="font-weight: bold; color: #377eb8; margin-bottom: 8px;">
                             高频 / High Frequency
                         </div>
-                        <div style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <div
+                            style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px;">
                             <label style="font-size: 13px;">数量（counts）:</label>
-                            <input type="range" id="count-high" min="0" max="20" value="8" step="1">
-                            <input type="number" id="count-high-value" min="0" max="20" value="8" step="1" style="width: 50px; padding: 3px;">
+                            <input type="range" id="count-high" min="0" max="20" value="4" step="1">
+                            <input type="number" id="count-high-value" min="0" max="20" value="4" step="1"
+                                style="width: 50px; padding: 3px;">
                         </div>
-                        <div style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center;">
+                        <div
+                            style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;">σ:</label>
-                            <input type="range" id="sigma-small" min="2" max="20" value="4" step="0.5">
-                            <input type="number" id="sigma-small-value" min="2" max="20" value="4" step="0.5" style="width: 50px; padding: 3px;">
+                            <input type="range" id="sigma-small" min="2" max="20" value="15" step="0.5">
+                            <input type="number" id="sigma-small-value" min="2" max="20" value="15" step="0.5"
+                                style="width: 50px; padding: 3px;">
                         </div>
                     </div>
-                    
+
                     <!-- 中频 -->
-                    <div style="background: #f5fff5; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #4daf4a;">
+                    <div
+                        style="background: #f5fff5; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #4daf4a;">
                         <div style="font-weight: bold; color: #4daf4a; margin-bottom: 8px;">
                             中频 / Mid Frequency
                         </div>
-                        <div style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <div
+                            style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px;">
                             <label style="font-size: 13px;">数量（counts）:</label>
-                            <input type="range" id="count-mid" min="0" max="15" value="6" step="1">
-                            <input type="number" id="count-mid-value" min="0" max="15" value="6" step="1" style="width: 50px; padding: 3px;">
+                            <input type="range" id="count-mid" min="0" max="10" value="4" step="1">
+                            <input type="number" id="count-mid-value" min="0" max="10" value="4" step="1"
+                                style="width: 50px; padding: 3px;">
                         </div>
-                        <div style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center;">
+                        <div
+                            style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;">σ:</label>
-                            <input type="range" id="sigma-medium" min="10" max="30" value="16" step="1">
-                            <input type="number" id="sigma-medium-value" min="10" max="30" value="16" step="1" style="width: 50px; padding: 3px;">
+                            <input type="range" id="sigma-medium" min="10" max="30" value="25" step="1">
+                            <input type="number" id="sigma-medium-value" min="10" max="30" value="25" step="1"
+                                style="width: 50px; padding: 3px;">
                         </div>
                     </div>
-                    
+
                     <!-- 低频 -->
-                    <div style="background: #fff8f0; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #ff7f00;">
+                    <div
+                        style="background: #fff8f0; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #ff7f00;">
                         <div style="font-weight: bold; color: #ff7f00; margin-bottom: 8px;">
                             低频 / Low Frequency
                         </div>
-                        <div style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <div
+                            style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px;">
                             <label style="font-size: 13px;">数量（counts）:</label>
-                            <input type="range" id="count-low" min="0" max="10" value="3" step="1">
-                            <input type="number" id="count-low-value" min="0" max="10" value="3" step="1" style="width: 50px; padding: 3px;">
+                            <input type="range" id="count-low" min="0" max="10" value="4" step="1">
+                            <input type="number" id="count-low-value" min="0" max="10" value="4" step="1"
+                                style="width: 50px; padding: 3px;">
                         </div>
-                        <div style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center;">
+                        <div
+                            style="display: grid; grid-template-columns: 60px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;">σ:</label>
-                            <input type="range" id="sigma-large" min="20" max="60" value="40" step="2">
-                            <input type="number" id="sigma-large-value" min="20" max="60" value="40" step="2" style="width: 50px; padding: 3px;">
+                            <input type="range" id="sigma-large" min="20" max="60" value="50" step="2">
+                            <input type="number" id="sigma-large-value" min="20" max="60" value="50" step="2"
+                                style="width: 50px; padding: 3px;">
                         </div>
                     </div>
-                    
-                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px; color: #666;">
-                        <strong>总数量:</strong> <span id="total-count">17</span> 个高斯分布 / Total: <span id="total-count-en">17</span> Gaussians
+
+                    <div
+                        style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px; color: #666;">
+                        <strong>总数量:</strong> <span id="total-count">17</span> 个高斯分布 / Total: <span
+                            id="total-count-en">17</span> Gaussians
                     </div>
-                    
-                    <button id="btn-generate" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 16px;">
+
+                    <button id="btn-generate" class="btn btn-primary"
+                        style="width: 100%; padding: 12px; font-size: 16px;">
                         生成新分布 / Generate
                     </button>
                 </div>
@@ -89,9 +109,10 @@
                 <div class="control-section">
                     <h3>2. 扰动参数设置 / Perturbation Parameters</h3>
                     <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
-                        调整扰动强度、范围和类型，对整个空间的高斯分布进行扰动 / Adjust perturbation strength, scope and type for all Gaussians in the space
+                        调整扰动强度、范围和类型，对整个空间的高斯分布进行扰动 / Adjust perturbation strength, scope and type for all Gaussians in
+                        the space
                     </p>
-                    
+
                     <div class="control-group">
                         <label for="perturb-magnitude">
                             扰动幅度 / Magnitude <span style="font-size: 11px; color: #888;">(0=min, 1=max)</span>:
@@ -109,18 +130,25 @@
                     <div class="control-group">
                         <label style="display: block; margin-bottom: 5px;">扰动目标 / Target Frequency:</label>
                         <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-left: 10px;">
-                            <label style="font-size: 13px;"><input type="checkbox" id="target-small" class="perturb-target" checked> 高频 / High</label>
-                            <label style="font-size: 13px;"><input type="checkbox" id="target-medium" class="perturb-target" checked> 中频 / Mid</label>
-                            <label style="font-size: 13px;"><input type="checkbox" id="target-large" class="perturb-target" checked> 低频 / Low</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="target-small"
+                                    class="perturb-target" checked> 高频 / High</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="target-medium"
+                                    class="perturb-target" checked> 中频 / Mid</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="target-large"
+                                    class="perturb-target" checked> 低频 / Low</label>
                         </div>
                     </div>
                     <div class="control-group">
                         <label style="display: block; margin-bottom: 5px;">扰动类型 / Type:</label>
                         <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-left: 10px;">
-                            <label style="font-size: 13px;"><input type="checkbox" id="type-position" class="perturb-type" checked> 位置 / Position</label>
-                            <label style="font-size: 13px;"><input type="checkbox" id="type-stretch" class="perturb-type" checked> 拉伸 / Stretch</label>
-                            <label style="font-size: 13px;"><input type="checkbox" id="type-rotation" class="perturb-type" checked> 旋转 / Rotation</label>
-                            <label style="font-size: 13px;"><input type="checkbox" id="type-amplitude" class="perturb-type" checked> 幅度 / Amplitude</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-position"
+                                    class="perturb-type" checked> 位置 / Position</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-stretch"
+                                    class="perturb-type" checked> 拉伸 / Stretch</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-rotation"
+                                    class="perturb-type" checked> 旋转 / Rotation</label>
+                            <label style="font-size: 13px;"><input type="checkbox" id="type-amplitude"
+                                    class="perturb-type" checked> 幅度 / Amplitude</label>
                         </div>
                     </div>
                     <div class="control-group">
@@ -139,8 +167,9 @@
                             <span id="local-count-value" style="font-weight: bold;">5</span>
                         </div>
                     </div>
-                    
-                    <button id="btn-apply-perturb" class="btn btn-warning" style="width: 100%; margin-top: 15px; padding: 12px; font-size: 16px;">
+
+                    <button id="btn-apply-perturb" class="btn btn-warning"
+                        style="width: 100%; margin-top: 15px; padding: 12px; font-size: 16px;">
                         应用扰动 / Apply
                     </button>
                 </div>
@@ -150,99 +179,107 @@
                     <h3>3. 软归因门控参数 / Soft Attribution Gating</h3>
                     <p style="font-size: 12px; color: #666; margin: 5px 0 10px 0;">
                         基于梯度能量的频段主导性门控，避免硬边界引入假高频<br>
-                        <em>Gradient energy-based frequency attribution gating to avoid artifacts from hard boundaries</em>
+                        <em>Gradient energy-based frequency attribution gating to avoid artifacts from hard
+                            boundaries</em>
                     </p>
-                    
+
                     <div class="control-group">
                         <label title="Enable pixel-wise selective perturbation based on frequency band dominance">
-                            <input type="checkbox" id="use-soft-attribution" checked> 
+                            <input type="checkbox" id="use-soft-attribution" checked>
                             启用软归因门控 / Enable Soft Attribution
                         </label>
                         <p style="font-size: 11px; color: #888; margin: 5px 0 0 20px; font-style: italic;">
                             Apply perturbations only in regions where each frequency band dominates
                         </p>
                     </div>
-                    
+
                     <div id="soft-attribution-params">
                         <div class="control-group">
                             <label for="sigma-e" title="Gaussian blur sigma for smoothing gradient energy fields">
                                 能量平滑 σ_E / Energy Smoothing:
                             </label>
-                            <input type="range" id="sigma-e" min="1" max="10" value="4" step="0.5" 
-                                   title="Controls spatial smoothing of gradient energy. Higher = more global energy estimation">
+                            <input type="range" id="sigma-e" min="1" max="10" value="4" step="0.5"
+                                title="Controls spatial smoothing of gradient energy. Higher = more global energy estimation">
                             <span id="sigma-e-value" style="font-weight: bold;">4.0</span>
                             <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
-                                Smooths E_k(x) = GaussianBlur(||∇B_k||², σ_E). Larger values → more global energy estimation
+                                Smooths E_k(x) = GaussianBlur(||∇B_k||², σ_E). Larger values → more global energy
+                                estimation
                             </p>
                         </div>
-                        
+
                         <div class="control-group">
                             <label for="tau-low" title="Lower threshold for smoothstep function">
                                 阈值下界 τ_low / Threshold Low:
                             </label>
                             <input type="range" id="tau-low" min="0" max="0.5" value="0.3" step="0.05"
-                                   title="Attribution weight below this value will be suppressed to 0">
+                                title="Attribution weight below this value will be suppressed to 0">
                             <span id="tau-low-value" style="font-weight: bold;">0.30</span>
                             <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
-                                When α_k(x) < τ_low, mask → 0 (perturbation suppressed)
-                            </p>
+                                When α_k(x) < τ_low, mask → 0 (perturbation suppressed) </p>
                         </div>
-                        
+
                         <div class="control-group">
                             <label for="tau-high" title="Upper threshold for smoothstep function">
                                 阈值上界 τ_high / Threshold High:
                             </label>
                             <input type="range" id="tau-high" min="0.5" max="1" value="0.7" step="0.05"
-                                   title="Attribution weight above this value will be amplified to 1">
+                                title="Attribution weight above this value will be amplified to 1">
                             <span id="tau-high-value" style="font-weight: bold;">0.70</span>
                             <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
                                 When α_k(x) > τ_high, mask → 1 (perturbation fully applied)
                             </p>
                         </div>
-                        
+
                         <div class="control-group">
                             <label for="sigma-m" title="Gaussian blur sigma for feathering gating masks">
                                 门控羽化 σ_m / Mask Feathering:
                             </label>
                             <input type="range" id="sigma-m" min="2" max="20" value="8" step="1"
-                                   title="Controls edge smoothness of gating masks. Higher = softer transitions">
+                                title="Controls edge smoothness of gating masks. Higher = softer transitions">
                             <span id="sigma-m-value" style="font-weight: bold;">8</span>
                             <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
                                 Feathers mask boundaries to avoid introducing spurious high frequencies
                             </p>
                         </div>
-                        
+
                         <div class="control-group">
-                            <label style="display: block; margin-bottom: 5px;" 
-                                   title="Per-band perturbation injection strength">
+                            <label style="display: block; margin-bottom: 5px;"
+                                title="Per-band perturbation injection strength">
                                 频段扰动强度 λ / Band Strength:
                             </label>
                             <p style="font-size: 10px; color: #999; margin: 0 0 5px 0; font-style: italic;">
-                                Controls how strongly each band's perturbation is injected: I'(x) = I(x) + Σ_k [λ_k · m_k(x) · Δ_k(x)]
+                                Controls how strongly each band's perturbation is injected: I'(x) = I(x) + Σ_k [λ_k ·
+                                m_k(x) · Δ_k(x)]
                             </p>
                             <div style="margin-left: 10px;">
                                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-                                    <label style="width: 60px; font-size: 13px;" title="Low frequency band strength (large sigma Gaussians)">
+                                    <label style="width: 60px; font-size: 13px;"
+                                        title="Low frequency band strength (large sigma Gaussians)">
                                         低频 Low:
                                     </label>
-                                    <input type="range" id="lambda-low" min="0" max="2" value="1" step="0.1" style="flex: 1;"
-                                           title="0 = disable low-freq perturbation, 1 = standard, 2 = enhanced">
+                                    <input type="range" id="lambda-low" min="0" max="2" value="1" step="0.1"
+                                        style="flex: 1;"
+                                        title="0 = disable low-freq perturbation, 1 = standard, 2 = enhanced">
                                     <span id="lambda-low-value" style="font-weight: bold; width: 35px;">1.0</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-                                    <label style="width: 60px; font-size: 13px;" title="Mid frequency band strength (medium sigma Gaussians)">
+                                    <label style="width: 60px; font-size: 13px;"
+                                        title="Mid frequency band strength (medium sigma Gaussians)">
                                         中频 Mid:
                                     </label>
-                                    <input type="range" id="lambda-mid" min="0" max="2" value="1" step="0.1" style="flex: 1;"
-                                           title="0 = disable mid-freq perturbation, 1 = standard, 2 = enhanced">
+                                    <input type="range" id="lambda-mid" min="0" max="2" value="1" step="0.1"
+                                        style="flex: 1;"
+                                        title="0 = disable mid-freq perturbation, 1 = standard, 2 = enhanced">
                                     <span id="lambda-mid-value" style="font-weight: bold; width: 35px;">1.0</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
-                                    <label style="width: 60px; font-size: 13px;" title="High frequency band strength (small sigma Gaussians)">
+                                    <label style="width: 60px; font-size: 13px;"
+                                        title="High frequency band strength (small sigma Gaussians)">
                                         高频 High:
                                     </label>
-                                    <input type="range" id="lambda-high" min="0" max="2" value="1" step="0.1" style="flex: 1;"
-                                           title="0 = disable high-freq perturbation, 1 = standard, 2 = enhanced">
+                                    <input type="range" id="lambda-high" min="0" max="2" value="1" step="0.1"
+                                        style="flex: 1;"
+                                        title="0 = disable high-freq perturbation, 1 = standard, 2 = enhanced">
                                     <span id="lambda-high-value" style="font-weight: bold; width: 35px;">1.0</span>
                                 </div>
                             </div>
@@ -256,15 +293,19 @@
                     <div class="stats">
                         <div class="stat-item" style="margin-bottom: 8px;">
                             <span class="stat-label">总高斯数 / Total:</span>
-                            <span id="stat-total-gaussians" class="stat-value" style="font-size: 18px; font-weight: bold; color: #333;">0</span>
+                            <span id="stat-total-gaussians" class="stat-value"
+                                style="font-size: 18px; font-weight: bold; color: #333;">0</span>
                         </div>
                         <div class="stat-item" style="margin-bottom: 8px;">
                             <span class="stat-label">已扰动 / Perturbed:</span>
-                            <span id="stat-perturbed-gaussians" class="stat-value" style="font-size: 18px; font-weight: bold; color: #ff6b6b;">0</span>
+                            <span id="stat-perturbed-gaussians" class="stat-value"
+                                style="font-size: 18px; font-weight: bold; color: #ff6b6b;">0</span>
                         </div>
                         <div class="stat-item" style="margin-bottom: 8px;">
-                            <span class="stat-label">SSIM <span style="font-size: 11px; color: #888;">(lower = more diff)</span>:</span>
-                            <span id="stat-ssim" class="stat-value" style="font-size: 20px; font-weight: bold; color: #4daf4a;">1.000</span>
+                            <span class="stat-label">SSIM <span style="font-size: 11px; color: #888;">(lower = more
+                                    diff)</span>:</span>
+                            <span id="stat-ssim" class="stat-value"
+                                style="font-size: 20px; font-weight: bold; color: #4daf4a;">1.000</span>
                         </div>
                     </div>
                 </div>
@@ -291,7 +332,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <!-- 上方：原始和扰动图像并排 -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="canvas-wrapper" id="view-original">
@@ -301,7 +342,7 @@
                             <span id="info-original">等待生成... / Waiting...</span>
                         </div>
                     </div>
-                    
+
                     <div class="canvas-wrapper" id="view-perturbed">
                         <h3>扰动后 / Perturbed Distribution</h3>
                         <canvas id="canvas-perturbed" width="200" height="200"></canvas>
@@ -324,9 +365,11 @@
                         <label style="margin-left: 15px; font-size: 14px;">
                             <input type="checkbox" id="show-grid" checked> 显示网格线 / Show Grid
                         </label>
+                        <!--
                         <label style="margin-left: 15px; font-size: 14px;" title="对每个频段高斯单独进行梯度能量归一化">
                             <input type="checkbox" id="use-gradient-norm" checked> 梯度归一化 / Gradient Norm
                         </label>
+                        -->
                     </div>
 
                     <!-- 画布容器 -->
@@ -338,7 +381,7 @@
                                 <span id="info-difference">需要先生成和扰动 / Generate and perturb first</span>
                             </div>
                         </div>
-                        
+
                         <div class="canvas-wrapper" id="view-heatmap" style="display: none;">
                             <h3>频率热力图 / Frequency Heatmap</h3>
                             <canvas id="canvas-heatmap" width="200" height="200"></canvas>
@@ -346,11 +389,12 @@
                                 <span id="info-heatmap">需要先生成 / Generate first</span>
                             </div>
                         </div>
-                        
+
                         <div class="canvas-wrapper" id="view-attribution" style="display: none;">
                             <h3>频段归因权重 / Attribution Weights</h3>
                             <p style="font-size: 11px; color: #666; margin: 0 0 8px 0; font-style: italic;">
-                                Shows α_k(x) = E_k / (E_L + E_M + E_H), indicating which frequency band dominates at each pixel
+                                Shows α_k(x) = E_k / (E_L + E_M + E_H), indicating which frequency band dominates at
+                                each pixel
                             </p>
                             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                                 <label style="font-size: 13px;" title="Low frequency band (large sigma Gaussians)">
@@ -371,11 +415,12 @@
                                 Brighter = higher dominance. This determines where perturbations will be applied.
                             </p>
                         </div>
-                        
+
                         <div class="canvas-wrapper" id="view-gating" style="display: none;">
                             <h3>门控Mask / Gating Mask</h3>
                             <p style="font-size: 11px; color: #666; margin: 0 0 8px 0; font-style: italic;">
-                                Shows m_k(x) = GaussianBlur(smoothstep(α_k; τ), σ_m), controlling perturbation strength at each pixel
+                                Shows m_k(x) = GaussianBlur(smoothstep(α_k; τ), σ_m), controlling perturbation strength
+                                at each pixel
                             </p>
                             <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                                 <label style="font-size: 13px;" title="Low frequency gating mask">
@@ -393,7 +438,8 @@
                                 <span id="info-gating">需要先应用扰动 / Apply perturbation first</span>
                             </div>
                             <p style="font-size: 10px; color: #888; margin: 5px 0 0 0; font-style: italic;">
-                                Brighter = perturbation fully applied (mask=1). Darker = perturbation suppressed (mask=0).
+                                Brighter = perturbation fully applied (mask=1). Darker = perturbation suppressed
+                                (mask=0).
                             </p>
                         </div>
                     </div>
@@ -411,147 +457,152 @@
     </div>
 
     <!-- 引入D3和依赖库 -->
-    <script src="../../rainbows good or bad for/supplementary materials/experiment interface/jnd/lib/d3.min.js"></script>
-    
+    <script
+        src="../../rainbows good or bad for/supplementary materials/experiment interface/jnd/lib/d3.min.js"></script>
+
     <!-- 色彩度量函数 -->
     <script>
-    function ciede2000(lab1, lab2) {
-        const [L1, a1, b1] = lab1;
-        const [L2, a2, b2] = lab2;
+        function ciede2000(lab1, lab2) {
+            const [L1, a1, b1] = lab1;
+            const [L2, a2, b2] = lab2;
 
-        const avg_L = (L1 + L2) / 2.0;
-        const C1 = Math.sqrt(a1 * a1 + b1 * b1);
-        const C2 = Math.sqrt(a2 * a2 + b2 * b2);
-        const avg_C = (C1 + C2) / 2.0;
+            const avg_L = (L1 + L2) / 2.0;
+            const C1 = Math.sqrt(a1 * a1 + b1 * b1);
+            const C2 = Math.sqrt(a2 * a2 + b2 * b2);
+            const avg_C = (C1 + C2) / 2.0;
 
-        const G = 0.5 * (1 - Math.sqrt((avg_C ** 7) / ((avg_C ** 7) + (25 ** 7))));
-        const a1p = (1 + G) * a1;
-        const a2p = (1 + G) * a2;
-        const C1p = Math.sqrt(a1p * a1p + b1 * b1);
-        const C2p = Math.sqrt(a2p * a2p + b2 * b2);
+            const G = 0.5 * (1 - Math.sqrt((avg_C ** 7) / ((avg_C ** 7) + (25 ** 7))));
+            const a1p = (1 + G) * a1;
+            const a2p = (1 + G) * a2;
+            const C1p = Math.sqrt(a1p * a1p + b1 * b1);
+            const C2p = Math.sqrt(a2p * a2p + b2 * b2);
 
-        const avg_Cp = (C1p + C2p) / 2.0;
+            const avg_Cp = (C1p + C2p) / 2.0;
 
-        const h1 = Math.atan2(b1, a1p), h2 = Math.atan2(b2, a2p);
-        const h1p = h1 * 180 / Math.PI + (h1 < 0 ? 360 : 0);
-        const h2p = h2 * 180 / Math.PI + (h2 < 0 ? 360 : 0);
+            const h1 = Math.atan2(b1, a1p), h2 = Math.atan2(b2, a2p);
+            const h1p = h1 * 180 / Math.PI + (h1 < 0 ? 360 : 0);
+            const h2p = h2 * 180 / Math.PI + (h2 < 0 ? 360 : 0);
 
-        const deltahp = (C1p * C2p === 0) ? 0 :
-            (Math.abs(h2p - h1p) <= 180) ? (h2p - h1p) :
-                (h2p <= h1p) ? (h2p - h1p + 360) : (h2p - h1p - 360);
+            const deltahp = (C1p * C2p === 0) ? 0 :
+                (Math.abs(h2p - h1p) <= 180) ? (h2p - h1p) :
+                    (h2p <= h1p) ? (h2p - h1p + 360) : (h2p - h1p - 360);
 
-        const deltaLp = L2 - L1;
-        const deltaCp = C2p - C1p;
-        const deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((deltahp * Math.PI) / 360);
+            const deltaLp = L2 - L1;
+            const deltaCp = C2p - C1p;
+            const deltaHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((deltahp * Math.PI) / 360);
 
-        const avg_Lp = (L1 + L2) / 2.0;
-        let avg_hp;
-        if (Math.abs(h1p - h2p) <= 180) {
-            avg_hp = (h1p + h2p) / 2.0;
-        } else if ((h1p + h2p) < 360) {
-            avg_hp = (h1p + h2p + 360) / 2.0;
-        } else {
-            avg_hp = (h1p + h2p - 360) / 2.0;
+            const avg_Lp = (L1 + L2) / 2.0;
+            let avg_hp;
+            if (Math.abs(h1p - h2p) <= 180) {
+                avg_hp = (h1p + h2p) / 2.0;
+            } else if ((h1p + h2p) < 360) {
+                avg_hp = (h1p + h2p + 360) / 2.0;
+            } else {
+                avg_hp = (h1p + h2p - 360) / 2.0;
+            }
+
+            const T = 1
+                - 0.17 * Math.cos((avg_hp - 30) * Math.PI / 180)
+                + 0.24 * Math.cos((2 * avg_hp) * Math.PI / 180)
+                + 0.32 * Math.cos((3 * avg_hp + 6) * Math.PI / 180)
+                - 0.20 * Math.cos((4 * avg_hp - 63) * Math.PI / 180);
+
+            const delta_ro = 30 * Math.exp(-(((avg_hp - 275) / 25) ** 2));
+            const RC = 2 * Math.sqrt((avg_Cp ** 7) / ((avg_Cp ** 7) + (25 ** 7)));
+            const SL = 1 + (0.015 * ((avg_Lp - 50) ** 2)) / Math.sqrt(20 + ((avg_Lp - 50) ** 2));
+            const SC = 1 + 0.045 * avg_Cp;
+            const SH = 1 + 0.015 * avg_Cp * T;
+            const RT = -Math.sin(2 * delta_ro * Math.PI / 180) * RC;
+
+            const deltaE = Math.sqrt(
+                (deltaLp / SL) ** 2 +
+                (deltaCp / SC) ** 2 +
+                (deltaHp / SH) ** 2 +
+                RT * (deltaCp / SC) * (deltaHp / SH)
+            );
+
+            return deltaE;
         }
 
-        const T = 1
-            - 0.17 * Math.cos((avg_hp - 30) * Math.PI / 180)
-            + 0.24 * Math.cos((2 * avg_hp) * Math.PI / 180)
-            + 0.32 * Math.cos((3 * avg_hp + 6) * Math.PI / 180)
-            - 0.20 * Math.cos((4 * avg_hp - 63) * Math.PI / 180);
+        function calcSmoothnessMinDiff(palette) {
+            let min_color_diff = 0;
+            try {
+                let fineSamples = [];
+                let numFineSamples = 1000;
+                for (let k = 0; k < numFineSamples; k++) {
+                    let t_total = k / (numFineSamples - 1);
+                    let segmentIndex = Math.floor(t_total * (palette.length - 1));
+                    if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+                    let segmentLength = 1 / (palette.length - 1);
+                    let t = (t_total - segmentIndex * segmentLength) / segmentLength;
 
-        const delta_ro = 30 * Math.exp(-(((avg_hp - 275) / 25) ** 2));
-        const RC = 2 * Math.sqrt((avg_Cp ** 7) / ((avg_Cp ** 7) + (25 ** 7)));
-        const SL = 1 + (0.015 * ((avg_Lp - 50) ** 2)) / Math.sqrt(20 + ((avg_Lp - 50) ** 2));
-        const SC = 1 + 0.045 * avg_Cp;
-        const SH = 1 + 0.015 * avg_Cp * T;
-        const RT = -Math.sin(2 * delta_ro * Math.PI / 180) * RC;
+                    let c1 = palette[segmentIndex];
+                    let c2 = palette[segmentIndex + 1];
 
-        const deltaE = Math.sqrt(
-            (deltaLp / SL) ** 2 +
-            (deltaCp / SC) ** 2 +
-            (deltaHp / SH) ** 2 +
-            RT * (deltaCp / SC) * (deltaHp / SH)
-        );
+                    let h1 = c1[0], h2 = c2[0];
+                    let diff = h2 - h1;
+                    if (diff > 180) diff -= 360;
+                    if (diff < -180) diff += 360;
+                    let h = (h1 + diff * t + 360) % 360;
+                    let c = c1[1] + (c2[1] - c1[1]) * t;
+                    let l = c1[2] + (c2[2] - c1[2]) * t;
 
-        return deltaE;
-    }
+                    fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+                }
 
-    function calcSmoothnessMinDiff(palette) {
-        let min_color_diff = 0;
-        try {
-            let fineSamples = [];
-            let numFineSamples = 1000;
-            for (let k = 0; k < numFineSamples; k++) {
-                let t_total = k / (numFineSamples - 1); 
-                let segmentIndex = Math.floor(t_total * (palette.length - 1));
-                if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
-                let segmentLength = 1 / (palette.length - 1);
-                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
-                
-                let c1 = palette[segmentIndex];
-                let c2 = palette[segmentIndex + 1];
-                
-                let h1 = c1[0], h2 = c2[0];
-                let diff = h2 - h1;
-                if (diff > 180) diff -= 360;
-                if (diff < -180) diff += 360;
-                let h = (h1 + diff * t + 360) % 360;
-                let c = c1[1] + (c2[1] - c1[1]) * t;
-                let l = c1[2] + (c2[2] - c1[2]) * t;
-                
-                fineSamples.push(d3.lab(d3.hcl(h, c, l)));
-            }
+                let jndStep = 3.0;
+                let samples = [];
+                if (fineSamples.length > 0) {
+                    samples.push(fineSamples[0]);
+                    let lastSample = fineSamples[0];
 
-            let jndStep = 3.0;
-            let samples = [];
-            if (fineSamples.length > 0) {
-                samples.push(fineSamples[0]);
-                let lastSample = fineSamples[0];
-                
-                for (let i = 1; i < fineSamples.length; i++) {
-                    let current = fineSamples[i];
-                    let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
-                    if (dist >= jndStep) {
-                        samples.push(current);
-                        lastSample = current;
+                    for (let i = 1; i < fineSamples.length; i++) {
+                        let current = fineSamples[i];
+                        let dist = ciede2000([lastSample.l, lastSample.a, lastSample.b], [current.l, current.a, current.b]);
+                        if (dist >= jndStep) {
+                            samples.push(current);
+                            lastSample = current;
+                        }
+                    }
+                    if (samples.length < 2 && fineSamples.length > 1) {
+                        samples.push(fineSamples[fineSamples.length - 1]);
                     }
                 }
-                if (samples.length < 2 && fineSamples.length > 1) {
-                    samples.push(fineSamples[fineSamples.length - 1]);
-                }
-            }
-            
-            if (samples.length < 2) return 0;
 
-            let minDeltaE = Number.MAX_VALUE;
-            
-            for (let i = 0; i < samples.length; i++) {
-                for (let j = i + 1; j < samples.length; j++) {
-                    let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
-                    if (deltaE < minDeltaE) {
-                        minDeltaE = deltaE;
+                if (samples.length < 2) return 0;
+
+                let minDeltaE = Number.MAX_VALUE;
+
+                for (let i = 0; i < samples.length; i++) {
+                    for (let j = i + 1; j < samples.length; j++) {
+                        let deltaE = ciede2000([samples[i].l, samples[i].a, samples[i].b], [samples[j].l, samples[j].a, samples[j].b]);
+                        if (deltaE < minDeltaE) {
+                            minDeltaE = deltaE;
+                        }
                     }
                 }
+
+                if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
+                min_color_diff = minDeltaE;
+
+            } catch (e) {
+                console.warn("Error in smoothness calculation:", e);
             }
-            
-            if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
-            min_color_diff = minDeltaE;
-            
-        } catch (e) {
-            console.warn("Error in smoothness calculation:", e);
+            return min_color_diff;
         }
-        return min_color_diff;
-    }
     </script>
-    
+
     <!-- 引入现有的高斯分布相关模块 -->
     <script src="../../rainbows good or bad for/supplementary materials/experiment interface/src/scalar.js"></script>
-    <script src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix.js"></script>
-    <script src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix_bivariate.js"></script>
-    <script src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gauss_w_noise.js"></script>
-    <script src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/scalar_sample.js"></script>
-    
+    <script
+        src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix.js"></script>
+    <script
+        src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gaussmix_bivariate.js"></script>
+    <script
+        src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/gauss_w_noise.js"></script>
+    <script
+        src="../../rainbows good or bad for/supplementary materials/experiment interface/lineup/scalar_sample.js"></script>
+
     <!-- 引入我们的JavaScript模块 -->
     <script src="js/colormaps_presets.js"></script>
     <script src="js/utils.js"></script>
@@ -561,4 +612,5 @@
     <script src="js/visualization.js"></script>
     <script src="js/main.js"></script>
 </body>
+
 </html>

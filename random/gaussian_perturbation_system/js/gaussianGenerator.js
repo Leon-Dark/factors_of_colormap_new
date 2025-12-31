@@ -18,9 +18,9 @@ class GaussianGenerator {
 
         // 尺寸级别配置 - 三层固定sigma，适配200×200画布
         this.sizeLevels = {
-            'small': { sigma: 4, count: 8, color: '#377eb8' },      // 高频 σ=4px (Blue)
-            'medium': { sigma: 16, count: 5, color: '#4daf4a' },    // 中频 σ=16px
-            'large': { sigma: 40, count: 3, color: '#ff7f00' }      // 低频 σ=40px
+            'small': { sigma: 15, count: 4, color: '#377eb8' },      // 高频 σ=4px (Blue)
+            'medium': { sigma: 25, count: 4, color: '#4daf4a' },    // 中频 σ=16px
+            'large': { sigma: 50, count: 4, color: '#ff7f00' }      // 低频 σ=40px
         };
     }
 
@@ -246,6 +246,7 @@ class GaussianGenerator {
      * @param {number} height - 场高度
      * @returns {number} 梯度能量 g_B
      */
+    /*
     calculateGradientEnergy(gauss, width, height) {
         const bbox = gauss.getBoundingBox(3);
         const startX = Math.max(0, Math.floor(bbox.minX));
@@ -281,6 +282,7 @@ class GaussianGenerator {
 
         return rmsGradient;
     }
+    */
 
     /**
      * 渲染到2D场
@@ -300,6 +302,7 @@ class GaussianGenerator {
         }
 
         // 如果使用梯度能量归一化
+        /*
         if (useGradientNormalization) {
             // 对每个高斯单独进行梯度能量归一化后再叠加
             for (const gauss of this.gaussians) {
@@ -321,22 +324,23 @@ class GaussianGenerator {
                 }
             }
         } else {
-            // 原始方法：直接叠加所有高斯
-            for (const gauss of this.gaussians) {
-                const bbox = gauss.getBoundingBox(3);
+        */
+        // 原始方法：直接叠加所有高斯
+        for (const gauss of this.gaussians) {
+            const bbox = gauss.getBoundingBox(3);
 
-                const startX = Math.max(0, Math.floor(bbox.minX));
-                const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
-                const startY = Math.max(0, Math.floor(bbox.minY));
-                const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
+            const startX = Math.max(0, Math.floor(bbox.minX));
+            const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
+            const startY = Math.max(0, Math.floor(bbox.minY));
+            const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
 
-                for (let y = startY; y <= endY; y++) {
-                    for (let x = startX; x <= endX; x++) {
-                        field[y][x] += gauss.eval(x, y);
-                    }
+            for (let y = startY; y <= endY; y++) {
+                for (let x = startX; x <= endX; x++) {
+                    field[y][x] += gauss.eval(x, y);
                 }
             }
         }
+        // }
 
         return field;
     }
@@ -353,6 +357,7 @@ class GaussianGenerator {
         const data = new Float32Array(width * height);
         const epsilon = 1e-10; // 防止除零
 
+        /*
         if (useGradientNormalization) {
             // 使用梯度能量归一化
             for (const gauss of this.gaussians) {
@@ -405,50 +410,51 @@ class GaussianGenerator {
                 }
             }
         } else {
-            // 原始方法：直接叠加所有高斯
-            for (const gauss of this.gaussians) {
-                if (useOriginal) {
-                    // 使用原始参数渲染
-                    const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);
-                    const range = maxSigma * 3;
+        */
+        // 原始方法：直接叠加所有高斯
+        for (const gauss of this.gaussians) {
+            if (useOriginal) {
+                // 使用原始参数渲染
+                const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);
+                const range = maxSigma * 3;
 
-                    const startX = Math.max(0, Math.floor(gauss.originalMX - range));
-                    const endX = Math.min(width - 1, Math.ceil(gauss.originalMX + range));
-                    const startY = Math.max(0, Math.floor(gauss.originalMY - range));
-                    const endY = Math.min(height - 1, Math.ceil(gauss.originalMY + range));
+                const startX = Math.max(0, Math.floor(gauss.originalMX - range));
+                const endX = Math.min(width - 1, Math.ceil(gauss.originalMX + range));
+                const startY = Math.max(0, Math.floor(gauss.originalMY - range));
+                const endY = Math.min(height - 1, Math.ceil(gauss.originalMY + range));
 
-                    // 临时创建原始状态的高斯用于计算
-                    const tempGauss = new biGauss(
-                        gauss.originalMX, gauss.originalMY,
-                        gauss.originalSX, gauss.originalSY,
-                        gauss.originalRho, gauss.originalScaler
-                    );
+                // 临时创建原始状态的高斯用于计算
+                const tempGauss = new biGauss(
+                    gauss.originalMX, gauss.originalMY,
+                    gauss.originalSX, gauss.originalSY,
+                    gauss.originalRho, gauss.originalScaler
+                );
 
-                    for (let y = startY; y <= endY; y++) {
-                        for (let x = startX; x <= endX; x++) {
-                            const index = y * width + x;
-                            data[index] += tempGauss.eval(x, y);
-                        }
+                for (let y = startY; y <= endY; y++) {
+                    for (let x = startX; x <= endX; x++) {
+                        const index = y * width + x;
+                        data[index] += tempGauss.eval(x, y);
                     }
-                } else {
-                    // 使用当前参数渲染
-                    const maxSigma = Math.max(gauss.sX, gauss.sY);
-                    const range = maxSigma * 3;
+                }
+            } else {
+                // 使用当前参数渲染
+                const maxSigma = Math.max(gauss.sX, gauss.sY);
+                const range = maxSigma * 3;
 
-                    const startX = Math.max(0, Math.floor(gauss.mX - range));
-                    const endX = Math.min(width - 1, Math.ceil(gauss.mX + range));
-                    const startY = Math.max(0, Math.floor(gauss.mY - range));
-                    const endY = Math.min(height - 1, Math.ceil(gauss.mY + range));
+                const startX = Math.max(0, Math.floor(gauss.mX - range));
+                const endX = Math.min(width - 1, Math.ceil(gauss.mX + range));
+                const startY = Math.max(0, Math.floor(gauss.mY - range));
+                const endY = Math.min(height - 1, Math.ceil(gauss.mY + range));
 
-                    for (let y = startY; y <= endY; y++) {
-                        for (let x = startX; x <= endX; x++) {
-                            const index = y * width + x;
-                            data[index] += gauss.eval(x, y);
-                        }
+                for (let y = startY; y <= endY; y++) {
+                    for (let x = startX; x <= endX; x++) {
+                        const index = y * width + x;
+                        data[index] += gauss.eval(x, y);
                     }
                 }
             }
         }
+        // }
 
         // Apply logarithmic compression
         for (let i = 0; i < data.length; i++) {
