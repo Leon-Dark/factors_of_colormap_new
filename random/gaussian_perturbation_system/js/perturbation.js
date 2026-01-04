@@ -36,26 +36,31 @@ class PerturbationSystem {
             switch (type) {
                 case 'position':
                     // 扰动位置（中心点）
-                    // Magnified by 2.0
-                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * 1.0;
+                    // Position is safe, keep it strong (1.0)
+                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * 0.5;
                     gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
                     gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
                     break;
 
                 case 'stretch':
                     // 扰动形状 - 只改变标准差（拉伸/压缩）
-                    // Magnified by 2.0 (0.3 -> 0.6)
-                    const sigmaChange = magnitude * 0.6;
-                    gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange);
-                    gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange);
+                    // Adjusted to 0.5 for balance
+                    const sigmaChange = magnitude * 0.3;
+                    // Limit sigma shrinkage to prevent artifacting (min 20% of original)
+                    const sXRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
+                    const sYRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
+
+                    gauss.sX = Math.max(gauss.originalSX * 0.2, gauss.sX * sXRatio);
+                    gauss.sY = Math.max(gauss.originalSY * 0.2, gauss.sY * sYRatio);
                     break;
 
                 case 'rotation':
                     // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
-                    // Magnified by 2.0 (0.4 -> 0.8)
-                    const rhoChange = magnitude * 0.8;
+                    // Adjusted to 0.6 for balance
+                    const rhoChange = magnitude * 0.4;
                     const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
-                    gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho)));
+                    // Strict clamping to avoid aliasing artifacts (0.99 -> 0.92)
+                    gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
                     break;
 
                 case 'shape':
@@ -71,8 +76,8 @@ class PerturbationSystem {
 
                 case 'amplitude':
                     // 扰动幅值
-                    // Magnified by 2.0 (0.4 -> 0.8)
-                    const ampChange = magnitude * 0.8;
+                    // Adjusted to 0.6 to avoid extreme brightness clipping
+                    const ampChange = magnitude * 0.4;
                     gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
                     gauss.scaler = Math.max(0.1, gauss.scaler); // 确保不为负或太小
                     break;
