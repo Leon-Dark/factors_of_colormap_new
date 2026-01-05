@@ -19,11 +19,36 @@ class StimuliGallery {
         this.perturbation = new PerturbationSystem(this.generator);
         this.softAttribution = new SoftAttributionPerturbation(this.generator);
 
+        this.coefficients = {
+            position: 1.0,
+            stretch: 0.5,
+            rotation: 0.6,
+            amplitude: 0.6
+        };
+
         this.bindEvents();
     }
 
     bindEvents() {
         this.btnStart.addEventListener('click', () => this.generateGallery());
+
+        // Coefficient Sliders
+        const updateCoeff = (id, key) => {
+            const slider = document.getElementById(id);
+            const valueSpan = document.getElementById(id + '-value');
+            if (slider && valueSpan) {
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    valueSpan.textContent = val.toFixed(1);
+                    this.coefficients[key] = val;
+                });
+            }
+        };
+
+        updateCoeff('coeff-position', 'position');
+        updateCoeff('coeff-stretch', 'stretch');
+        updateCoeff('coeff-rotation', 'rotation');
+        updateCoeff('coeff-amplitude', 'amplitude');
     }
 
     async generateGallery() {
@@ -104,6 +129,10 @@ class StimuliGallery {
             // 目标频率的2个高斯 (总数4个，所以ratio=0.5)
             // 先应用物理扰动
             this.perturbation.resetToOriginal();
+
+            // Set User Coefficients
+            this.perturbation.setCoefficients(this.coefficients);
+
             const perturbed = this.perturbation.applyGlobalPerturbation(magnitude, 0.5, freq.target, 'all');
 
             // Debug Log

@@ -61,8 +61,7 @@ class ExperimentController {
         };
 
         this.buttons = {
-            start: document.getElementById('btn-start'),
-            download: document.getElementById('btn-download')
+            start: document.getElementById('btn-start')
         };
 
         this.bindEvents();
@@ -91,9 +90,8 @@ class ExperimentController {
         });
 
         // Download Button
-        this.buttons.download.addEventListener('click', () => {
-            this.exportData();
-        });
+        // Download Button Removed
+
     }
 
     // --- Experiment Flow ---
@@ -264,15 +262,12 @@ class ExperimentController {
     endExperiment() {
         this.switchScreen('end');
 
-        // Calculate Stats
-        const total = this.results.length;
-        const correct = this.results.filter(r => r.isCorrect === 1).length;
-        const acc = total > 0 ? (correct / total * 100).toFixed(1) : 0;
-
-        document.getElementById('result-total').textContent = total;
-        document.getElementById('result-accuracy').textContent = `${acc}%`;
+        // Generate Completion Code
+        const code = 'CMP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        document.getElementById('completion-code').textContent = code;
 
         // Auto-upload
+
         // Auto-upload
         this.uploadData();
     }
@@ -317,7 +312,7 @@ class ExperimentController {
         const statusMsg = document.createElement('p');
         statusMsg.textContent = 'Uploading data...';
         statusMsg.style.color = '#666';
-        document.querySelector('.stats-summary').appendChild(statusMsg);
+        document.getElementById('upload-status').appendChild(statusMsg);
 
         try {
             const response = await fetch('/api/save_data', {
@@ -341,7 +336,7 @@ class ExperimentController {
             }
         } catch (err) {
             console.error('Upload failed:', err);
-            statusMsg.textContent = '⚠️ Upload failed. Please download the CSV manually.';
+            statusMsg.textContent = '⚠️ Upload failed. Please contact the researcher with your completion code.';
             statusMsg.style.color = 'orange';
         }
     }
