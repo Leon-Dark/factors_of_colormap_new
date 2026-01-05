@@ -104,7 +104,19 @@ class GaussianPerturbationApp {
             },
             localCount: document.getElementById('local-count'),
             localCountValue: document.getElementById('local-count-value'),
-            localParams: document.getElementById('local-params')
+            localCount: document.getElementById('local-count'),
+            localCountValue: document.getElementById('local-count-value'),
+            localParams: document.getElementById('local-params'),
+            coefficients: {
+                position: document.getElementById('coeff-position'),
+                positionValue: document.getElementById('coeff-position-value'),
+                stretch: document.getElementById('coeff-stretch'),
+                stretchValue: document.getElementById('coeff-stretch-value'),
+                rotation: document.getElementById('coeff-rotation'),
+                rotationValue: document.getElementById('coeff-rotation-value'),
+                amplitude: document.getElementById('coeff-amplitude'),
+                amplitudeValue: document.getElementById('coeff-amplitude-value')
+            }
         };
 
 
@@ -199,6 +211,29 @@ class GaussianPerturbationApp {
 
         this.ui.perturb.localCount.addEventListener('input', (e) => {
             this.ui.perturb.localCountValue.textContent = e.target.value;
+        });
+
+        // 扰动系数滑块
+        const coeffs = this.ui.perturb.coefficients;
+
+        coeffs.position.addEventListener('input', (e) => {
+            coeffs.positionValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updatePerturbationCoefficients();
+        });
+
+        coeffs.stretch.addEventListener('input', (e) => {
+            coeffs.stretchValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updatePerturbationCoefficients();
+        });
+
+        coeffs.rotation.addEventListener('input', (e) => {
+            coeffs.rotationValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updatePerturbationCoefficients();
+        });
+
+        coeffs.amplitude.addEventListener('input', (e) => {
+            coeffs.amplitudeValue.textContent = parseFloat(e.target.value).toFixed(1);
+            this.updatePerturbationCoefficients();
         });
 
         // 扰动模式切换
@@ -733,8 +768,28 @@ class GaussianPerturbationApp {
             `${selectedBand.toUpperCase()} 频段门控Mask / ${selectedBand.toUpperCase()} band gating mask`;
     }
 
+    /**
+     * 更新扰动系数
+     */
+    updatePerturbationCoefficients() {
+        const coeffs = this.ui.perturb.coefficients;
+        const newCoeffs = {
+            position: parseFloat(coeffs.position.value),
+            stretch: parseFloat(coeffs.stretch.value),
+            rotation: parseFloat(coeffs.rotation.value),
+            amplitude: parseFloat(coeffs.amplitude.value)
+        };
 
+        this.perturbation.setCoefficients(newCoeffs);
+        console.log('Perturbation coefficients updated:', newCoeffs);
+
+        // 如果已经应用了扰动，可以考虑重新应用(但可能有点重)，暂时不自动重新应用以免卡顿
+        // 但如果用户想实时看效果，可以在这里调用 handleApplyPerturbation
+        // 为了性能，只在拖拽结束时更新最好，但input事件比较平滑
+        // 考虑到性能，这里暂不自动重绘，等待用户点击Apply
+    }
 }
+
 
 // 应用初始化
 let app;

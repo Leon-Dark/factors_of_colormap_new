@@ -13,6 +13,16 @@ class PerturbationSystem {
     constructor(generator) {
         this.generator = generator;
         this.perturbationHistory = [];
+        this.coefficients = {
+            position: 1.0,
+            stretch: 0.5,
+            rotation: 0.6,
+            amplitude: 0.6
+        };
+    }
+
+    setCoefficients(coeffs) {
+        this.coefficients = { ...this.coefficients, ...coeffs };
     }
 
     /**
@@ -37,7 +47,7 @@ class PerturbationSystem {
                 case 'position':
                     // 扰动位置（中心点）
                     // Position is safe, keep it strong (1.0)
-                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * 0.5;
+                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * this.coefficients.position;
                     gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
                     gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
                     break;
@@ -45,7 +55,7 @@ class PerturbationSystem {
                 case 'stretch':
                     // 扰动形状 - 只改变标准差（拉伸/压缩）
                     // Adjusted to 0.5 for balance
-                    const sigmaChange = magnitude * 0.3;
+                    const sigmaChange = magnitude * this.coefficients.stretch;
                     // Limit sigma shrinkage to prevent artifacting (min 20% of original)
                     const sXRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
                     const sYRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
@@ -57,7 +67,7 @@ class PerturbationSystem {
                 case 'rotation':
                     // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
                     // Adjusted to 0.6 for balance
-                    const rhoChange = magnitude * 0.4;
+                    const rhoChange = magnitude * this.coefficients.rotation;
                     const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
                     // Strict clamping to avoid aliasing artifacts (0.99 -> 0.92)
                     gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
@@ -65,11 +75,11 @@ class PerturbationSystem {
 
                 case 'shape':
                     // 向后兼容：shape = stretch + rotation
-                    const sigmaChange2 = magnitude * 0.3;
+                    const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
                     gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
                     gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
 
-                    const rhoChange2 = magnitude * 0.4;
+                    const rhoChange2 = magnitude * (this.coefficients.rotation * 0.7);
                     const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;
                     gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho2)));
                     break;
@@ -77,7 +87,7 @@ class PerturbationSystem {
                 case 'amplitude':
                     // 扰动幅值
                     // Adjusted to 0.6 to avoid extreme brightness clipping
-                    const ampChange = magnitude * 0.4;
+                    const ampChange = magnitude * this.coefficients.amplitude;
                     gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
                     gauss.scaler = Math.max(0.1, gauss.scaler); // 确保不为负或太小
                     break;
