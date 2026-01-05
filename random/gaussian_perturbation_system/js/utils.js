@@ -7,10 +7,10 @@
  * 扩展 biGauss 原型：添加 getBoundingBox 方法
  */
 if (typeof biGauss !== 'undefined') {
-    biGauss.prototype.getBoundingBox = function(sigmaMultiplier = 3) {
+    biGauss.prototype.getBoundingBox = function (sigmaMultiplier = 3) {
         const rangeX = this.sX * sigmaMultiplier;
         const rangeY = this.sY * sigmaMultiplier;
-        
+
         return {
             minX: this.mX - rangeX,
             maxX: this.mX + rangeX,
@@ -42,6 +42,36 @@ function distance(x1, y1, x2, y2) {
 }
 
 /**
+ * 计算高斯分布的短轴最小像素宽度
+ * @param {number} sX - sigma X
+ * @param {number} sY - sigma Y
+ * @param {number} rho - 相关系数
+ * @returns {number} 短轴在1个sigma处的像素宽度 (直径 = 2 * 半径)
+ */
+function calculateGaussianMinShortAxis(sX, sY, rho) {
+    // 协方差矩阵的特征值计算
+    // Lambda_min = (sx^2 + sy^2 - sqrt((sx^2-sy^2)^2 + 4*(rho*sx*sy)^2)) / 2
+    // 短轴半径 (sigma_min) = sqrt(Lambda_min)
+
+    if (Math.abs(rho) > 0.999) return 0; // 几乎是一条线
+
+    const varX = sX * sX;
+    const varY = sY * sY;
+    const covXY = rho * sX * sY;
+
+    const term1 = varX + varY;
+    const term2 = Math.sqrt(Math.pow(varX - varY, 2) + 4 * covXY * covXY);
+
+    const lambdaMin = (term1 - term2) / 2;
+
+    // 如果计算误差导致略小于0，取0
+    const sigmaMin = Math.sqrt(Math.max(0, lambdaMin));
+
+    // 返回直径 (2 * sigma)
+    return 2 * sigmaMin;
+}
+
+/**
  * Smoothstep 函数（平滑阶跃）
  * @param {number} x - 输入值
  * @param {number} edge0 - 下边界
@@ -63,18 +93,18 @@ function makeGaussianKernel(sigma) {
     const kernel = new Float32Array(kernelSize);
     const center = Math.floor(kernelSize / 2);
     let sum = 0;
-    
+
     for (let i = 0; i < kernelSize; i++) {
         const x = i - center;
         kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
         sum += kernel[i];
     }
-    
+
     // 归一化
     for (let i = 0; i < kernelSize; i++) {
         kernel[i] /= sum;
     }
-    
+
     return kernel;
 }
 
@@ -90,7 +120,7 @@ function makeGaussianKernel(sigma) {
 function convolve1D(field, width, height, kernel, direction) {
     const result = new Float32Array(width * height);
     const halfKernel = Math.floor(kernel.length / 2);
-    
+
     if (direction === 'horizontal') {
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
@@ -118,7 +148,7 @@ function convolve1D(field, width, height, kernel, direction) {
             }
         }
     }
-    
+
     return result;
 }
 
@@ -132,7 +162,7 @@ function convolve1D(field, width, height, kernel, direction) {
  */
 function gaussianBlur2D(field, width, height, sigma) {
     if (sigma <= 0) return new Float32Array(field);
-    
+
     const kernel = makeGaussianKernel(sigma);
     const temp = convolve1D(field, width, height, kernel, 'horizontal');
     return convolve1D(temp, width, height, kernel, 'vertical');
@@ -147,11 +177,11 @@ function gaussianBlur2D(field, width, height, sigma) {
  */
 function computeGradientMagnitudeSquared(field, width, height) {
     const gradientSq = new Float32Array(width * height);
-    
+
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const idx = y * width + x;
-            
+
             // x方向梯度（中心差分）
             let gradX = 0;
             if (x > 0 && x < width - 1) {
@@ -161,7 +191,7 @@ function computeGradientMagnitudeSquared(field, width, height) {
             } else if (x === width - 1 && width > 1) {
                 gradX = field[y * width + x] - field[y * width + (x - 1)];
             }
-            
+
             // y方向梯度（中心差分）
             let gradY = 0;
             if (y > 0 && y < height - 1) {
@@ -171,11 +201,11 @@ function computeGradientMagnitudeSquared(field, width, height) {
             } else if (y === height - 1 && height > 1) {
                 gradY = field[y * width + x] - field[(y - 1) * width + x];
             }
-            
+
             gradientSq[idx] = gradX * gradX + gradY * gradY;
         }
     }
-    
+
     return gradientSq;
 }
 
@@ -186,9 +216,9 @@ function normalizeArray(arr) {
     const min = Math.min(...arr);
     const max = Math.max(...arr);
     const range = max - min;
-    
+
     if (range === 0) return arr.map(() => 0);
-    
+
     return arr.map(v => (v - min) / range);
 }
 
@@ -208,10 +238,10 @@ function calculateSSIM(img1, img2, width, height) {
         console.error('Image dimensions do not match');
         return 0;
     }
-    
+
     const c1 = 0.01 * 0.01;
     const c2 = 0.03 * 0.03;
-    
+
     // 计算均值
     let mean1 = 0, mean2 = 0;
     for (let i = 0; i < img1.length; i++) {
@@ -220,7 +250,7 @@ function calculateSSIM(img1, img2, width, height) {
     }
     mean1 /= img1.length;
     mean2 /= img2.length;
-    
+
     // 计算方差和协方差
     let var1 = 0, var2 = 0, covar = 0;
     for (let i = 0; i < img1.length; i++) {
@@ -233,12 +263,46 @@ function calculateSSIM(img1, img2, width, height) {
     var1 /= img1.length;
     var2 /= img2.length;
     covar /= img1.length;
-    
+
     // 计算SSIM
     const numerator = (2 * mean1 * mean2 + c1) * (2 * covar + c2);
     const denominator = (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
-    
+
     return numerator / denominator;
+}
+
+/**
+ * 计算KL散度 (Kullback-Leibler Divergence)
+ * D_KL(P || Q) = sum(P(i) * log(P(i) / Q(i)))
+ * P: 真实分布 (Original)
+ * Q: 近似分布 (Perturbed)
+ * 注意：输入数据会被当作概率分布处理（自动归一化使和为1）
+ */
+function calculateKLDivergence(imgP, imgQ) {
+    if (imgP.length !== imgQ.length) return Infinity;
+
+    // 1. 转换为概率分布 (Sum = 1)
+    let sumP = 0, sumQ = 0;
+    for (let i = 0; i < imgP.length; i++) {
+        sumP += Math.abs(imgP[i]);
+        sumQ += Math.abs(imgQ[i]);
+    }
+
+    if (sumP === 0 || sumQ === 0) return 0; // 避免除零
+
+    // 2. 计算 KL Divergence
+    // 增加一个极小值 epsilon 避免 log(0) 或 除以 0
+    const epsilon = 1e-10;
+    let kl = 0;
+
+    for (let i = 0; i < imgP.length; i++) {
+        const p = (Math.abs(imgP[i]) + epsilon) / (sumP + epsilon * imgP.length);
+        const q = (Math.abs(imgQ[i]) + epsilon) / (sumQ + epsilon * imgQ.length);
+
+        kl += p * Math.log(p / q);
+    }
+
+    return kl;
 }
 
 /**
@@ -248,12 +312,12 @@ function exportToJSON(data, filename) {
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.click();
-    
+
     URL.revokeObjectURL(url);
 }
 
@@ -261,7 +325,7 @@ function exportToJSON(data, filename) {
  * 导出canvas为图片
  */
 function exportCanvasAsImage(canvas, filename) {
-    canvas.toBlob(function(blob) {
+    canvas.toBlob(function (blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -297,7 +361,7 @@ function getAvailableColormaps() {
 function valueToColor(value, colormap = 'viridis') {
     // 确保值在0-1之间
     value = clamp(value, 0, 1);
-    
+
     // 尝试使用预设的 colormap
     if (typeof getColormapFunction !== 'undefined' && typeof COLORMAP_PRESETS !== 'undefined') {
         if (COLORMAP_PRESETS[colormap]) {
@@ -305,9 +369,9 @@ function valueToColor(value, colormap = 'viridis') {
             return colormapFunc(value);
         }
     }
-    
+
     // 回退到内置实现
-    switch(colormap) {
+    switch (colormap) {
         case 'cool':
             return coolColormap(value);
         case 'grayscale':
@@ -339,18 +403,18 @@ function viridisColormap(t) {
         [181, 222, 43],
         [253, 231, 37]
     ];
-    
+
     const index = t * (colors.length - 1);
     const i = Math.floor(index);
     const f = index - i;
-    
+
     if (i >= colors.length - 1) {
         return [...colors[colors.length - 1], 255];
     }
-    
+
     const c1 = colors[i];
     const c2 = colors[i + 1];
-    
+
     return [
         Math.floor(c1[0] + f * (c2[0] - c1[0])),
         Math.floor(c1[1] + f * (c2[1] - c1[1])),
@@ -374,18 +438,18 @@ function plasmaColormap(t) {
         [253, 195, 40],
         [240, 249, 33]
     ];
-    
+
     const index = t * (colors.length - 1);
     const i = Math.floor(index);
     const f = index - i;
-    
+
     if (i >= colors.length - 1) {
         return [...colors[colors.length - 1], 255];
     }
-    
+
     const c1 = colors[i];
     const c2 = colors[i + 1];
-    
+
     return [
         Math.floor(c1[0] + f * (c2[0] - c1[0])),
         Math.floor(c1[1] + f * (c2[1] - c1[1])),
@@ -427,15 +491,15 @@ function computeHistogram(data, bins = 256) {
     const min = Math.min(...data);
     const max = Math.max(...data);
     const range = max - min;
-    
+
     if (range === 0) return hist;
-    
+
     for (let i = 0; i < data.length; i++) {
         const normalized = (data[i] - min) / range;
         const bin = Math.min(bins - 1, Math.floor(normalized * bins));
         hist[bin]++;
     }
-    
+
     return hist;
 }
 
@@ -445,11 +509,11 @@ function computeHistogram(data, bins = 256) {
 function smoothData(data, windowSize = 3) {
     const result = [];
     const halfWindow = Math.floor(windowSize / 2);
-    
+
     for (let i = 0; i < data.length; i++) {
         let sum = 0;
         let count = 0;
-        
+
         for (let j = -halfWindow; j <= halfWindow; j++) {
             const index = i + j;
             if (index >= 0 && index < data.length) {
@@ -457,10 +521,10 @@ function smoothData(data, windowSize = 3) {
                 count++;
             }
         }
-        
+
         result.push(sum / count);
     }
-    
+
     return result;
 }
 
@@ -491,7 +555,7 @@ function debounce(func, wait) {
  */
 function throttle(func, limit) {
     let inThrottle;
-    return function(...args) {
+    return function (...args) {
         if (!inThrottle) {
             func.apply(this, args);
             inThrottle = true;
@@ -607,14 +671,14 @@ function interpolateColors(t, colors) {
     const index = t * (colors.length - 1);
     const i = Math.floor(index);
     const f = index - i;
-    
+
     if (i >= colors.length - 1) {
         return [...colors[colors.length - 1], 255];
     }
-    
+
     const c1 = colors[i];
     const c2 = colors[i + 1];
-    
+
     return [
         Math.floor(c1[0] + f * (c2[0] - c1[0])),
         Math.floor(c1[1] + f * (c2[1] - c1[1])),

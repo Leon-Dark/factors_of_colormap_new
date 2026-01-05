@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 import os
 import time
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+app = Flask(__name__, static_folder='../../', static_url_path='')
 
 # Configuration
 DATA_DIR = 'data'
@@ -11,21 +11,13 @@ if not os.path.exists(DATA_DIR):
 
 @app.route('/')
 def index():
-    return send_from_directory('.', 'index.html')
+    # Helper to serve the main experiment file from the repo root path
+    return send_from_directory('../../random/perturbation_experiment', 'index.html')
 
 @app.route('/<path:path>')
 def serve_static(path):
-    return send_from_directory('.', path)
+    return send_from_directory('../../', path)
 
-# Allow serving files from parent directories (for dependencies)
-# Note: In production this is risky, but for a local/controlled experiment server it's fine
-# to access the ../gaussian_perturbation_system files
-@app.route('/project_root/<path:filename>')
-def serve_project_root(filename):
-    # This assumes server.py is in random/perturbation_experiment/
-    # and we want to access ../../ (root of repo)
-    root_dir = os.path.abspath(os.path.join(os.getcwd(), '../../'))
-    return send_from_directory(root_dir, filename)
 
 @app.route('/api/save_data', methods=['POST'])
 def save_data():

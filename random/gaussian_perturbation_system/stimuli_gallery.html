@@ -139,18 +139,63 @@
 
         <div class="controls">
             <p style="margin-bottom: 15px; color: #666;">
-                Stimuli Generated: 3 Frequencies × [Custom Magnitudes] × 2 Repetitions<br>
+                Stimuli Generated: 3 Frequencies × [Target Metrics] × 2 Repetitions<br>
                 Each pair contains: 12 Gaussians (4 Low + 4 Mid + 4 High), with 2 Gaussians of the target frequency
                 perturbed (Soft Attribution Gating ENABLED).
             </p>
-            <div style="margin-bottom: 15px;">
-                <label for="magnitudes-input" style="font-weight: bold; margin-right: 10px;">Magnitudes:</label>
-                <input type="text" id="magnitudes-input" value="0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5"
-                    style="width: 300px; padding: 5px;">
-                <p style="font-size: 12px; color: #999; margin-top: 5px;">Comma separated values (0.0 - 1.0)</p>
-                <p style="font-size: 12px; color: #999; margin-top: 5px;">Comma separated values (0.0 - 1.0)</p>
-            </div>
 
+            <div
+                style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <div style="margin-bottom: 10px;">
+                    <label style="font-weight: bold; margin-right: 10px;">Generation Mode:</label>
+                    <select id="generation-mode" style="padding: 5px;">
+                        <option value="magnitude">Fixed Magnitudes (Old)</option>
+                        <option value="ssim">Target SSIM</option>
+                        <option value="kl">Target KL Divergence</option>
+                    </select>
+                </div>
+
+                <div id="input-group-magnitude" style="margin-bottom: 15px;">
+                    <label for="magnitudes-input"
+                        style="font-weight: bold; display: block; margin-bottom: 5px;">Magnitudes Input:</label>
+                    <input type="text" id="magnitudes-input" value="0.05, 0.1, 0.2, 0.3, 0.4, 0.5"
+                        style="width: 100%; padding: 5px; box-sizing: border-box;">
+                    <p style="font-size: 11px; color: #999; margin: 2px 0;">Values 0.0 - 1.0, comma separated</p>
+                </div>
+
+                <div id="input-group-ssim" style="display: none; margin-bottom: 15px;">
+                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Target SSIM Range:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="ssim-start" value="0.95" step="0.01" placeholder="Start"
+                            style="width: 80px; padding: 5px;">
+                        <span>to</span>
+                        <input type="number" id="ssim-end" value="0.70" step="0.01" placeholder="End"
+                            style="width: 80px; padding: 5px;">
+                        <span>step</span>
+                        <input type="number" id="ssim-step" value="0.05" step="0.01" placeholder="Step"
+                            style="width: 80px; padding: 5px;">
+                    </div>
+                    <p style="font-size: 11px; color: #999; margin: 5px 0;">Sequence will be generated automatically
+                        (e.g. 0.95, 0.90, ... 0.70)</p>
+                </div>
+
+                <div id="input-group-kl" style="display: none; margin-bottom: 15px;">
+                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Target KL Divergence
+                        Range:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="kl-start" value="0.01" step="0.01" placeholder="Start"
+                            style="width: 80px; padding: 5px;">
+                        <span>to</span>
+                        <input type="number" id="kl-end" value="0.10" step="0.01" placeholder="End"
+                            style="width: 80px; padding: 5px;">
+                        <span>step</span>
+                        <input type="number" id="kl-step" value="0.02" step="0.01" placeholder="Step"
+                            style="width: 80px; padding: 5px;">
+                    </div>
+                    <p style="font-size: 11px; color: #999; margin: 5px 0;">Sequence will be generated automatically
+                        (e.g. 0.01, 0.03, ... 0.10)</p>
+                </div>
+            </div>
             <!-- New: Perturbation Coefficients -->
             <div class="control-group"
                 style="background: #fff; padding: 15px; border: 1px solid #ddd; margin: 15px auto; border-radius: 4px; max-width: 600px; text-align: left;">

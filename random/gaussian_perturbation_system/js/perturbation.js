@@ -42,56 +42,115 @@ class PerturbationSystem {
             perturbTypes = [perturbType];
         }
 
-        for (const type of perturbTypes) {
-            switch (type) {
-                case 'position':
-                    // 扰动位置（中心点）
-                    // Position is safe, keep it strong (1.0)
-                    const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * this.coefficients.position;
-                    gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
-                    gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
-                    break;
+        // Artifact Prevention Loop
+        // Try up to 10 times to find a perturbation that doesn't cause aliasing (width < 1.5px)
+        const maxRetries = 10;
+        let validPerturbation = false;
 
-                case 'stretch':
-                    // 扰动形状 - 只改变标准差（拉伸/压缩）
-                    // Adjusted to 0.5 for balance
-                    const sigmaChange = magnitude * this.coefficients.stretch;
-                    // Limit sigma shrinkage to prevent artifacting (min 20% of original)
-                    const sXRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
-                    const sYRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
+        // Backup original state before temp attempts
+        const tempState = { mX: gauss.mX, mY: gauss.mY, sX: gauss.sX, sY: gauss.sY, rho: gauss.rho, scaler: gauss.scaler };
 
-                    gauss.sX = Math.max(gauss.originalSX * 0.2, gauss.sX * sXRatio);
-                    gauss.sY = Math.max(gauss.originalSY * 0.2, gauss.sY * sYRatio);
-                    break;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            // Restore start state for this attempt
+            gauss.mX = tempState.mX;
+            gauss.mY = tempState.mY;
+            gauss.sX = tempState.sX;
+            gauss.sY = tempState.sY;
+            gauss.rho = tempState.rho;
+            gauss.scaler = tempState.scaler;
 
-                case 'rotation':
-                    // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
-                    // Adjusted to 0.6 for balance
-                    const rhoChange = magnitude * this.coefficients.rotation;
-                    const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
-                    // Strict clamping to avoid aliasing artifacts (0.99 -> 0.92)
-                    gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
-                    break;
+            for (const type of perturbTypes) {
+                switch (type) {
+                    case 'position':
+                        // 扰动位置（中心点）
+                        // Position is safe, keep it strong (1.0)
+                        const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * this.coefficients.position;
+                        gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
+                        gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
+                        break;
 
-                case 'shape':
-                    // 向后兼容：shape = stretch + rotation
-                    const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
-                    gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
-                    gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                    case 'stretch':
+                        // 扰动形状 - 只改变标准差（拉伸/压缩）
+                        // Adjusted to 0.5 for balance
+                        const sigmaChange = magnitude * this.coefficients.stretch;
+                        // Limit sigma shrinkage to prevent artifacting (min 20% of original)
+                        const sXRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
+                        const sYRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
 
-                    const rhoChange2 = magnitude * (this.coefficients.rotation * 0.7);
-                    const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;
-                    gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho2)));
-                    break;
+                        gauss.sX = Math.max(gauss.originalSX * 0.2, 2.5, gauss.sX * sXRatio);
+                        gauss.sY = Math.max(gauss.originalSY * 0.2, 2.5, gauss.sY * sYRatio);
+                        break;
 
-                case 'amplitude':
-                    // 扰动幅值
-                    // Adjusted to 0.6 to avoid extreme brightness clipping
-                    const ampChange = magnitude * this.coefficients.amplitude;
-                    gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
-                    gauss.scaler = Math.max(0.1, gauss.scaler); // 确保不为负或太小
-                    break;
+                    case 'rotation':
+                        // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
+                        // Adjusted to 0.6 for balance
+                        const rhoChange = magnitude * this.coefficients.rotation;
+                        const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
+                        // Strict clamping to avoid aliasing artifacts (0.99 -> 0.92)
+                        gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
+                        break;
+
+                    case 'shape':
+                        // 向后兼容：shape = stretch + rotation
+                        const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
+                        gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                        gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+
+                        const rhoChange2 = magnitude * (this.coefficients.rotation * 0.7);
+                        const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;
+                        gauss.updateRho(Math.max(-0.99, Math.min(0.99, newRho2)));
+                        break;
+
+                    case 'amplitude':
+                        // 扰动幅值
+                        // Adjusted to 0.6 to avoid extreme brightness clipping
+                        const ampChange = magnitude * this.coefficients.amplitude;
+                        gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
+                        gauss.scaler = Math.max(0.1, gauss.scaler); // 确保不为负或太小
+                        break;
+                }
+            } // end loop types
+
+            // Check for artifacts (too thin)
+            if (typeof calculateGaussianMinShortAxis !== 'undefined') {
+                const minWidth = calculateGaussianMinShortAxis(gauss.sX, gauss.sY, gauss.rho);
+                // Threshold: 2.0 pixels (Stricter check to prevent aliasing/mosaic)
+                if (minWidth >= 2.0) {
+                    validPerturbation = true;
+                    break; // Success!
+                }
+                // If failed, loop continues and retries
+            } else {
+                validPerturbation = true; // No helper, skip check
+                break;
             }
+        } // end retry loop
+
+        if (!validPerturbation) {
+            console.warn(`Warning: Could not find artifact-free perturbation for Gaussian ${gauss.id} after ${maxRetries} attempts. Reverting to safe fallback.`);
+
+            // Fallback: Revert to original state first
+            gauss.mX = tempState.mX;
+            gauss.mY = tempState.mY;
+            gauss.sX = tempState.sX;
+            gauss.sY = tempState.sY;
+            gauss.rho = tempState.rho;
+            gauss.scaler = tempState.scaler;
+
+            // Apply ONLY safe perturbations (Position is always safe)
+            if (perturbTypes.includes('position') || perturbTypes.includes('all')) {
+                const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * this.coefficients.position;
+                gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
+                gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
+            }
+
+            // Apply mild amplitude (safe)
+            if (perturbTypes.includes('amplitude') || perturbTypes.includes('all')) {
+                const ampChange = magnitude * this.coefficients.amplitude * 0.5; // Reduced strength for safety
+                gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
+                gauss.scaler = Math.max(0.1, gauss.scaler);
+            }
+            // Skip Stretch and Rotation as they are the cause of artifacts
         }
 
         gauss.isPerturbed = true;

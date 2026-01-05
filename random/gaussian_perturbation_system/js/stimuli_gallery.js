@@ -32,6 +32,23 @@ class StimuliGallery {
     bindEvents() {
         this.btnStart.addEventListener('click', () => this.generateGallery());
 
+        // Mode Switch
+        const modeSelect = document.getElementById('generation-mode');
+        const groups = {
+            'magnitude': document.getElementById('input-group-magnitude'),
+            'ssim': document.getElementById('input-group-ssim'),
+            'kl': document.getElementById('input-group-kl')
+        };
+
+        if (modeSelect) {
+            modeSelect.addEventListener('change', (e) => {
+                const mode = e.target.value;
+                Object.keys(groups).forEach(k => {
+                    if (groups[k]) groups[k].style.display = (k === mode) ? 'block' : 'none';
+                });
+            });
+        }
+
         // Coefficient Sliders
         const updateCoeff = (id, key) => {
             const slider = document.getElementById(id);
@@ -59,16 +76,39 @@ class StimuliGallery {
         // 使用setTimeout让UI有机会更新
         setTimeout(async () => {
             const frequencies = [
-                { id: 'low', name: 'Low Frequency Perturbation', target: 'large' },
-                { id: 'medium', name: 'Medium Frequency Perturbation', target: 'medium' },
-                { id: 'high', name: 'High Frequency Perturbation', target: 'small' }
+                { id: 'low', name: 'Low Complexity', target: 'large' },
+                { id: 'medium', name: 'Medium Complexity', target: 'medium' },
+                { id: 'high', name: 'High Complexity', target: 'small' }
             ];
 
-            const magnitudesInput = document.getElementById('magnitudes-input').value;
-            const magnitudes = magnitudesInput.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            const mode = document.getElementById('generation-mode').value;
+            let targets = [];
 
-            if (magnitudes.length === 0) {
-                alert('Please enter valid magnitudes!');
+            if (mode === 'magnitude') {
+                const input = document.getElementById('magnitudes-input').value;
+                targets = input.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            } else {
+                // Range generation for SSIM and KL
+                const idPrefix = mode === 'ssim' ? 'ssim' : 'kl';
+                const start = parseFloat(document.getElementById(`${idPrefix}-start`).value);
+                const end = parseFloat(document.getElementById(`${idPrefix}-end`).value);
+                const step = Math.abs(parseFloat(document.getElementById(`${idPrefix}-step`).value));
+
+                if (!isNaN(start) && !isNaN(end) && !isNaN(step) && step > 0) {
+                    // Determine direction
+                    if (start <= end) {
+                        for (let v = start; v <= end + 0.0001; v += step) targets.push(v);
+                    } else {
+                        for (let v = start; v >= end - 0.0001; v -= step) targets.push(v);
+                    }
+
+                    // Round to prevent float precision ugly labels
+                    targets = targets.map(v => parseFloat(v.toFixed(3)));
+                }
+            }
+
+            if (targets.length === 0) {
+                alert('Please enter valid range or values!');
                 this.btnStart.disabled = false;
                 this.loadingText.style.display = 'none';
                 return;
@@ -79,23 +119,23 @@ class StimuliGallery {
                 const section = document.createElement('div');
                 section.className = 'section-frequency';
 
-                // 头部颜色根据频率决定
+                // 头部颜色
                 let headerClass = '';
                 if (freq.id === 'low') headerClass = 'header-low';
                 else if (freq.id === 'medium') headerClass = 'header-medium';
                 else headerClass = 'header-high';
 
                 section.innerHTML = `
-                    <div class="section-header ${headerClass}">${freq.name}</div>
+                    <div class="section-header ${headerClass}">${freq.name} (${mode.toUpperCase()} Profile)</div>
                     <div class="stimuli-grid" id="grid-${freq.id}"></div>
                 `;
                 this.container.appendChild(section);
 
                 const grid = section.querySelector(`#grid-${freq.id}`);
 
-                for (const mag of magnitudes) {
+                for (const targetVal of targets) {
                     for (let rep = 1; rep <= repetitions; rep++) {
-                        await this.createStimulusCard(grid, freq, mag, rep);
+                        await this.createStimulusCard(grid, freq, targetVal, rep, mode);
                     }
                 }
             }
@@ -105,7 +145,42 @@ class StimuliGallery {
         }, 100);
     }
 
-    async createStimulusCard(container, freq, magnitude, repetition) {
+    /**
+     * Finds the magnitude that produces a result closest to the target metric.
+     * Binary search approach + Random Sampling.
+     */
+    async optimizeMagnitudeForTarget(targetVal, mode, freqTarget) {
+        // If mode is magnitude, just return it
+        if (mode === 'magnitude') return { magnitude: targetVal, metric: 0 };
+
+        let minMag = 0.0;
+        let maxMag = 3.0; // Assume 2.0 is usually enough to destroy structure
+        let bestMag = 0.5;
+        let bestDiff = Infinity;
+        let bestResult = null;
+
+        // Search iterations
+        const iterations = 8;
+
+        for (let i = 0; i < iterations; i++) {
+            const currentMag = (minMag + maxMag) / 2;
+
+            // Try generating with this mag
+            this.perturbation.resetToOriginal();
+            this.perturbation.setCoefficients(this.coefficients);
+            this.perturbation.applyGlobalPerturbation(currentMag, 0.5, freqTarget, 'all');
+
+            const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+            // Measure metric
+            // We need original array first? efficient way:
+            // Actually optimizeMagnitude should be called after original is generated once in createStimulusCard
+            // To make this method standalone is hard. 
+            // Let's integrate this loop inside createStimulusCard instead.
+        }
+        return { magnitude: bestMag };
+    }
+
+    async createStimulusCard(container, freq, targetVal, repetition, mode) {
         return new Promise(resolve => {
             // 1. 设置生成器参数
             // 4个低频，4个中频，4个高频
@@ -125,38 +200,108 @@ class StimuliGallery {
             // 2. 渲染原始图像
             const dataOriginal = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true); // 使用梯度归一化? 暂时保留默认
 
-            // 3. 应用扰动
-            // 目标频率的2个高斯 (总数4个，所以ratio=0.5)
-            // 先应用物理扰动
-            this.perturbation.resetToOriginal();
+            // 3. 寻找最佳 Magnitude (Optimization Loop)
+            let chosenMagnitude = targetVal;
+            let achievedMetric = 0;
+            let achievedKL = 0;
+            let achievedSSIM = 0;
 
-            // Set User Coefficients
-            this.perturbation.setCoefficients(this.coefficients);
+            let dataPerturbed = null;
 
-            const perturbed = this.perturbation.applyGlobalPerturbation(magnitude, 0.5, freq.target, 'all');
+            if (mode === 'magnitude') {
+                // Direct application
+                this.perturbation.resetToOriginal();
+                this.perturbation.setCoefficients(this.coefficients);
+                this.perturbation.applyGlobalPerturbation(targetVal, 0.5, freq.target, 'all');
 
-            // Debug Log
-            if (repetition === 1 && magnitude === 0.5) {
-                console.log(`[Debug] Freq: ${freq.id}, Mag: ${magnitude}`);
-                console.log(`[Debug] Perturbed count: ${perturbed.length}`);
-                if (perturbed.length > 0) {
-                    const g = perturbed[0];
-                    console.log(`[Debug] First perturbed gaussian delta: dx=${(g.mX - g.originalMX).toFixed(2)}, dy=${(g.mY - g.originalMY).toFixed(2)}`);
+                const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+                dataPerturbed = saResult.perturbedTotal;
+
+                achievedSSIM = calculateSSIM(dataOriginal, dataPerturbed, this.config.width, this.config.height);
+                achievedKL = calculateKLDivergence(dataOriginal, dataPerturbed);
+
+            } else {
+                // Optimization Search
+                // SSIM target: higher magnitude -> lower SSIM
+                // KL target: higher magnitude -> higher KL
+
+                let min = 0.0, max = 2.5;
+                let bestDiff = Infinity;
+
+                // Binary search for 8 steps
+                for (let i = 0; i < 10; i++) {
+                    const mid = (min + max) / 2;
+
+                    // Generate temp
+                    this.perturbation.resetToOriginal(); // Reset to same initial gaussian state (positions/shapes)
+                    // Note: resetToOriginal() restores parameters. 
+                    // applyGlobalPerturbation() uses Math.random(). 
+                    // For 'stable' optimization we ideally want same random seed, but JS math.random is not seedable easily.
+                    // However, since we want *an* instance that matches the target, random variation is acceptable/desired.
+                    // We just test if this magnitude gets us close on average? 
+                    // No, let's just use the current random result as the sample point.
+
+                    this.perturbation.setCoefficients(this.coefficients);
+                    this.perturbation.applyGlobalPerturbation(mid, 0.5, freq.target, 'all');
+
+                    const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+                    const tempPerturbed = saResult.perturbedTotal;
+
+                    let currentMetric = 0;
+                    if (mode === 'ssim') {
+                        currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                    } else {
+                        currentMetric = calculateKLDivergence(dataOriginal, tempPerturbed);
+                    }
+
+                    const diff = Math.abs(currentMetric - targetVal);
+
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        chosenMagnitude = mid;
+                        dataPerturbed = tempPerturbed; // Keep best data
+                        achievedMetric = currentMetric;
+
+                        // Store both for display
+                        if (mode === 'ssim') {
+                            achievedSSIM = currentMetric;
+                            achievedKL = calculateKLDivergence(dataOriginal, tempPerturbed);
+                        } else {
+                            achievedKL = currentMetric;
+                            achievedSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                        }
+                    }
+
+                    // Bisect
+                    if (mode === 'ssim') {
+                        // Target SSIM 0.8. Current 0.9 (Too high quality -> need more mag).
+                        // SSIM decreases as Mag increases.
+                        if (currentMetric > targetVal) min = mid;
+                        else max = mid;
+                    } else { // KL
+                        // Target KL 0.1. Current 0.05 (Too similar -> need more mag).
+                        // KL increases as Mag increases.
+                        if (currentMetric < targetVal) min = mid;
+                        else max = mid;
+                    }
                 }
             }
 
-            // 4. 应用软归因门控并渲染
-            // 使用 performGatedPerturbation 获取最终结果
-            // 注意：这个方法会重新计算所有场的叠加，应用门控
-            const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
-            const dataPerturbed = saResult.perturbedTotal;
+            // 4. 应用软归因门控并渲染 (This step is now integrated into the optimization loop or direct application)
+            // The `dataPerturbed` variable now holds the final perturbed data.
 
             // 5. 创建DOM元素
             const card = document.createElement('div');
             card.className = 'stimuli-card';
 
             const title = document.createElement('h4');
-            title.textContent = `Magnitude: ${magnitude} (Sample ${repetition})`;
+            // Show Target vs Actual
+            if (mode === 'magnitude') {
+                title.innerHTML = `Mag: ${targetVal}<br><span style="font-size:10px; font-weight:normal">SSIM:${achievedSSIM.toFixed(3)} | KL:${achievedKL.toFixed(3)}</span>`;
+            } else {
+                const targetLabel = mode.toUpperCase();
+                title.innerHTML = `Target ${targetLabel}: ${targetVal}<br><span style="font-size:10px; font-weight:normal">Mag:${chosenMagnitude.toFixed(2)} | Actual:${achievedMetric.toFixed(3)}</span>`;
+            }
             card.appendChild(title);
 
             const pair = document.createElement('div');
