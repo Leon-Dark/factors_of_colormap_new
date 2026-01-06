@@ -19,6 +19,127 @@ class PerturbationSystem {
             rotation: 0.6,
             amplitude: 0.6
         };
+        // 存储预生成的扰动方向（用于稳定的二分搜索）
+        this.storedDeltas = null;
+    }
+
+    /**
+     * 预生成扰动方向（Delta），用于稳定的幅度搜索
+     * @param {string|string[]} targetLevel - 目标级别
+     * @param {number} ratio - 扰动比例 (0-1)
+     * @param {string|string[]} perturbType - 扰动类型
+     */
+    generatePerturbationDeltas(targetLevel = 'all', ratio = 1.0, perturbType = 'all') {
+        let gaussians = this.getTargetGaussians(targetLevel);
+
+        if (gaussians.length === 0) {
+            console.warn('No Gaussians selected for delta generation');
+            this.storedDeltas = { gaussIds: [], deltas: [], perturbTypes: [] };
+            return;
+        }
+
+        const perturbCount = Math.floor(gaussians.length * ratio);
+        const shuffled = this.shuffleArray([...gaussians]);
+        const toPerturb = shuffled.slice(0, perturbCount);
+
+        // 确定扰动类型
+        let perturbTypes;
+        if (Array.isArray(perturbType)) {
+            perturbTypes = perturbType;
+        } else if (perturbType === 'all') {
+            perturbTypes = ['position', 'stretch', 'rotation', 'amplitude'];
+        } else {
+            perturbTypes = [perturbType];
+        }
+
+        // 为每个高斯生成随机扰动方向
+        const deltas = [];
+        for (const gauss of toPerturb) {
+            const delta = {
+                gaussId: gauss.id,
+                // 随机方向 (-1 到 1)
+                positionDirX: Math.random() * 2 - 1,
+                positionDirY: Math.random() * 2 - 1,
+                stretchDirX: Math.random() * 2 - 1,
+                stretchDirY: Math.random() * 2 - 1,
+                rotationDir: Math.random() * 2 - 1,
+                amplitudeDir: Math.random() * 2 - 1,
+                // 存储原始值的引用
+                basePositionScale: Math.max(gauss.originalSX, gauss.originalSY),
+                originalSX: gauss.originalSX,
+                originalSY: gauss.originalSY
+            };
+            deltas.push(delta);
+        }
+
+        this.storedDeltas = {
+            gaussIds: toPerturb.map(g => g.id),
+            deltas: deltas,
+            perturbTypes: perturbTypes
+        };
+
+        console.log(`Generated perturbation deltas for ${toPerturb.length} Gaussians`);
+    }
+
+    /**
+     * 使用存储的扰动方向应用扰动（幅度可调）
+     * @param {number} magnitude - 扰动幅度 (0-1)
+     */
+    applyStoredPerturbation(magnitude) {
+        if (!this.storedDeltas || this.storedDeltas.deltas.length === 0) {
+            console.warn('No stored deltas to apply. Call generatePerturbationDeltas() first.');
+            return [];
+        }
+
+        const allGaussians = this.generator.getAllGaussians();
+        const gaussMap = new Map(allGaussians.map(g => [g.id, g]));
+        const perturbTypes = this.storedDeltas.perturbTypes;
+        const perturbedList = [];
+
+        for (const delta of this.storedDeltas.deltas) {
+            const gauss = gaussMap.get(delta.gaussId);
+            if (!gauss) continue;
+
+            // 先重置到原始状态
+            gauss.mX = gauss.originalMX;
+            gauss.mY = gauss.originalMY;
+            gauss.sX = gauss.originalSX;
+            gauss.sY = gauss.originalSY;
+            gauss.updateRho(gauss.originalRho);
+            gauss.scaler = gauss.originalScaler;
+
+            // 应用存储的扰动方向 * magnitude
+            if (perturbTypes.includes('position')) {
+                const maxPositionShift = magnitude * delta.basePositionScale * this.coefficients.position;
+                gauss.mX += delta.positionDirX * maxPositionShift;
+                gauss.mY += delta.positionDirY * maxPositionShift;
+            }
+
+            if (perturbTypes.includes('stretch')) {
+                const sigmaChange = magnitude * this.coefficients.stretch;
+                const sXRatio = 1 + delta.stretchDirX * sigmaChange;
+                const sYRatio = 1 + delta.stretchDirY * sigmaChange;
+                gauss.sX = Math.max(delta.originalSX * 0.2, 2.5, gauss.sX * sXRatio);
+                gauss.sY = Math.max(delta.originalSY * 0.2, 2.5, gauss.sY * sYRatio);
+            }
+
+            if (perturbTypes.includes('rotation')) {
+                const rhoChange = magnitude * this.coefficients.rotation;
+                const newRho = gauss.originalRho + delta.rotationDir * rhoChange;
+                gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
+            }
+
+            if (perturbTypes.includes('amplitude')) {
+                const ampChange = magnitude * this.coefficients.amplitude;
+                gauss.scaler = gauss.originalScaler * (1 + delta.amplitudeDir * ampChange);
+                gauss.scaler = Math.max(0.1, gauss.scaler);
+            }
+
+            gauss.isPerturbed = true;
+            perturbedList.push(gauss);
+        }
+
+        return perturbedList;
     }
 
     setCoefficients(coeffs) {

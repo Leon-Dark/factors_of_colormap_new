@@ -4,7 +4,7 @@
 function switchSamplingMode() {
     const selectedMode = document.querySelector('input[name="samplingMode"]:checked').value;
     SAMPLING_MODE = selectedMode;
-    
+
     // Show/hide corresponding parameter panels
     if (selectedMode === 'jnd') {
         document.getElementById('jndModePanel').style.display = 'block';
@@ -23,7 +23,7 @@ function switchSamplingMode() {
         // Reset to "Show all" for Uniform mode
         document.querySelector('input[name="filterModeUniform"][value="all"]').checked = true;
     }
-    
+
     // Recalculate all metrics based on new mode
     allColormaps.forEach((cm, idx) => {
         const hclPalette = cm.colormap.map(color => {
@@ -31,7 +31,7 @@ function switchSamplingMode() {
             const hcl = d3.hcl(lab);
             return [hcl.h, hcl.c, hcl.l];
         });
-        
+
         if (selectedMode === 'jnd') {
             const jndSamples = generateJndSamples(hclPalette, JND_STEP);
             cm.metrics.jnd_consistency = calcJndConsistency(jndSamples, JND_STEP);
@@ -39,27 +39,32 @@ function switchSamplingMode() {
         } else {
             cm.metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT);
         }
-        
+
         // Update the metrics display on the card (important for mode switch)
         if (colormapElements[idx]) {
             updateMetricsDisplay(colormapElements[idx], cm.metrics);
         }
     });
-    
+
     updateStatistics();
     applyFilter();
     updateColormapBorders();
+
+    // Clear retry results when mode changes
+    if (typeof clearRetryResults === 'function') {
+        clearRetryResults();
+    }
 }
 
 // JND Mode: Update JND step size
 function updateJndStep(value) {
     const step = parseFloat(value);
     JND_STEP = step;
-    
+
     // Sync slider and number input
     document.getElementById('jndStepSlider').value = step;
     document.getElementById('jndStepValue').value = step;
-    
+
     // Recalculate JND metrics for all colormaps
     allColormaps.forEach((cm, idx) => {
         const hclPalette = cm.colormap.map(color => {
@@ -67,17 +72,17 @@ function updateJndStep(value) {
             const hcl = d3.hcl(lab);
             return [hcl.h, hcl.c, hcl.l];
         });
-        
+
         const jndSamples = generateJndSamples(hclPalette, step);
         cm.metrics.jnd_consistency = calcJndConsistency(jndSamples, step);
         cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, SAMPLE_INTERVAL_K, step);
-        
+
         // Update the metrics display on the card
         if (colormapElements[idx]) {
             updateMetricsDisplay(colormapElements[idx], cm.metrics);
         }
     });
-    
+
     updateStatistics();
     applyFilter();
     updateColormapBorders();
@@ -87,16 +92,16 @@ function updateJndStep(value) {
 function updateJndInterval(k, j) {
     const intervalK = parseInt(k);
     const minDiffJ = parseFloat(j);
-    
+
     SAMPLE_INTERVAL_K = intervalK;
     MIN_INTERVAL_DIFF_J = minDiffJ;
-    
+
     // Sync sliders and number inputs
     document.getElementById('intervalKSlider').value = intervalK;
     document.getElementById('intervalKValue').value = intervalK;
     document.getElementById('intervalJSlider').value = minDiffJ;
     document.getElementById('intervalJValue').value = minDiffJ;
-    
+
     // Recalculate condition 2 for all colormaps
     allColormaps.forEach((cm, idx) => {
         const hclPalette = cm.colormap.map(color => {
@@ -104,16 +109,16 @@ function updateJndInterval(k, j) {
             const hcl = d3.hcl(lab);
             return [hcl.h, hcl.c, hcl.l];
         });
-        
+
         const jndSamples = generateJndSamples(hclPalette, JND_STEP);
         cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, intervalK, JND_STEP);
-        
+
         // Update the metrics display on the card
         if (colormapElements[idx]) {
             updateMetricsDisplay(colormapElements[idx], cm.metrics);
         }
     });
-    
+
     updateStatistics();
     applyFilter();
     updateColormapBorders();
@@ -123,11 +128,11 @@ function updateJndInterval(k, j) {
 function updateUniformCount(value) {
     const count = parseInt(value);
     UNIFORM_SAMPLE_COUNT = count;
-    
+
     // Sync slider and number input
     document.getElementById('uniformCountSlider').value = count;
     document.getElementById('uniformCountValue').value = count;
-    
+
     // Recalculate uniform metric for all colormaps
     allColormaps.forEach((cm, idx) => {
         const hclPalette = cm.colormap.map(color => {
@@ -136,13 +141,13 @@ function updateUniformCount(value) {
             return [hcl.h, hcl.c, hcl.l];
         });
         cm.metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, count);
-        
+
         // Update the metrics display on the card
         if (colormapElements[idx]) {
             updateMetricsDisplay(colormapElements[idx], cm.metrics);
         }
     });
-    
+
     updateStatistics();
     applyFilter();
     updateColormapBorders();
@@ -152,11 +157,11 @@ function updateUniformCount(value) {
 function updateUniformThreshold(value) {
     const threshold = parseFloat(value);
     UNIFORM_MIN_DIFF_THRESHOLD = threshold;
-    
+
     // Sync slider and number input
     document.getElementById('uniformThresholdSlider').value = threshold;
     document.getElementById('uniformThresholdValue').value = threshold;
-    
+
     updateStatistics();
     applyFilter();
     updateColormapBorders();

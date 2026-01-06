@@ -22,3 +22,11 @@ const COLOR_SPACE_PARAMS = {
     chromas: [20, 120],
     lumis: [20, 90]
 };
+
+// Retry iteration parameters
+let RETRY_MAX_ITERATIONS = 3;        // 最大迭代次数
+let RETRY_SEARCH_RANGE_EXPAND = 10;  // 每次迭代扩大搜索范围
+
+// Retry state tracking
+let retryHistory = [];               // 记录每轮迭代的改良数量
+let isRetrying = false;              // 是否正在进行重试

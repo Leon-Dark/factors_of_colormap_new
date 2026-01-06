@@ -83,6 +83,7 @@ class StimuliGallery {
 
             const mode = document.getElementById('generation-mode').value;
             let targets = [];
+            let step = 0.01;  // 默认步进值
 
             if (mode === 'magnitude') {
                 const input = document.getElementById('magnitudes-input').value;
@@ -92,18 +93,18 @@ class StimuliGallery {
                 const idPrefix = mode === 'ssim' ? 'ssim' : 'kl';
                 const start = parseFloat(document.getElementById(`${idPrefix}-start`).value);
                 const end = parseFloat(document.getElementById(`${idPrefix}-end`).value);
-                const step = Math.abs(parseFloat(document.getElementById(`${idPrefix}-step`).value));
+                step = Math.abs(parseFloat(document.getElementById(`${idPrefix}-step`).value));
 
                 if (!isNaN(start) && !isNaN(end) && !isNaN(step) && step > 0) {
                     // Determine direction
                     if (start <= end) {
-                        for (let v = start; v <= end + 0.0001; v += step) targets.push(v);
+                        for (let v = start; v <= end + 0.000001; v += step) targets.push(v);
                     } else {
-                        for (let v = start; v >= end - 0.0001; v -= step) targets.push(v);
+                        for (let v = start; v >= end - 0.000001; v -= step) targets.push(v);
                     }
 
-                    // Round to prevent float precision ugly labels
-                    targets = targets.map(v => parseFloat(v.toFixed(3)));
+                    // Round to prevent float precision ugly labels (5 decimal places)
+                    targets = targets.map(v => parseFloat(v.toFixed(5)));
                 }
             }
 
@@ -135,7 +136,7 @@ class StimuliGallery {
 
                 for (const targetVal of targets) {
                     for (let rep = 1; rep <= repetitions; rep++) {
-                        await this.createStimulusCard(grid, freq, targetVal, rep, mode);
+                        await this.createStimulusCard(grid, freq, targetVal, rep, mode, step);
                     }
                 }
             }
@@ -180,7 +181,7 @@ class StimuliGallery {
         return { magnitude: bestMag };
     }
 
-    async createStimulusCard(container, freq, targetVal, repetition, mode) {
+    async createStimulusCard(container, freq, targetVal, repetition, mode, step = 0.01) {
         return new Promise(resolve => {
             // 1. 设置生成器参数
             // 4个低频，4个中频，4个高频
@@ -221,69 +222,98 @@ class StimuliGallery {
                 achievedKL = calculateKLDivergence(dataOriginal, dataPerturbed);
 
             } else {
-                // Optimization Search
-                // SSIM target: higher magnitude -> lower SSIM
-                // KL target: higher magnitude -> higher KL
+                // Optimization Search (Stable Algorithm with Retry)
+                // 如果单次搜索未达到精度，换初始化重试
 
-                let min = 0.0, max = 2.5;
-                let bestDiff = Infinity;
+                const tolerance = step / 2;  // 动态阈值
+                const maxRetries = 5;        // 最多重试5次
+                const maxIterPerTry = 50;    // 每次尝试最多50次迭代
 
-                // Binary search for better accuracy
-                for (let i = 0; i < 100; i++) {
-                    const mid = (min + max) / 2;
+                let bestOverallDiff = Infinity;
+                let bestOverallMagnitude = 0;
+                let bestOverallData = null;
+                let bestOverallMetric = 0;
+                let bestOverallSSIM = 0;
+                let bestOverallKL = 0;
+                let foundGoodResult = false;
 
-                    // Generate temp
-                    this.perturbation.resetToOriginal(); // Reset to same initial gaussian state (positions/shapes)
-                    // Note: resetToOriginal() restores parameters. 
-                    // applyGlobalPerturbation() uses Math.random(). 
-                    // For 'stable' optimization we ideally want same random seed, but JS math.random is not seedable easily.
-                    // However, since we want *an* instance that matches the target, random variation is acceptable/desired.
-                    // We just test if this magnitude gets us close on average? 
-                    // No, let's just use the current random result as the sample point.
-
+                for (let retry = 0; retry < maxRetries && !foundGoodResult; retry++) {
+                    // 每次重试重新生成扰动方向
+                    this.perturbation.resetToOriginal();
                     this.perturbation.setCoefficients(this.coefficients);
-                    this.perturbation.applyGlobalPerturbation(mid, 1.0, freq.target, 'all');
+                    this.perturbation.generatePerturbationDeltas(freq.target, 1.0, 'all');
 
-                    const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
-                    const tempPerturbed = saResult.perturbedTotal;
+                    let min = 0.0, max = 2.5;
+                    let bestDiff = Infinity;
 
-                    let currentMetric = 0;
-                    if (mode === 'ssim') {
-                        currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
-                    } else {
-                        currentMetric = calculateKLDivergence(dataOriginal, tempPerturbed);
-                    }
+                    // 二分搜索
+                    for (let i = 0; i < maxIterPerTry; i++) {
+                        const mid = (min + max) / 2;
 
-                    const diff = Math.abs(currentMetric - targetVal);
+                        this.perturbation.applyStoredPerturbation(mid);
 
-                    if (diff < bestDiff) {
-                        bestDiff = diff;
-                        chosenMagnitude = mid;
-                        dataPerturbed = tempPerturbed; // Keep best data
-                        achievedMetric = currentMetric;
+                        const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+                        const tempPerturbed = saResult.perturbedTotal;
 
-                        // Store both for display
+                        let currentMetric = 0;
                         if (mode === 'ssim') {
-                            achievedSSIM = currentMetric;
-                            achievedKL = calculateKLDivergence(dataOriginal, tempPerturbed);
+                            currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
                         } else {
-                            achievedKL = currentMetric;
-                            achievedSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                            currentMetric = calculateKLDivergence(dataOriginal, tempPerturbed);
+                        }
+
+                        const diff = Math.abs(currentMetric - targetVal);
+
+                        if (diff < bestDiff) {
+                            bestDiff = diff;
+
+                            // 更新本次尝试的最佳结果
+                            if (diff < bestOverallDiff) {
+                                bestOverallDiff = diff;
+                                bestOverallMagnitude = mid;
+                                bestOverallData = tempPerturbed;
+                                bestOverallMetric = currentMetric;
+
+                                if (mode === 'ssim') {
+                                    bestOverallSSIM = currentMetric;
+                                    bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
+                                } else {
+                                    bestOverallKL = currentMetric;
+                                    bestOverallSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                                }
+                            }
+
+                            // 达到精度要求
+                            if (diff < tolerance) {
+                                foundGoodResult = true;
+                                break;
+                            }
+                        }
+
+                        // Bisect
+                        if (mode === 'ssim') {
+                            if (currentMetric > targetVal) min = mid;
+                            else max = mid;
+                        } else {
+                            if (currentMetric < targetVal) min = mid;
+                            else max = mid;
                         }
                     }
 
-                    // Bisect
-                    if (mode === 'ssim') {
-                        // Target SSIM 0.8. Current 0.9 (Too high quality -> need more mag).
-                        // SSIM decreases as Mag increases.
-                        if (currentMetric > targetVal) min = mid;
-                        else max = mid;
-                    } else { // KL
-                        // Target KL 0.1. Current 0.05 (Too similar -> need more mag).
-                        // KL increases as Mag increases.
-                        if (currentMetric < targetVal) min = mid;
-                        else max = mid;
+                    if (!foundGoodResult && retry < maxRetries - 1) {
+                        console.log(`Retry ${retry + 1}: diff=${bestDiff.toFixed(6)}, target=${targetVal}, trying new initialization...`);
                     }
+                }
+
+                // 使用最佳结果
+                chosenMagnitude = bestOverallMagnitude;
+                dataPerturbed = bestOverallData;
+                achievedMetric = bestOverallMetric;
+                achievedSSIM = bestOverallSSIM;
+                achievedKL = bestOverallKL;
+
+                if (!foundGoodResult) {
+                    console.warn(`Warning: Could not achieve tolerance ${tolerance} for target ${targetVal} after ${maxRetries} retries. Best diff: ${bestOverallDiff.toFixed(6)}`);
                 }
             }
 
@@ -297,10 +327,10 @@ class StimuliGallery {
             const title = document.createElement('h4');
             // Show Target vs Actual
             if (mode === 'magnitude') {
-                title.innerHTML = `Mag: ${targetVal}<br><span style="font-size:10px; font-weight:normal">SSIM:${achievedSSIM.toFixed(3)} | KL:${achievedKL.toFixed(3)}</span>`;
+                title.innerHTML = `Mag: ${targetVal}<br><span style="font-size:10px; font-weight:normal">SSIM:${achievedSSIM.toFixed(5)} | KL:${achievedKL.toFixed(5)}</span>`;
             } else {
                 const targetLabel = mode.toUpperCase();
-                title.innerHTML = `Target ${targetLabel}: ${targetVal}<br><span style="font-size:10px; font-weight:normal">Mag:${chosenMagnitude.toFixed(2)} | Actual:${achievedMetric.toFixed(3)}</span>`;
+                title.innerHTML = `Target ${targetLabel}: ${targetVal}<br><span style="font-size:10px; font-weight:normal">Mag:${chosenMagnitude.toFixed(3)} | Actual:${achievedMetric.toFixed(5)}</span>`;
             }
             card.appendChild(title);
 
