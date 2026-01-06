@@ -168,7 +168,7 @@ class StimuliGallery {
             // Try generating with this mag
             this.perturbation.resetToOriginal();
             this.perturbation.setCoefficients(this.coefficients);
-            this.perturbation.applyGlobalPerturbation(currentMag, 0.5, freqTarget, 'all');
+            this.perturbation.applyGlobalPerturbation(currentMag, 1.0, freqTarget, 'all');
 
             const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
             // Measure metric
@@ -212,7 +212,7 @@ class StimuliGallery {
                 // Direct application
                 this.perturbation.resetToOriginal();
                 this.perturbation.setCoefficients(this.coefficients);
-                this.perturbation.applyGlobalPerturbation(targetVal, 0.5, freq.target, 'all');
+                this.perturbation.applyGlobalPerturbation(targetVal, 1.0, freq.target, 'all');
 
                 const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
                 dataPerturbed = saResult.perturbedTotal;
@@ -228,8 +228,8 @@ class StimuliGallery {
                 let min = 0.0, max = 2.5;
                 let bestDiff = Infinity;
 
-                // Binary search for 8 steps
-                for (let i = 0; i < 10; i++) {
+                // Binary search for better accuracy
+                for (let i = 0; i < 100; i++) {
                     const mid = (min + max) / 2;
 
                     // Generate temp
@@ -242,7 +242,7 @@ class StimuliGallery {
                     // No, let's just use the current random result as the sample point.
 
                     this.perturbation.setCoefficients(this.coefficients);
-                    this.perturbation.applyGlobalPerturbation(mid, 0.5, freq.target, 'all');
+                    this.perturbation.applyGlobalPerturbation(mid, 1.0, freq.target, 'all');
 
                     const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
                     const tempPerturbed = saResult.perturbedTotal;
