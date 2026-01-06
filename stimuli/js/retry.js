@@ -1,5 +1,8 @@
 // Retry Logic Module - Handle re-generation of failed colormaps
 
+// Array to store original failed data for comparison
+let retrySnapshots = [];
+
 /**
  * Get all currently failed colormaps
  * @returns {Array} Array of failed colormap data with indices
@@ -28,6 +31,287 @@ function getFailedColormaps() {
     });
 
     return failed;
+}
+
+/**
+ * Open the Retry Dashboard and populate it with failed items
+ */
+function retryFailed() {
+    const failedItems = getFailedColormaps();
+    const dashboard = document.getElementById('retryDashboard');
+    const container = document.getElementById('retryComparisonContainer');
+    const statusText = document.getElementById('retryStatusText');
+    const startBtn = document.getElementById('startRetryBtn');
+
+    if (failedItems.length === 0) {
+        alert("No failed colormaps to retry!");
+        return;
+    }
+
+    // Reset snapshots
+    retrySnapshots = [];
+    container.innerHTML = '';
+
+    // Disable main scroll
+    document.body.style.overflow = 'hidden';
+
+    // Show dashboard
+    dashboard.style.display = 'block';
+    statusText.innerHTML = `Found ${failedItems.length} failed colormaps. Click "Start Retry" to begin.`;
+    startBtn.disabled = false;
+    startBtn.style.opacity = "1";
+    startBtn.innerHTML = "▶️ Start Retry";
+
+    // Populate comparison rows
+    failedItems.forEach(item => {
+        // Create deep clone of original data for snapshot
+        // Note: d3 objects like colors might need careful cloning if referenced, 
+        // but basics are fine. RGB objects are objects.
+        const originalClone = JSON.parse(JSON.stringify(item.data));
+
+        retrySnapshots.push({
+            index: item.index,
+            original: originalClone,
+            current: item.data // Reference to live data
+        });
+
+        // Create Row UI
+        const row = document.createElement('div');
+        row.className = 'retry-row';
+        row.id = `retry-row-${item.index}`;
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = '1fr 1fr';
+        row.style.gap = '30px';
+        row.style.padding = '20px';
+        row.style.background = 'white';
+        row.style.borderRadius = '8px';
+        row.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+
+        // Left Column (Original)
+        const leftCol = document.createElement('div');
+        leftCol.id = `retry-original-${item.index}`;
+        row.appendChild(leftCol);
+
+        // Right Column (Result)
+        const rightCol = document.createElement('div');
+        rightCol.id = `retry-result-${item.index}`;
+        rightCol.innerHTML = '<div style="height: 100%; display: flex; align-items: center; justify-content: center; color: #999; font-style: italic; background: #fafafa; border-radius: 4px; min-height: 200px;">Waiting to retry...</div>';
+        row.appendChild(rightCol);
+
+        container.appendChild(row);
+
+        // Render Original Card using d3 in the left column
+        // We need to reconstruct the "candidates" structure expected by drawGivenColormap2
+        // candidates object has: colormap, hValues, cValues, lValues
+        // But our stored data is `item.data` which has `colormap` (array of objects) and `metrics`.
+        // We unfortunately lost the original H/C/L arrays in `allColormaps` if we didn't store them.
+        // Wait, `allColormaps` push structure in visualization.js:
+        // { colormap, metrics, hueDiff, ... } - IT DOES NOT STORE hValues, cValues, lValues!
+        // So we need to re-extract them for visualization.
+
+        const originalCandidates = reconstructCandidates(item.data.colormap);
+
+        // Use a temporary wrapper to call drawGivenColormap2, modifying it to append to our specific div
+        // Actually, drawGivenColormap2 appends to #colormapsGrid. We need a helper.
+        drawComparisonCard(originalCandidates, item.data.condition, d3.select(leftCol));
+    });
+}
+
+/**
+ * Helper to reconstruct H/C/L values from a colormap array for plotting
+ */
+function reconstructCandidates(colormap) {
+    const hValues = [];
+    const cValues = [];
+    const lValues = [];
+
+    colormap.forEach(c => {
+        // c is d3.rgb or similar object with r,g,b
+        const rgb = d3.rgb(c.r, c.g, c.b);
+        const hcl = d3.hcl(rgb);
+        hValues.push(hcl.h);
+        cValues.push(hcl.c);
+        lValues.push(hcl.l);
+    });
+
+    return {
+        colormap: colormap,
+        hValues: hValues,
+        cValues: cValues,
+        lValues: lValues
+    };
+}
+
+/**
+ * Render a card specifically for the comparison view
+ */
+function drawComparisonCard(candidates, title, container) {
+    const colormap = candidates.colormap;
+
+    let div = container.append("div")
+        .style("border", "1px solid #ccc")
+        .style("padding", "10px").style("background", "#fafafa")
+        .style("border-radius", "4px")
+        .style("display", "grid")
+        .style("grid-template-columns", "1fr")
+        .style("gap", "10px")
+        .style("width", "100%");
+
+    div.append("div")
+        .style("font-size", "11px")
+        .style("color", "#666")
+        .style("margin-bottom", "5px")
+        .text(title);
+
+    let width = colormap.length, height = 40;
+    const canvasId = "canvas_comp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+    div.append("canvas").attr("id", canvasId)
+        .attr("width", width).attr("height", height)
+        .style("display", "block")
+        .style("margin", "0");
+
+    let canvas = document.getElementById(canvasId);
+    // Warning: d3 append doesn't return DOM element directly in same way if we use variable. 
+    // container.select("#"+canvasId) is safer. But ID is unique.
+    if (canvas) {
+        let context = canvas.getContext('2d');
+        for (var i = 0; i < canvas.width; i++) {
+            let tuple = colormap[i];
+            // Handle different color object structures if necessary
+            const r = tuple.r !== undefined ? tuple.r : tuple.rgb[0];
+            const g = tuple.g !== undefined ? tuple.g : tuple.rgb[1];
+            const b = tuple.b !== undefined ? tuple.b : tuple.rgb[2];
+
+            for (var j = 0; j < canvas.height; j++) {
+                context.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + 1 + ')';
+                context.fillRect(i, j, 1, 1);
+            }
+        }
+    }
+
+    let chartsDiv = div.append("div")
+        .style("display", "flex")
+        .style("gap", "10px")
+        .style("justify-content", "space-between")
+        .style("flex-wrap", "wrap");
+
+    drawGivenCurve2([candidates['hValues']], chartsDiv, "Hue");
+    drawGivenCurve2([candidates['cValues']], chartsDiv, "Chroma");
+    drawGivenCurve2([candidates['lValues']], chartsDiv, "Luminance");
+
+    const metrics = calculateAndDisplayMetrics(colormap, title);
+    if (metrics) {
+        displayMetricsInDiv(div, metrics);
+
+        // Color border logic
+        let isPassing = false;
+        if (SAMPLING_MODE === 'jnd') {
+            const passCond1 = metrics.jnd_consistency >= JND_STEP;
+            const passCond2 = metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+            isPassing = passCond1 && passCond2;
+        } else {
+            isPassing = metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+        }
+
+        div.style("border-color", isPassing ? "#4CAF50" : "#f44336").style("border-width", "3px");
+    }
+}
+
+/**
+ * Close dashboard
+ */
+function closeRetryDashboard() {
+    document.getElementById('retryDashboard').style.display = 'none';
+    document.body.style.overflow = 'auto'; // Re-enable scroll
+
+    // Refresh main view to reflect changes
+    // Since we updated allColormaps in place, we should refresh the main grid.
+    // Easiest is to clear grid and redraw all, but we don't store H/C/L in allColormaps fully.
+    // However, we modified updateColormapDisplay previously to handle in-place updates.
+    // So "Apply" happens automatically because we update `allColormaps` reference.
+    // But we should visually refresh any that might have been skipped or for consistency.
+    // Let's call the generic update for all improved items just in case.
+
+    // Actually, updateColormapDisplay might not have been called for the main view elements during dashboard operation 
+    // unless we explicitly call it. let's call it for all improved items.
+    allColormaps.forEach((cm, index) => {
+        if (cm.improved) {
+            // Reconstruct minimal data structure for updateColormapDisplay
+            // It expects { candidate: { colormap: ..., hValues... } }
+            // But wait, updateColormapDisplay expects the full candidate object with curves.
+            // We need to reconstruct those curves again if we want to update the MAIN view charts.
+            const candidates = reconstructCandidates(cm.colormap);
+            updateColormapDisplay(index, { candidate: candidates }, cm.improvedIteration);
+        }
+    });
+
+    updateStatistics();
+}
+
+/**
+ * Execute logic from dashboard
+ */
+async function executeRetryFromDashboard() {
+    const startBtn = document.getElementById('startRetryBtn');
+    startBtn.disabled = true;
+    startBtn.style.opacity = "0.6";
+    startBtn.innerHTML = "⏳ Retrying...";
+
+    const statusText = document.getElementById('retryStatusText');
+    const failedItems = retrySnapshots; // Use our snapshots list to know indices
+
+    let totalImproved = 0;
+    const maxIterations = RETRY_MAX_ITERATIONS;
+
+    for (const item of failedItems) {
+        statusText.innerHTML = `Processing Item ${item.index + 1}...`;
+
+        // Find the live object in allColormaps
+        const liveItem = {
+            index: item.index,
+            data: allColormaps[item.index]
+        };
+
+        // Retry loop for this item
+        let successResult = null;
+        let successIter = 0;
+
+        for (let iter = 1; iter <= maxIterations; iter++) {
+            const result = retryGeneration(liveItem, iter);
+            if (result) {
+                successResult = result;
+                successIter = iter;
+                break;
+            }
+        }
+
+        if (successResult) {
+            totalImproved++;
+
+            // Update Data Model
+            const newMetrics = calculateAndDisplayMetrics(successResult.candidate.colormap, allColormaps[item.index].condition);
+            allColormaps[item.index].colormap = successResult.candidate.colormap;
+            // IMPORTANT: Calculate all metrics including unified ones is handled by calculateAndDisplayMetrics now
+            allColormaps[item.index].metrics = newMetrics;
+            allColormaps[item.index].improved = true;
+            allColormaps[item.index].improvedIteration = successIter;
+
+            // Render Result in Dashboard (Right Column)
+            const rightCol = d3.select(`#retry-result-${item.index}`);
+            rightCol.html(""); // Clear "Waiting..."
+            drawComparisonCard(successResult.candidate, "Optimized Result (Iter " + successIter + ")", rightCol);
+        } else {
+            // Still failed
+            const rightCol = document.getElementById(`retry-result-${item.index}`);
+            rightCol.innerHTML = '<div style="height: 100%; display: flex; align-items: center; justify-content: center; color: #f44336; background: #ffebee; border: 1px solid #ffcdd2; border-radius: 4px; min-height: 200px;">❌ Failed to improve after ' + maxIterations + ' iterations</div>';
+        }
+
+        // Small delay for UI responsivness
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    statusText.innerHTML = `Retry Complete! Improved ${totalImproved} of ${failedItems.length}. Click "Close" to apply.`;
+    startBtn.innerHTML = "✅ Done";
 }
 
 /**
@@ -113,9 +397,9 @@ function retryGeneration(failedItem, iteration) {
 }
 
 /**
- * Update the visual display of a colormap after retry
+ * Update the visual display of a colormap after retry (Main View Update)
  * @param {number} index - Index in allColormaps
- * @param {Object} newData - New colormap data
+ * @param {Object} newData - New colormap data wrapper
  * @param {number} iteration - Iteration that succeeded
  */
 function updateColormapDisplay(index, newData, iteration) {
@@ -123,28 +407,29 @@ function updateColormapDisplay(index, newData, iteration) {
     if (!element) return;
 
     // 1. Update Metrics
-    // We can get the updated metrics from allColormaps, which was just updated
     const updatedMetrics = allColormaps[index].metrics;
     updateMetricsDisplay(element, updatedMetrics);
 
     const div = d3.select(element);
 
     // 2. Update Canvas
-    // Find the canvas in this div
     const canvas = div.select("canvas").node();
     if (canvas) {
         const context = canvas.getContext('2d');
         const colormap = newData.candidate.colormap;
-        
-        // Clear and redraw
+
         context.clearRect(0, 0, canvas.width, canvas.height);
-        
+
         for (var i = 0; i < canvas.width; i++) {
-            // Safety check for index
             if (i < colormap.length) {
                 let tuple = colormap[i];
+                // Handle different object structures
+                const r = tuple.r !== undefined ? tuple.r : tuple.rgb[0];
+                const g = tuple.g !== undefined ? tuple.g : tuple.rgb[1];
+                const b = tuple.b !== undefined ? tuple.b : tuple.rgb[2];
+
                 for (var j = 0; j < canvas.height; j++) {
-                    context.fillStyle = 'rgba(' + tuple.r + ',' + tuple.g + ',' + tuple.b + ',' + 1 + ')';
+                    context.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + 1 + ')';
                     context.fillRect(i, j, 1, 1);
                 }
             }
@@ -152,30 +437,22 @@ function updateColormapDisplay(index, newData, iteration) {
     }
 
     // 3. Update Charts
-    // The charts are in the div with display:flex, which is the 3rd child (title, canvas, charts-container, metrics)
-    // Or we can select it more robustly. In drawGivenColormap2, it's appended after canvas.
-    // Structure: Title (div), Canvas, Charts (divflex), Metrics (div)
-    
-    // Let's find the charts div. It has style display:flex and gap:10px
     const chartsDiv = div.selectAll("div")
-        .filter(function() {
+        .filter(function () {
             return d3.select(this).style("display") === "flex";
         });
 
     if (!chartsDiv.empty()) {
-        chartsDiv.html(""); // Clear existing charts
-        
-        // Redraw charts
+        chartsDiv.html("");
         drawGivenCurve2([newData.candidate.hValues], chartsDiv, "Hue");
         drawGivenCurve2([newData.candidate.cValues], chartsDiv, "Chroma");
         drawGivenCurve2([newData.candidate.lValues], chartsDiv, "Luminance");
     }
 
-    // 4. Update border to show improved status (green = pass)
-    div.style("border-color", "#4CAF50")
-        .style("border-width", "3px");
-        
-    // 5. Add improved badge if not present
+    // 4. Update border
+    div.style("border-color", "#4CAF50").style("border-width", "3px");
+
+    // 5. Add improved badge
     if (div.select(".improvement-badge").empty()) {
         div.style("position", "relative");
         div.append("div")
@@ -195,169 +472,4 @@ function updateColormapDisplay(index, newData, iteration) {
             .style("box-shadow", "0 2px 4px rgba(0,0,0,0.2)")
             .text("✓");
     }
-}
-
-/**
- * Run the complete retry iteration process
- * @param {number} maxIterations - Maximum number of iterations
- */
-async function runRetryIterations(maxIterations) {
-    if (isRetrying) {
-        console.warn('Retry already in progress');
-        return;
-    }
-
-    isRetrying = true;
-    retryHistory = [];
-
-    const progressDiv = document.getElementById('retryProgress');
-    const resultsDiv = document.getElementById('retryResults');
-
-    if (progressDiv) progressDiv.style.display = 'block';
-    if (resultsDiv) resultsDiv.innerHTML = '';
-
-    let failedItems = getFailedColormaps();
-    const initialFailCount = failedItems.length;
-
-    if (initialFailCount === 0) {
-        if (progressDiv) progressDiv.innerHTML = '<span style="color: #4CAF50;">✅ No failed colormaps to retry!</span>';
-        isRetrying = false;
-        return;
-    }
-
-    console.log(`Starting retry: ${initialFailCount} failed colormaps, max ${maxIterations} iterations`);
-
-    let totalImproved = 0;
-
-    for (let iteration = 1; iteration <= maxIterations; iteration++) {
-        if (progressDiv) {
-            progressDiv.innerHTML = `<span style="color: #2196F3;">🔄 Iteration ${iteration}/${maxIterations}: Processing ${failedItems.length} failed colormaps...</span>`;
-        }
-
-        let improvedThisIteration = 0;
-        const stillFailed = [];
-
-        for (const item of failedItems) {
-            const result = retryGeneration(item, iteration);
-
-            if (result) {
-                // Update the colormap data
-                const newMetrics = calculateAndDisplayMetrics(result.candidate.colormap, allColormaps[item.index].condition);
-
-                allColormaps[item.index].colormap = result.candidate.colormap;
-                allColormaps[item.index].metrics = newMetrics;
-                allColormaps[item.index].improved = true;
-                allColormaps[item.index].improvedIteration = iteration;
-
-                // Update visual display
-                updateColormapDisplay(item.index, result, iteration);
-
-                improvedThisIteration++;
-                totalImproved++;
-            } else {
-                stillFailed.push(item);
-            }
-        }
-
-        retryHistory.push({
-            iteration: iteration,
-            improved: improvedThisIteration,
-            remaining: stillFailed.length
-        });
-
-        console.log(`Iteration ${iteration}: ${improvedThisIteration} improved, ${stillFailed.length} still failed`);
-
-        failedItems = stillFailed;
-
-        if (failedItems.length === 0) {
-            console.log('All colormaps improved!');
-            break;
-        }
-
-        // Small delay to allow UI update
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    // Show final results
-    const finalFailed = failedItems.length;
-
-    if (progressDiv) {
-        progressDiv.innerHTML = `<span style="color: #4CAF50;">✅ Retry complete!</span>`;
-    }
-
-    if (resultsDiv) {
-        let html = '<div style="margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 4px;">';
-        html += `<div style="font-weight: bold; margin-bottom: 8px;">📊 Retry Results</div>`;
-        html += `<div style="color: #666; font-size: 13px;">`;
-        html += `<div>Initial failed: <strong>${initialFailCount}</strong></div>`;
-        html += `<div style="color: #4CAF50;">✅ Improved: <strong>${totalImproved}</strong></div>`;
-        html += `<div style="color: #f44336;">❌ Still failed: <strong>${finalFailed}</strong></div>`;
-        html += `</div>`;
-
-        // Per-iteration breakdown
-        html += `<details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: #666;">Per-iteration breakdown ▼</summary>`;
-        html += `<div style="margin-top: 5px; font-size: 12px;">`;
-        retryHistory.forEach(h => {
-            html += `<div>Iteration ${h.iteration}: +${h.improved} improved, ${h.remaining} remaining</div>`;
-        });
-        html += `</div></details>`;
-
-        html += '</div>';
-        resultsDiv.innerHTML = html;
-    }
-
-    // Update main statistics
-    updateStatistics();
-
-    isRetrying = false;
-}
-
-/**
- * Update retry iteration count from UI
- * @param {number} value - New iteration count
- */
-function updateRetryIterations(value) {
-    RETRY_MAX_ITERATIONS = parseInt(value) || 3;
-    document.getElementById('retryIterationsSlider').value = RETRY_MAX_ITERATIONS;
-    document.getElementById('retryIterationsValue').value = RETRY_MAX_ITERATIONS;
-}
-
-/**
- * Global function to start retry process
- */
-function retryFailed() {
-    runRetryIterations(RETRY_MAX_ITERATIONS);
-}
-
-/**
- * Clear retry results (called when sampling mode changes)
- */
-function clearRetryResults() {
-    retryHistory = [];
-
-    const progressDiv = document.getElementById('retryProgress');
-    const resultsDiv = document.getElementById('retryResults');
-
-    if (progressDiv) {
-        progressDiv.style.display = 'none';
-        progressDiv.innerHTML = '';
-    }
-    if (resultsDiv) {
-        resultsDiv.innerHTML = '';
-    }
-
-    // Remove improvement badges from colormaps
-    allColormaps.forEach((cm, idx) => {
-        cm.improved = false;
-        cm.improvedIteration = undefined;
-
-        if (colormapElements[idx]) {
-            const badge = d3.select(colormapElements[idx]).select('.improvement-badge');
-            if (badge.node()) {
-                badge.remove();
-            }
-        }
-    });
-
-    console.log('Retry results cleared due to mode change');
 }

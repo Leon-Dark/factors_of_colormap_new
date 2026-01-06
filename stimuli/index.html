@@ -212,7 +212,47 @@
         </div>
     </div>
 
-    <!-- Colormaps Grid Container -->
+    <!-- Retry Dashboard Overlay -->
+    <div id="retryDashboard"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f0f0f0; z-index: 1000; overflow-y: auto;">
+
+        <!-- Dashboard Header -->
+        <div
+            style="position: sticky; top: 0; background: white; padding: 15px 30px; border-bottom: 2px solid #ddd; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 1010;">
+            <div>
+                <h2 style="margin: 0; color: #333;">🔄 Retry Dashboard</h2>
+                <div id="retryStatusText" style="color: #666; font-size: 14px; margin-top: 5px;">Ready to retry failed
+                    colormaps...</div>
+            </div>
+
+            <div style="display: flex; gap: 15px;">
+                <button id="startRetryBtn" onclick="executeRetryFromDashboard()"
+                    style="padding: 10px 20px; font-size: 16px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    ▶️ Start Retry
+                </button>
+                <button onclick="closeRetryDashboard()"
+                    style="padding: 10px 20px; font-size: 16px; background: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    ❌ Close
+                </button>
+            </div>
+        </div>
+
+        <!-- Comparison Content -->
+        <div style="padding: 30px; max-width: 1400px; margin: 0 auto;">
+
+            <!-- Headers for Columns -->
+            <div
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 15px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 1px;">
+                <div style="padding-left: 10px; border-left: 4px solid #f44336;">Before: Original Failed</div>
+                <div style="padding-left: 10px; border-left: 4px solid #4CAF50;">After: Optimized Result</div>
+            </div>
+
+            <div id="retryComparisonContainer" style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Rows will be injected here via JS -->
+            </div>
+
+        </div>
+    </div>
     <div id="colormapsGrid"
         style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;">
     </div>
