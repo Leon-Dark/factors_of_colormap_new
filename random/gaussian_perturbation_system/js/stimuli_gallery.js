@@ -226,8 +226,8 @@ class StimuliGallery {
                 // 如果单次搜索未达到精度，换初始化重试
 
                 const tolerance = step / 2;  // 动态阈值
-                const maxRetries = 5;        // 最多重试5次
-                const maxIterPerTry = 50;    // 每次尝试最多50次迭代
+                const maxRetries = 6;        // 最多重试5次
+                const maxIterPerTry = 60;    // 每次尝试最多50次迭代
 
                 let bestOverallDiff = Infinity;
                 let bestOverallMagnitude = 0;
