@@ -124,29 +124,9 @@ function updateColormapDisplay(index, newData, iteration) {
 
     const div = d3.select(element);
 
-    // Update border to show improved status
+    // Update border to show improved status (green = pass)
     div.style("border-color", "#4CAF50")
         .style("border-width", "3px");
-
-    // Update badge
-    div.select("div:first-child")
-        .style("background", "#4CAF50")
-        .text(`✅ Improved (iter ${iteration})`);
-
-    // Add improvement indicator
-    if (!div.select(".improvement-badge").node()) {
-        div.append("div")
-            .attr("class", "improvement-badge")
-            .style("position", "absolute")
-            .style("bottom", "5px")
-            .style("right", "5px")
-            .style("padding", "2px 6px")
-            .style("border-radius", "3px")
-            .style("font-size", "10px")
-            .style("background", "#E8F5E9")
-            .style("color", "#2E7D32")
-            .text(`🔄 Retry #${iteration}`);
-    }
 }
 
 /**

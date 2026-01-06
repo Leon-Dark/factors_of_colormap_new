@@ -15,9 +15,9 @@ function drawGivenCurve2(data, div, name, x = 0, y = 1) {
 
     let m_xScale = d3.scaleLinear().range([0, svg_width - margin * 2]);
     let m_yScale = d3.scaleLinear().range([svg_height - margin * 2, 0]);
-    
+
     m_xScale.domain([0, data[0].length - 1]);
-    
+
     const yMin = d3.min(data, line => d3.min(line));
     const yMax = d3.max(data, line => d3.max(line));
     const yRange = yMax - yMin;
@@ -108,12 +108,12 @@ function drawGivenColormap2(candidates, condition_name) {
     const metrics = calculateAndDisplayMetrics(colormap, condition_name);
     if (metrics) {
         displayMetricsInDiv(div, metrics);
-        
+
         const divNode = div.node();
-        
+
         const hueDiffMatch = condition_name.match(/H diff=(\d+)/);
         const hueDiff = hueDiffMatch ? parseInt(hueDiffMatch[1]) : 0;
-        
+
         const chromaMatch = condition_name.match(/C=\[([^\]]+)\]/);
         let chromaLabel = 'Unknown';
         if (chromaMatch) {
@@ -128,7 +128,7 @@ function drawGivenColormap2(candidates, condition_name) {
                 chromaLabel = 'Thermal';
             }
         }
-        
+
         const lumiMatch = condition_name.match(/L=\[([^\]]+)\]/);
         let lumiLabel = 'Unknown';
         if (lumiMatch) {
@@ -143,7 +143,7 @@ function drawGivenColormap2(candidates, condition_name) {
                 lumiLabel = 'Thermal';
             }
         }
-        
+
         allColormaps.push({
             colormap: colormap,
             metrics: metrics,
@@ -153,60 +153,29 @@ function drawGivenColormap2(candidates, condition_name) {
             condition: condition_name
         });
         colormapElements.push(divNode);
-        
-        let borderColor, badgeColor, badgeText;
-        
+
+        let borderColor;
+
         if (SAMPLING_MODE === 'jnd') {
             const passCond1 = metrics.jnd_consistency >= JND_STEP;
             const passCond2 = metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
-            
+
             if (passCond1 && passCond2) {
                 borderColor = '#4CAF50';
-                badgeColor = '#4CAF50';
-                badgeText = '✅ Pass';
             } else if (!passCond1 && passCond2) {
                 borderColor = '#FF9800';
-                badgeColor = '#FF9800';
-                badgeText = '⚠️ Fail C1';
             } else if (passCond1 && !passCond2) {
                 borderColor = '#9C27B0';
-                badgeColor = '#9C27B0';
-                badgeText = '⚠️ Fail C2';
             } else {
                 borderColor = '#f44336';
-                badgeColor = '#f44336';
-                badgeText = '❌ Fail Both';
             }
         } else {
             const isPassing = metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
-            
-            if (isPassing) {
-                borderColor = '#4CAF50';
-                badgeColor = '#4CAF50';
-                badgeText = '✅ Pass';
-            } else {
-                borderColor = '#f44336';
-                badgeColor = '#f44336';
-                badgeText = '❌ Fail';
-            }
+            borderColor = isPassing ? '#4CAF50' : '#f44336';
         }
-        
+
         div.style("border-color", borderColor)
-           .style("border-width", "3px");
-        
-        div.insert("div", ":first-child")
-            .style("position", "absolute")
-            .style("top", "5px")
-            .style("right", "5px")
-            .style("padding", "4px 8px")
-            .style("border-radius", "3px")
-            .style("font-size", "11px")
-            .style("font-weight", "bold")
-            .style("background", badgeColor)
-            .style("color", "white")
-            .text(badgeText);
-        
-        div.style("position", "relative");
+            .style("border-width", "3px");
     }
 }
 
@@ -214,10 +183,10 @@ function drawGivenColormap2(candidates, condition_name) {
 function updateMetricsDisplay(divElement, metrics) {
     // Select the metrics div (should be the last div in the card)
     const metricsDiv = d3.select(divElement).select('div:last-child');
-    
+
     // Clear existing table
     metricsDiv.select('table').remove();
-    
+
     // Create new table
     const table = metricsDiv.append("table")
         .style("width", "100%")
@@ -258,7 +227,7 @@ function updateMetricsDisplay(divElement, metrics) {
             .style("color", "#555")
             .style("width", "30%")
             .html(`<span style="color: ${metric1.color}; font-size: 12px;">●</span> ${metric1.name}`);
-        
+
         row.append("td")
             .style("padding", "4px 6px")
             .style("text-align", "right")
@@ -276,7 +245,7 @@ function updateMetricsDisplay(divElement, metrics) {
                 .style("width", "30%")
                 .style("padding-left", "10px")
                 .html(`<span style="color: ${metric2.color}; font-size: 12px;">●</span> ${metric2.name}`);
-            
+
             row.append("td")
                 .style("padding", "4px 6px")
                 .style("text-align", "right")
@@ -346,7 +315,7 @@ function displayMetricsInDiv(div, metrics) {
             .style("color", "#555")
             .style("width", "30%")
             .html(`<span style="color: ${metric1.color}; font-size: 12px;">●</span> ${metric1.name}`);
-        
+
         row.append("td")
             .style("padding", "4px 6px")
             .style("text-align", "right")
@@ -364,7 +333,7 @@ function displayMetricsInDiv(div, metrics) {
                 .style("width", "30%")
                 .style("padding-left", "10px")
                 .html(`<span style="color: ${metric2.color}; font-size: 12px;">●</span> ${metric2.name}`);
-            
+
             row.append("td")
                 .style("padding", "4px 6px")
                 .style("text-align", "right")
