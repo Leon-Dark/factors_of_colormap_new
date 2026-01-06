@@ -382,7 +382,7 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
     // Pre-compute distance matrix
     const distMatrix = new Array(samples.length);
     let minDist = Infinity, maxDist = -Infinity, sumDist = 0, distCount = 0;
-    
+
     for (let i = 0; i < samples.length; i++) {
         distMatrix[i] = new Array(samples.length);
         for (let j = 0; j < samples.length; j++) {
@@ -402,13 +402,13 @@ function calculate_color_categorization_tendency(colormap, sampleCount = 100, di
             }
         }
     }
-    
+
     const avgDist = distCount > 0 ? sumDist / distCount : 0;
     console.log(`Distance stats: min=${minDist.toFixed(3)}, max=${maxDist.toFixed(3)}, avg=${avgDist.toFixed(3)}, threshold=${dissimilarityThreshold}`);
 
     const clusters = agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold);
     const K = clusters.length;
-    
+
     console.log(`Clustering result: K=${K} clusters from ${samples.length} samples`);
 
     if (K < 2) {
@@ -465,20 +465,20 @@ function agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThre
     }));
 
     let merged = true;
-    
+
     while (merged && clusters.length > 1) {
         merged = false;
-        
+
         let minDissimilarity = Infinity;
         let mergeIndex = -1;
-        
+
         for (let i = 0; i < clusters.length - 1; i++) {
             const c1 = clusters[i];
             const c2 = clusters[i + 1];
-            
+
             let totalDissim = 0;
             let pairCount = 0;
-            
+
             for (let idx1 of c1.indices) {
                 for (let idx2 of c2.indices) {
                     const dissim = distMatrix[idx1][idx2];
@@ -488,29 +488,29 @@ function agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThre
                     }
                 }
             }
-            
+
             const avgDissim = pairCount > 0 ? totalDissim / pairCount : Infinity;
-            
+
             if (avgDissim < minDissimilarity) {
                 minDissimilarity = avgDissim;
                 mergeIndex = i;
             }
         }
-        
+
         if (mergeIndex >= 0 && minDissimilarity < dissimilarityThreshold) {
             const c1 = clusters[mergeIndex];
             const c2 = clusters[mergeIndex + 1];
-            
+
             const mergedCluster = {
                 id: c1.id,
                 indices: [...c1.indices, ...c2.indices]
             };
-            
+
             clusters.splice(mergeIndex, 2, mergedCluster);
             merged = true;
         }
     }
-    
+
     return clusters;
 }
 
@@ -578,27 +578,29 @@ function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
             const hcl = d3.hcl(lab);
             return [hcl.h, hcl.c, hcl.l];
         });
-        
+
         // Calculate metrics based on current sampling mode
-        if (SAMPLING_MODE === 'jnd') {
-            // JND Mode: Generate JND samples once and reuse for both conditions
-            const jndSamples = generateJndSamples(hclPalette, JND_STEP);
-            console.log(`Generated ${jndSamples.length} JND samples with step=${JND_STEP}`);
-            
-            // Save sample count for display
-            metrics.jnd_sample_count = jndSamples.length;
-            
-            // Calculate both conditions using shared JND samples
-            metrics.jnd_consistency = calcJndConsistency(jndSamples, JND_STEP) || 0;
-            console.log('JND Consistency:', metrics.jnd_consistency.toFixed(3));
-            
-            metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, SAMPLE_INTERVAL_K, JND_STEP) || 0;
-            console.log(`Sample Interval Min Diff (k=${SAMPLE_INTERVAL_K}):`, metrics.sample_interval_min_diff.toFixed(3));
-        } else {
-            // Uniform Mode: Calculate single condition
-            metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT) || 0;
-            console.log(`Uniform Min Diff (n=${UNIFORM_SAMPLE_COUNT}):`, metrics.uniform_min_diff.toFixed(3));
-        }
+        // MODIFICATION: Calculate BOTH metrics regardless of mode
+
+        // 1. JND Mode Metrics
+        // JND Mode: Generate JND samples once and reuse for both conditions
+        const jndSamples = generateJndSamples(hclPalette, JND_STEP);
+        console.log(`Generated ${jndSamples.length} JND samples with step=${JND_STEP}`);
+
+        // Save sample count for display
+        metrics.jnd_sample_count = jndSamples.length;
+
+        // Calculate both conditions using shared JND samples
+        metrics.jnd_consistency = calcJndConsistency(jndSamples, JND_STEP) || 0;
+        console.log('JND Consistency:', metrics.jnd_consistency.toFixed(3));
+
+        metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, SAMPLE_INTERVAL_K, JND_STEP) || 0;
+        console.log(`Sample Interval Min Diff (k=${SAMPLE_INTERVAL_K}):`, metrics.sample_interval_min_diff.toFixed(3));
+
+        // 2. Uniform Mode Metrics
+        // Uniform Mode: Calculate single condition
+        metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT) || 0;
+        console.log(`Uniform Min Diff (n=${UNIFORM_SAMPLE_COUNT}):`, metrics.uniform_min_diff.toFixed(3));
 
         console.log('==========================================\n');
 

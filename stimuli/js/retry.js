@@ -122,11 +122,79 @@ function updateColormapDisplay(index, newData, iteration) {
     const element = colormapElements[index];
     if (!element) return;
 
+    // 1. Update Metrics
+    // We can get the updated metrics from allColormaps, which was just updated
+    const updatedMetrics = allColormaps[index].metrics;
+    updateMetricsDisplay(element, updatedMetrics);
+
     const div = d3.select(element);
 
-    // Update border to show improved status (green = pass)
+    // 2. Update Canvas
+    // Find the canvas in this div
+    const canvas = div.select("canvas").node();
+    if (canvas) {
+        const context = canvas.getContext('2d');
+        const colormap = newData.candidate.colormap;
+        
+        // Clear and redraw
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
+        for (var i = 0; i < canvas.width; i++) {
+            // Safety check for index
+            if (i < colormap.length) {
+                let tuple = colormap[i];
+                for (var j = 0; j < canvas.height; j++) {
+                    context.fillStyle = 'rgba(' + tuple.r + ',' + tuple.g + ',' + tuple.b + ',' + 1 + ')';
+                    context.fillRect(i, j, 1, 1);
+                }
+            }
+        }
+    }
+
+    // 3. Update Charts
+    // The charts are in the div with display:flex, which is the 3rd child (title, canvas, charts-container, metrics)
+    // Or we can select it more robustly. In drawGivenColormap2, it's appended after canvas.
+    // Structure: Title (div), Canvas, Charts (divflex), Metrics (div)
+    
+    // Let's find the charts div. It has style display:flex and gap:10px
+    const chartsDiv = div.selectAll("div")
+        .filter(function() {
+            return d3.select(this).style("display") === "flex";
+        });
+
+    if (!chartsDiv.empty()) {
+        chartsDiv.html(""); // Clear existing charts
+        
+        // Redraw charts
+        drawGivenCurve2([newData.candidate.hValues], chartsDiv, "Hue");
+        drawGivenCurve2([newData.candidate.cValues], chartsDiv, "Chroma");
+        drawGivenCurve2([newData.candidate.lValues], chartsDiv, "Luminance");
+    }
+
+    // 4. Update border to show improved status (green = pass)
     div.style("border-color", "#4CAF50")
         .style("border-width", "3px");
+        
+    // 5. Add improved badge if not present
+    if (div.select(".improvement-badge").empty()) {
+        div.style("position", "relative");
+        div.append("div")
+            .attr("class", "improvement-badge")
+            .style("position", "absolute")
+            .style("top", "-8px")
+            .style("right", "-8px")
+            .style("background", "#4CAF50")
+            .style("color", "white")
+            .style("border-radius", "50%")
+            .style("width", "20px")
+            .style("height", "20px")
+            .style("display", "flex")
+            .style("align-items", "center")
+            .style("justify-content", "center")
+            .style("font-size", "12px")
+            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.2)")
+            .text("✓");
+    }
 }
 
 /**
