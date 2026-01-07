@@ -277,50 +277,7 @@ class GaussianGenerator {
         this.gaussians = [];
     }
 
-    /**
-     * 计算单个高斯的梯度能量（RMS梯度）
-     * @param {biGauss} gauss - 高斯对象
-     * @param {number} width - 场宽度
-     * @param {number} height - 场高度
-     * @returns {number} 梯度能量 g_B
-     */
-    /*
-    calculateGradientEnergy(gauss, width, height) {
-        const bbox = gauss.getBoundingBox(3);
-        const startX = Math.max(0, Math.floor(bbox.minX));
-        const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
-        const startY = Math.max(0, Math.floor(bbox.minY));
-        const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
-    
-        let sumGradientSquared = 0;
-        let count = 0;
-    
-        for (let y = startY; y <= endY; y++) {
-            for (let x = startX; x <= endX; x++) {
-                // 计算 x 方向梯度
-                const gradX = (x < width - 1)
-                    ? gauss.eval(x + 1, y) - gauss.eval(x, y)
-                    : 0;
-    
-                // 计算 y 方向梯度
-                const gradY = (y < height - 1)
-                    ? gauss.eval(x, y + 1) - gauss.eval(x, y)
-                    : 0;
-    
-                // 累积梯度平方
-                sumGradientSquared += gradX * gradX + gradY * gradY;
-                count++;
-            }
-        }
-    
-        // 计算 RMS 梯度
-        const rmsGradient = count > 0
-            ? Math.sqrt(sumGradientSquared / count)
-            : 0;
-    
-        return rmsGradient;
-    }
-    */
+
 
     /**
      * 渲染到2D场
@@ -339,30 +296,7 @@ class GaussianGenerator {
             }
         }
 
-        // 如果使用梯度能量归一化
-        /*
-        if (useGradientNormalization) {
-            // 对每个高斯单独进行梯度能量归一化后再叠加
-            for (const gauss of this.gaussians) {
-                // 计算该高斯的梯度能量
-                const gradientEnergy = this.calculateGradientEnergy(gauss, width, height);
-                const normalizationFactor = gradientEnergy + epsilon;
-    
-                const bbox = gauss.getBoundingBox(3);
-                const startX = Math.max(0, Math.floor(bbox.minX));
-                const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
-                const startY = Math.max(0, Math.floor(bbox.minY));
-                const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
-    
-                // 叠加归一化后的高斯
-                for (let y = startY; y <= endY; y++) {
-                    for (let x = startX; x <= endX; x++) {
-                        field[y][x] += gauss.eval(x, y) / Math.pow(normalizationFactor, 0.3);
-                    }
-                }
-            }
-        } else {
-        */
+
         // 原始方法：直接叠加所有高斯
         for (const gauss of this.gaussians) {
             const bbox = gauss.getBoundingBox(3);

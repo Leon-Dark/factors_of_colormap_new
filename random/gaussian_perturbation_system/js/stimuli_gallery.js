@@ -363,28 +363,26 @@ class StimuliGallery {
         const ctx = canvas.getContext('2d');
         const imgData = ctx.createImageData(this.config.width, this.config.height);
 
-        // 简单的灰度映射 + Viridis (为了好看一点，我们这里直接用灰度或者简单的热力图)
-        // 为了保持一致性，我们复用 colormaps_presets.js 里的逻辑会比较好，
-        // 但这里为了简化，我们暂时用灰度，或者如果 colormaps_presets.js 可用我们可以用它。
-        // 由于没有直接引入 main.js，我们这里手写一个简单的渲染
-
-        let min = Infinity, max = -Infinity;
+        // 使用与 visualization.js 一致的归一化方式：只用 max 归一化
+        let max = 0;
         for (let i = 0; i < data.length; i++) {
-            if (data[i] < min) min = data[i];
-            if (data[i] > max) max = data[i];
+            max = Math.max(max, data[i]);
         }
 
-        const range = max - min || 1;
+        if (max === 0) max = 1; // 防止除零
+
+        // 使用 valueToColor 函数应用 colormap（与 index.html 一致）
+        const colormap = 'greyscale'; // 可改为 'viridis', 'plasma' 等
 
         for (let i = 0; i < data.length; i++) {
-            const val = (data[i] - min) / range;
+            const normalizedVal = data[i] / max;
+            const color = valueToColor(normalizedVal, colormap);
+
             const pixelIndex = i * 4;
-            // 灰度
-            const color = Math.floor(val * 255);
-            imgData.data[pixelIndex] = color;
-            imgData.data[pixelIndex + 1] = color;
-            imgData.data[pixelIndex + 2] = color;
-            imgData.data[pixelIndex + 3] = 255;
+            imgData.data[pixelIndex] = color[0];     // R
+            imgData.data[pixelIndex + 1] = color[1]; // G
+            imgData.data[pixelIndex + 2] = color[2]; // B
+            imgData.data[pixelIndex + 3] = 255;      // A
         }
 
         ctx.putImageData(imgData, 0, 0);
