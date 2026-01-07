@@ -172,8 +172,23 @@ class GaussianGenerator {
             // 生成相关系数
             const rho = (Math.random() * 2 - 1) * 0.6;
 
-            // 生成幅值
-            const scaler = 0.5 + Math.random() * 0.5;
+            // 使用体积归一化生成幅值 (Scaler)
+            // 体积近似正比于 scaler * sigma^2
+            // 我们希望体积大致恒定（例如 500），这样高频会很亮，低频会很暗
+            const targetVolume = 500;
+            // 给体积添加一些随机性 (±20%)
+            const volumeVariation = 0.8 + Math.random() * 0.4;
+            const actualTargetVolume = targetVolume * volumeVariation;
+
+            // 计算所需的 scaler: Scaler = Volume / (sX * sY)
+            // 安全措施：限制 scaler 范围，防止极小 sigma 导致数值爆炸或极大 sigma 导致不可见
+            let scaler = actualTargetVolume / (sX * sY);
+
+            // 可选：限制最大幅值，防止极小 sigma 产生过亮的光斑
+            scaler = Math.min(scaler, 3.0);
+
+            // 可选：限制最小幅值，确保至少有一定的可见度
+            scaler = Math.max(scaler, 0.1);
 
             // 创建高斯
             const gauss = new biGauss(p.x, p.y, sX, sY, rho, scaler);
