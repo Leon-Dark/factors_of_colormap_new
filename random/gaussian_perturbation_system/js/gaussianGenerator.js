@@ -24,6 +24,20 @@ class GaussianGenerator {
         };
 
         this.exponent = 1.0;
+        this.bandWeights = {
+            'small': 1.0,
+            'medium': 1.0,
+            'large': 1.0
+        };
+    }
+
+    /**
+     * Set band weight
+     */
+    setBandWeight(level, weight) {
+        if (this.bandWeights.hasOwnProperty(level)) {
+            this.bandWeights[level] = weight;
+        }
     }
 
     /**
@@ -277,33 +291,33 @@ class GaussianGenerator {
         const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
         const startY = Math.max(0, Math.floor(bbox.minY));
         const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
-
+    
         let sumGradientSquared = 0;
         let count = 0;
-
+    
         for (let y = startY; y <= endY; y++) {
             for (let x = startX; x <= endX; x++) {
                 // 计算 x 方向梯度
                 const gradX = (x < width - 1)
                     ? gauss.eval(x + 1, y) - gauss.eval(x, y)
                     : 0;
-
+    
                 // 计算 y 方向梯度
                 const gradY = (y < height - 1)
                     ? gauss.eval(x, y + 1) - gauss.eval(x, y)
                     : 0;
-
+    
                 // 累积梯度平方
                 sumGradientSquared += gradX * gradX + gradY * gradY;
                 count++;
             }
         }
-
+    
         // 计算 RMS 梯度
         const rmsGradient = count > 0
             ? Math.sqrt(sumGradientSquared / count)
             : 0;
-
+    
         return rmsGradient;
     }
     */
@@ -333,13 +347,13 @@ class GaussianGenerator {
                 // 计算该高斯的梯度能量
                 const gradientEnergy = this.calculateGradientEnergy(gauss, width, height);
                 const normalizationFactor = gradientEnergy + epsilon;
-
+    
                 const bbox = gauss.getBoundingBox(3);
                 const startX = Math.max(0, Math.floor(bbox.minX));
                 const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
                 const startY = Math.max(0, Math.floor(bbox.minY));
                 const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
-
+    
                 // 叠加归一化后的高斯
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
@@ -387,7 +401,7 @@ class GaussianGenerator {
             for (const gauss of this.gaussians) {
                 let gradientEnergy, normalizationFactor;
                 let targetGauss = gauss;
-
+    
                 if (useOriginal) {
                     // 临时创建原始状态的高斯用于计算
                     targetGauss = new biGauss(
@@ -397,15 +411,15 @@ class GaussianGenerator {
                     );
                     gradientEnergy = this.calculateGradientEnergy(targetGauss, width, height);
                     normalizationFactor = gradientEnergy + epsilon;
-
+    
                     const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);
                     const range = maxSigma * 3;
-
+    
                     const startX = Math.max(0, Math.floor(gauss.originalMX - range));
                     const endX = Math.min(width - 1, Math.ceil(gauss.originalMX + range));
                     const startY = Math.max(0, Math.floor(gauss.originalMY - range));
                     const endY = Math.min(height - 1, Math.ceil(gauss.originalMY + range));
-
+    
                     for (let y = startY; y <= endY; y++) {
                         for (let x = startX; x <= endX; x++) {
                             const index = y * width + x;
@@ -416,15 +430,15 @@ class GaussianGenerator {
                     // 使用当前参数渲染
                     gradientEnergy = this.calculateGradientEnergy(gauss, width, height);
                     normalizationFactor = gradientEnergy + epsilon;
-
+    
                     const maxSigma = Math.max(gauss.sX, gauss.sY);
                     const range = maxSigma * 3;
-
+    
                     const startX = Math.max(0, Math.floor(gauss.mX - range));
                     const endX = Math.min(width - 1, Math.ceil(gauss.mX + range));
                     const startY = Math.max(0, Math.floor(gauss.mY - range));
                     const endY = Math.min(height - 1, Math.ceil(gauss.mY + range));
-
+    
                     for (let y = startY; y <= endY; y++) {
                         for (let x = startX; x <= endX; x++) {
                             const index = y * width + x;
@@ -453,11 +467,19 @@ class GaussianGenerator {
                     gauss.originalSX, gauss.originalSY,
                     gauss.originalRho, gauss.originalScaler
                 );
+                // CRITICAL: Must copy sizeLevel so weights can be applied
+                tempGauss.sizeLevel = gauss.sizeLevel;
 
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
                         const index = y * width + x;
                         let val = tempGauss.eval(x, y);
+
+                        // Apply band weight
+                        if (tempGauss.sizeLevel && this.bandWeights[tempGauss.sizeLevel] !== undefined) {
+                            val *= this.bandWeights[tempGauss.sizeLevel];
+                        }
+
                         // Apply exponent if not 1.0
                         if (this.exponent !== 1.0) {
                             val = Math.pow(val, this.exponent);
@@ -479,6 +501,12 @@ class GaussianGenerator {
                     for (let x = startX; x <= endX; x++) {
                         const index = y * width + x;
                         let val = gauss.eval(x, y);
+
+                        // Apply band weight
+                        if (gauss.sizeLevel && this.bandWeights[gauss.sizeLevel] !== undefined) {
+                            val *= this.bandWeights[gauss.sizeLevel];
+                        }
+
                         // Apply exponent if not 1.0 (optimize for common case)
                         if (this.exponent !== 1.0) {
                             val = Math.pow(val, this.exponent);

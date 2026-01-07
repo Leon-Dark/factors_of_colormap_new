@@ -118,6 +118,13 @@ class GaussianPerturbationApp {
                 amplitudeValue: document.getElementById('coeff-amplitude-value')
             }
         };
+        // Weight controls
+        this.ui.weights = {
+            high: { slider: document.getElementById('weight-high'), value: document.getElementById('weight-high-value') },
+            mid: { slider: document.getElementById('weight-mid'), value: document.getElementById('weight-mid-value') },
+            low: { slider: document.getElementById('weight-low'), value: document.getElementById('weight-low-value') }
+        };
+
         // Exponent control
         this.ui.exponent = {
             slider: document.getElementById('exponent-slider'),
@@ -279,6 +286,34 @@ class GaussianPerturbationApp {
         });
 
 
+
+        // Weight sliders
+        for (const [level, elements] of Object.entries(this.ui.weights)) {
+            // Map UI level names to generator level key names if needed
+            // UI: high, mid, low -> Generator: small, medium, large
+            const genLevel = level === 'high' ? 'small' : level === 'mid' ? 'medium' : 'large';
+
+            const updateWeight = (val) => {
+                const weight = parseFloat(val);
+                if (!isNaN(weight)) {
+                    this.generator.setBandWeight(genLevel, weight);
+                    if (this.state.hasGenerated) {
+                        this.visualization.updateAllViews();
+                    }
+                }
+            };
+
+            elements.slider.addEventListener('input', (e) => {
+                elements.value.value = e.target.value;
+                updateWeight(e.target.value);
+            });
+
+            elements.value.addEventListener('input', (e) => {
+                elements.slider.value = e.target.value;
+                updateWeight(e.target.value);
+            });
+        }
+
         // 按钮事件
         this.ui.buttons.generate.addEventListener('click', () => this.handleGenerate());
         this.ui.buttons.applyPerturb.addEventListener('click', () => this.handleApplyPerturbation());
@@ -424,6 +459,11 @@ class GaussianPerturbationApp {
         // Set exponent
         const exponent = parseFloat(this.ui.exponent.value.value);
         this.generator.setExponent(exponent);
+
+        // Set initial weights
+        this.generator.setBandWeight('small', parseFloat(this.ui.weights.high.value.value));
+        this.generator.setBandWeight('medium', parseFloat(this.ui.weights.mid.value.value));
+        this.generator.setBandWeight('large', parseFloat(this.ui.weights.low.value.value));
 
         // 生成高斯（随机模式）
         setTimeout(() => {

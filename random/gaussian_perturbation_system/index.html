@@ -99,6 +99,28 @@
                             混合参数 / Mixing Parameters
                         </div>
                         <div
+                            style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
+                            <label style="font-size: 12px; color: #377eb8;">High W:</label>
+                            <input type="range" id="weight-high" min="0" max="2.0" value="1.0" step="0.1">
+                            <input type="number" id="weight-high-value" min="0" max="2.0" value="1.0" step="0.1"
+                                style="width: 50px; padding: 3px;">
+                        </div>
+                        <div
+                            style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 5px;">
+                            <label style="font-size: 12px; color: #4daf4a;">Mid W:</label>
+                            <input type="range" id="weight-mid" min="0" max="2.0" value="1.0" step="0.1">
+                            <input type="number" id="weight-mid-value" min="0" max="2.0" value="1.0" step="0.1"
+                                style="width: 50px; padding: 3px;">
+                        </div>
+                        <div
+                            style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 8px;">
+                            <label style="font-size: 12px; color: #ff7f00;">Low W:</label>
+                            <input type="range" id="weight-low" min="0" max="2.0" value="1.0" step="0.1">
+                            <input type="number" id="weight-low-value" min="0" max="2.0" value="1.0" step="0.1"
+                                style="width: 50px; padding: 3px;">
+                        </div>
+
+                        <div
                             style="display: grid; grid-template-columns: 80px 1fr 55px; gap: 8px; align-items: center;">
                             <label style="font-size: 13px;"
                                 title="Power exponent for each component before summation">指数 (Exp):</label>
