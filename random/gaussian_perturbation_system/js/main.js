@@ -118,6 +118,11 @@ class GaussianPerturbationApp {
                 amplitudeValue: document.getElementById('coeff-amplitude-value')
             }
         };
+        // Exponent control
+        this.ui.exponent = {
+            slider: document.getElementById('exponent-slider'),
+            value: document.getElementById('exponent-value')
+        };
 
 
         // 按钮
@@ -242,6 +247,34 @@ class GaussianPerturbationApp {
                 this.ui.perturb.localParams.style.display = 'block';
             } else {
                 this.ui.perturb.localParams.style.display = 'none';
+            }
+        });
+
+        // Exponent slider
+        this.ui.exponent.slider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            this.ui.exponent.value.value = val;
+
+            // Update generator and re-render immediately
+            const exponent = parseFloat(val);
+            if (!isNaN(exponent)) {
+                this.generator.setExponent(exponent);
+                if (this.state.hasGenerated) {
+                    this.visualization.updateAllViews();
+                }
+            }
+        });
+
+        this.ui.exponent.value.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (!isNaN(value)) {
+                this.ui.exponent.slider.value = value;
+
+                // Update generator and re-render immediately
+                this.generator.setExponent(value);
+                if (this.state.hasGenerated) {
+                    this.visualization.updateAllViews();
+                }
             }
         });
 
@@ -387,6 +420,10 @@ class GaussianPerturbationApp {
             this.generator.sizeLevels[level].count = count;
             this.generator.sizeLevels[level].sigma = sigma;
         }
+
+        // Set exponent
+        const exponent = parseFloat(this.ui.exponent.value.value);
+        this.generator.setExponent(exponent);
 
         // 生成高斯（随机模式）
         setTimeout(() => {

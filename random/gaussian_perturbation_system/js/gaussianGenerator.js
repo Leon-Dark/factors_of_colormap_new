@@ -22,6 +22,15 @@ class GaussianGenerator {
             'medium': { sigma: 25, count: 4, color: '#4daf4a' },    // 中频 σ=16px
             'large': { sigma: 50, count: 4, color: '#ff7f00' }      // 低频 σ=40px
         };
+
+        this.exponent = 1.0;
+    }
+
+    /**
+     * Set exponent
+     */
+    setExponent(exp) {
+        this.exponent = exp;
     }
 
     /**
@@ -433,7 +442,12 @@ class GaussianGenerator {
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
                         const index = y * width + x;
-                        data[index] += tempGauss.eval(x, y);
+                        let val = tempGauss.eval(x, y);
+                        // Apply exponent if not 1.0
+                        if (this.exponent !== 1.0) {
+                            val = Math.pow(val, this.exponent);
+                        }
+                        data[index] += val;
                     }
                 }
             } else {
@@ -449,7 +463,12 @@ class GaussianGenerator {
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
                         const index = y * width + x;
-                        data[index] += gauss.eval(x, y);
+                        let val = gauss.eval(x, y);
+                        // Apply exponent if not 1.0 (optimize for common case)
+                        if (this.exponent !== 1.0) {
+                            val = Math.pow(val, this.exponent);
+                        }
+                        data[index] += val;
                     }
                 }
             }
