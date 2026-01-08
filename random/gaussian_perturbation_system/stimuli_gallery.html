@@ -196,6 +196,49 @@
                         (e.g. 0.01, 0.03, ... 0.10)</p>
                 </div>
             </div>
+
+            <!-- New: Mixing Parameters -->
+            <div class="control-group"
+                style="background: #fff; padding: 15px; border: 1px solid #ddd; margin: 15px auto; border-radius: 4px; max-width: 600px; text-align: left;">
+                <label
+                    style="display: block; font-weight: bold; margin-bottom: 15px; font-size: 14px; text-align: center;">
+                    Mixing Parameters
+                </label>
+
+                <div style="display: flex; gap: 20px; justify-content: space-around; flex-wrap: wrap;">
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
+                        <label style="font-size: 12px; margin-bottom: 5px; color: #377eb8;">High W</label>
+                        <input type="range" id="weight-high" min="1" max="3.0" value="1.0" step="0.1"
+                            style="width: 100%;">
+                        <input type="number" id="weight-high-value" min="1" max="3.0" value="1.0" step="0.1"
+                            style="width: 60px; text-align: center; margin-top: 5px;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
+                        <label style="font-size: 12px; margin-bottom: 5px; color: #4daf4a;">Mid W</label>
+                        <input type="range" id="weight-mid" min="1" max="5.0" value="1.0" step="0.1"
+                            style="width: 100%;">
+                        <input type="number" id="weight-mid-value" min="1" max="5.0" value="1.0" step="0.1"
+                            style="width: 60px; text-align: center; margin-top: 5px;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
+                        <label style="font-size: 12px; margin-bottom: 5px; color: #ff7f00;">Low W</label>
+                        <input type="range" id="weight-low" min="1" max="10.0" value="1.0" step="0.1"
+                            style="width: 100%;">
+                        <input type="number" id="weight-low-value" min="1" max="10.0" value="1.0" step="0.1"
+                            style="width: 60px; text-align: center; margin-top: 5px;">
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
+                        <label style="font-size: 12px; margin-bottom: 5px;">Exponent</label>
+                        <input type="range" id="exponent-slider" min="0.1" max="5.0" value="1.0" step="0.1"
+                            style="width: 100%;">
+                        <input type="number" id="exponent-slider-value" min="0.1" max="5.0" value="1.0" step="0.1"
+                            style="width: 60px; text-align: center; margin-top: 5px;">
+                    </div>
+                </div>
+            </div>
             <!-- New: Perturbation Coefficients -->
             <div class="control-group"
                 style="background: #fff; padding: 15px; border: 1px solid #ddd; margin: 15px auto; border-radius: 4px; max-width: 600px; text-align: left;">

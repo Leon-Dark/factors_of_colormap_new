@@ -124,9 +124,12 @@ class PerturbationSystem {
             }
 
             if (perturbTypes.includes('rotation')) {
-                const rhoChange = magnitude * this.coefficients.rotation;
-                const newRho = gauss.originalRho + delta.rotationDir * rhoChange;
-                gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
+                // Rigid body rotation using stored direction
+                const angle = delta.rotationDir * magnitude * this.coefficients.rotation * Math.PI;
+                // 注意：这里需要基于当前状态旋转，但为了保持一致性，通常基于原始状态旋转
+                // 但由于applyStoredPerturbation通常是在reset后调用，所以gauss现在的状态=original
+                // 不过为了安全，我们传递当前参数
+                this.applyRigidRotation(gauss, angle);
             }
 
             if (perturbTypes.includes('amplitude')) {
@@ -203,12 +206,10 @@ class PerturbationSystem {
                         break;
 
                     case 'rotation':
-                        // 扰动旋转 - 只改变相关系数（旋转/倾斜角度）
-                        // Adjusted to 0.6 for balance
-                        const rhoChange = magnitude * this.coefficients.rotation;
-                        const newRho = gauss.rho + (Math.random() * 2 - 1) * rhoChange;
-                        // Strict clamping to avoid aliasing artifacts (0.99 -> 0.92)
-                        gauss.updateRho(Math.max(-0.92, Math.min(0.92, newRho)));
+                        // 扰动旋转 - 刚体旋转 (Rigid Body Rotation)
+                        // 旋转整个协方差矩阵，保持形状不变
+                        const angle = (Math.random() * 2 - 1) * magnitude * this.coefficients.rotation * Math.PI;
+                        this.applyRigidRotation(gauss, angle);
                         break;
 
                     case 'shape':
@@ -765,5 +766,56 @@ class PerturbationSystem {
                 }
             }))
         };
+    }
+
+    /**
+     * 应用刚体旋转
+     * @param {biGauss} gauss - 高斯对象
+     * @param {number} angle - 旋转角度 (弧度)
+     */
+    applyRigidRotation(gauss, angle) {
+        // 获取当前参数
+        const sX = gauss.sX;
+        const sY = gauss.sY;
+        const rho = gauss.rho;
+
+        // 计算协方差矩阵元素
+        // Cov = [ sX^2        rho*sX*sY ]
+        //       [ rho*sX*sY   sY^2      ]
+        const varX = sX * sX;
+        const varY = sY * sY;
+        const covXY = rho * sX * sY;
+
+        // 旋转矩阵元素
+        const c = Math.cos(angle);
+        const s = Math.sin(angle);
+        const c2 = c * c;
+        const s2 = s * s;
+        const cs = c * s;
+
+        // 计算旋转后的协方差矩阵 Sigma' = R * Sigma * R^T
+        // VarX' = c^2*VarX + s^2*VarY - 2cs*CovXY
+        // VarY' = s^2*VarX + c^2*VarY + 2cs*CovXY
+        // CovXY' = cs(VarX - VarY) + (c^2 - s^2)CovXY
+
+        const newVarX = c2 * varX + s2 * varY - 2 * cs * covXY;
+        const newVarY = s2 * varX + c2 * varY + 2 * cs * covXY;
+        const newCovXY = cs * (varX - varY) + (c2 - s2) * covXY;
+
+        // 从新协方差矩阵恢复参数
+        // 确保方差为正
+        const newSX = Math.sqrt(Math.max(1e-6, newVarX));
+        const newSY = Math.sqrt(Math.max(1e-6, newVarY));
+
+        // 计算新相关系数
+        let newRho = newCovXY / (newSX * newSY);
+
+        // 限制 rho 范围防止数值计算误差导致越界
+        newRho = Math.max(-0.95, Math.min(0.95, newRho));
+
+        // 更新高斯对象
+        gauss.sX = newSX;
+        gauss.sY = newSY;
+        gauss.updateRho(newRho);
     }
 }

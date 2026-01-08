@@ -568,9 +568,7 @@ class GaussianPerturbationApp {
         this.visualization.views.heatmap.options.showGaussianCenters = show;
 
         // 重新渲染当前视图
-        if (this.state.hasGenerated) {
-            this.visualization.updateAllViews();
-        }
+        this.refreshViews();
     }
 
     /**
@@ -584,9 +582,7 @@ class GaussianPerturbationApp {
         this.visualization.views.difference.options.showGridLines = show;
 
         // 重新渲染当前视图
-        if (this.state.hasGenerated) {
-            this.visualization.updateAllViews();
-        }
+        this.refreshViews();
     }
 
     /**
@@ -610,6 +606,20 @@ class GaussianPerturbationApp {
     */
 
     /**
+     * Helper to update views while preserving soft attribution data if active
+     */
+    refreshViews() {
+        if (!this.state.hasGenerated) return;
+
+        let softData = null;
+        if (this.state.useSoftAttribution && this.state.hasPerturbation && this.state.softAttributionData) {
+            softData = this.state.softAttributionData.perturbedTotal;
+        }
+
+        this.visualization.updateAllViews(softData);
+    }
+
+    /**
      * 处理 colormap 变化
      */
     handleColormapChange(colormap) {
@@ -619,9 +629,7 @@ class GaussianPerturbationApp {
         this.visualization.setColormap(colormap);
 
         // 如果已经生成了数据，重新渲染所有视图
-        if (this.state.hasGenerated) {
-            this.visualization.updateAllViews();
-        }
+        this.refreshViews();
     }
 
     /**

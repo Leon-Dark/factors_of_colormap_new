@@ -1,9 +1,8 @@
 // somewhere between 2 and 5 seems (visually) like a reasonable tradeoff
-var BI_MAP_SIZE=2;
-var DOUBLE_PRECISION=false;
+var BI_MAP_SIZE = 2;
+var DOUBLE_PRECISION = false;
 
-function GaussMixBivariate(w, h, svg)
-{
+function GaussMixBivariate(w, h, svg) {
     GaussMix.call(this, w, h, svg);
     if (this.svg) {
         this.svg = this.svg.append('g');
@@ -17,8 +16,7 @@ function GaussMixBivariate(w, h, svg)
     this.cdfMap = new Float32Array(new ArrayBuffer(cdfMapSize));
 }
 
-function biGauss(mX, mY, sX, sY, rho, scaler)
-{
+function biGauss(mX, mY, sX, sY, rho, scaler) {
     this.mX = mX;
     this.mY = mY;
     this.sX = sX;
@@ -27,80 +25,73 @@ function biGauss(mX, mY, sX, sY, rho, scaler)
     this.scaler = (scaler ? scaler : 1);
 }
 
-biGauss.prototype.getSigmaX = function() { return this.sX; }
-biGauss.prototype.getSigmaY = function() { return this.sY; }
-biGauss.prototype.updateSigmaX = function(_sX) { this.sX = _sX; }
-biGauss.prototype.updateSigmaY = function(_sY) { this.sY = _sY; }
+biGauss.prototype.getSigmaX = function () { return this.sX; }
+biGauss.prototype.getSigmaY = function () { return this.sY; }
+biGauss.prototype.updateSigmaX = function (_sX) { this.sX = _sX; }
+biGauss.prototype.updateSigmaY = function (_sY) { this.sY = _sY; }
 
 
-biGauss.prototype.copy = function()
-{
+biGauss.prototype.copy = function () {
     return new biGauss(this.mX, this.mY, this.sX, this.sY, this.rho, this.scaler);
 }
 
-biGauss.prototype.updateRho = function(_rho)
-{
+biGauss.prototype.updateRho = function (_rho) {
     // rescale row so that it's between -.7 and .7
     this.rho = _rho;
     this.rho2 = this.rho * this.rho;
-    this.rhoExpConst = -1/(2 * (1-this.rho2));
-    this.rhoSqrConst =  1/(2 * Math.PI * Math.sqrt(1-this.rho2));
+    this.rhoExpConst = -1 / (2 * (1 - this.rho2));
+    this.rhoSqrConst = 1 / (2 * Math.PI * Math.sqrt(1 - this.rho2));
 }
 
-biGauss.prototype.perturb = function(rhoP)
-{
+biGauss.prototype.perturb = function (rhoP) {
     var newRho = this.rho + rhoP;
     if (newRho > 1 || newRho < -1) {
-        rhoP*=-1;
+        rhoP *= -1;
         newRho = this.rho + rhoP;
     }
     this.updateRho(newRho);
 }
 
-biGauss.prototype.eval = function(x, y)
-{
-    var stX = (x-this.mX)/this.sX;
-    var stY = (y-this.mY)/this.sY;
+biGauss.prototype.eval = function (x, y) {
+    var stX = (x - this.mX) / this.sX;
+    var stY = (y - this.mY) / this.sY;
     var stXY = stX * stY;
 
-    var e = this.rhoExpConst * (stX*stX -2 * this.rho * stXY + stY*stY);
-    //var a = this.rhoSqrConst * (1/(this.sX * this.sY))
+    var e = this.rhoExpConst * (stX * stX - 2 * this.rho * stXY + stY * stY);
+    var a = this.rhoSqrConst * (1 / (this.sX * this.sY))
 
-    return this.scaler * Math.exp( e ); // * a;
+    return this.scaler * Math.exp(e) * a;
 }
 
 GaussMixBivariate.prototype = Object.create(GaussMix.prototype);
 
-GaussMixBivariate.prototype.getPDF = function() {
+GaussMixBivariate.prototype.getPDF = function () {
     return this.pdf;
 }
 
-GaussMixBivariate.prototype.dispose = function()
-{
+GaussMixBivariate.prototype.dispose = function () {
     this.pdf = null;
     this.cdf = null;
     this.cdfMap = null;
 }
 
-GaussMixBivariate.prototype.init = function()
-{
+GaussMixBivariate.prototype.init = function () {
     var MIN_GAUSS = 3;
     var MAX_GAUSS = 6;
 
-    var count = Math.floor(.5 + Math.random() * (MAX_GAUSS-MIN_GAUSS)) + MIN_GAUSS;
+    var count = Math.floor(.5 + Math.random() * (MAX_GAUSS - MIN_GAUSS)) + MIN_GAUSS;
     this.models = [];
 
     // add a few random gausses
     var dontUpdate = true;
-    for (var i=0; i<count; i++ ) {
+    for (var i = 0; i < count; i++) {
         this.add(dontUpdate);
     }
     this.updateModel();
 }
 
 
-GaussMixBivariate.prototype.copyTo = function(newModel, dontUpdate)
-{
+GaussMixBivariate.prototype.copyTo = function (newModel, dontUpdate) {
     if (!newModel) {
         newModel = new GaussMixBivariate(this.w, this.h, null);
     }
@@ -110,10 +101,9 @@ GaussMixBivariate.prototype.copyTo = function(newModel, dontUpdate)
     }
 
     newModel.models = [];
-    for (var i=0; i<this.models.length; i++)
-    {
+    for (var i = 0; i < this.models.length; i++) {
         var m = this.models[i];
-        newModel.models.push( m.copy() );
+        newModel.models.push(m.copy());
     }
     if (!dontUpdate) {
         newModel.updateModel();
@@ -123,18 +113,17 @@ GaussMixBivariate.prototype.copyTo = function(newModel, dontUpdate)
 
 var MIN_SIGMA = 10;
 
-GaussMixBivariate.prototype.add = function(dontUpdate)
-{
+GaussMixBivariate.prototype.add = function (dontUpdate) {
     // center
-    var mX = this.w/2 + (Math.random()*2-1) * (this.w*0.35);
-    var mY = this.h/2 + (Math.random()*2-1) * (this.h*0.35);
+    var mX = this.w / 2 + (Math.random() * 2 - 1) * (this.w * 0.35);
+    var mY = this.h / 2 + (Math.random() * 2 - 1) * (this.h * 0.35);
 
     // standard deviation
-    var sigmaX = (Math.random()*.5 + .2) * this.w * .32;
-    var sigmaY = (Math.random()*.5 + .2) * this.h * .32;
+    var sigmaX = (Math.random() * .5 + .2) * this.w * .32;
+    var sigmaY = (Math.random() * .5 + .2) * this.h * .32;
 
     // correlation (limit to -0.7 to 0.7)
-    var rho = (Math.random()*2-1) *.7;
+    var rho = (Math.random() * 2 - 1) * .7;
 
     // scaler
     var scaler = 1.0; //0.7  + (Math.random()*2 - 1)*0.3;
@@ -146,12 +135,12 @@ GaussMixBivariate.prototype.add = function(dontUpdate)
 
 }
 
-GaussMixBivariate.prototype.remove = function() {
+GaussMixBivariate.prototype.remove = function () {
     if (this.models.length < 1) {
         return;
     }
     else {
-        this.models.splice(this.models.length-1, 1);
+        this.models.splice(this.models.length - 1, 1);
         this.updateModel();
     }
 }
@@ -166,17 +155,15 @@ var M_PERTURB = .015;
 var S_PERTURB = 0;
 var R_PERTURB = 0.07;
 
-GaussMixBivariate.prototype.randomPerturb = function()
-{
-    for (var i=0; i<this.models.length; i++)
-    {
+GaussMixBivariate.prototype.randomPerturb = function () {
+    for (var i = 0; i < this.models.length; i++) {
 
         var l = 0;
         var r = [0, 0];
         do {
-            r = [Math.random()*2-1, Math.random()*2-1];
-            l = r[0]*r[0]+r[1]*r[1];
-        } while (l==0);
+            r = [Math.random() * 2 - 1, Math.random() * 2 - 1];
+            l = r[0] * r[0] + r[1] * r[1];
+        } while (l == 0);
 
         l = (M_PERTURB * Math.min(this.w, this.h)) / Math.sqrt(l);
 
@@ -191,10 +178,9 @@ GaussMixBivariate.prototype.randomPerturb = function()
     this.updateModel();
 }
 
-GaussMixBivariate.prototype.deldensity = function(nonZeroOK)
-{
-    var RESOLUTION=30;
-    var HIST_ROW = RESOLUTION*2+1;
+GaussMixBivariate.prototype.deldensity = function (nonZeroOK) {
+    var RESOLUTION = 30;
+    var HIST_ROW = RESOLUTION * 2 + 1;
 
     var w = this.w;
     var h = this.h;
@@ -215,43 +201,40 @@ GaussMixBivariate.prototype.deldensity = function(nonZeroOK)
 
     var minDensity = this.minDensity;
     var maxDensity = this.maxDensity;
-    var densityRange_1 = RESOLUTION / (maxDensity-minDensity);
+    var densityRange_1 = RESOLUTION / (maxDensity - minDensity);
 
-    var totalDensity=0;
-    var R0=1, R1=h-1, C0=1, C1=w-1;
+    var totalDensity = 0;
+    var R0 = 1, R1 = h - 1, C0 = 1, C1 = w - 1;
 
-    for (var r=R0, R=w; r<R1; r++, R+=w)
-    {
-        for (var c=C0; c<C1; c++)
-        {
-            var RC = R+c;
+    for (var r = R0, R = w; r < R1; r++, R += w) {
+        for (var c = C0; c < C1; c++) {
+            var RC = R + c;
             var P = pdf[RC];
 
-            var fx =  (P-pdf[RC-1]) * densityRange_1;
-            var fy =  (P-pdf[RC-w]) * densityRange_1;
+            var fx = (P - pdf[RC - 1]) * densityRange_1;
+            var fy = (P - pdf[RC - w]) * densityRange_1;
 
             //console.log("num: " + fx + ',' + fy);
             var fj = Math.floor(.49999999 + Math.abs(fx));
             var fi = Math.floor(.49999999 + Math.abs(fy));
 
-            if (fx<0) fj = RESOLUTION-fj; else fj += RESOLUTION;
-            if (fy<0) fi = RESOLUTION-fi; else fi += RESOLUTION;
+            if (fx < 0) fj = RESOLUTION - fj; else fj += RESOLUTION;
+            if (fy < 0) fi = RESOLUTION - fi; else fi += RESOLUTION;
 
 
-            var hI = fi*HIST_ROW + fj;
-            var hV = histogram[ hI ] + 1;
+            var hI = fi * HIST_ROW + fj;
+            var hV = histogram[hI] + 1;
             if (hV > histMax) {
                 histMax = hV;
             }
-            histogram[ hI ] = hV;
+            histogram[hI] = hV;
         }
     }
 
     // scan histogram again, and ensuring no non-zero elements within
-    var cummDeldensity = (R1-R0) * (C1-C0);
+    var cummDeldensity = (R1 - R0) * (C1 - C0);
     if (!nonZeroOK) {
-        for (var i=0; i<histSize; i++)
-        {
+        for (var i = 0; i < histSize; i++) {
             if (histogram[i] == 0.0) {
                 histogram[i] = 1e-40;
                 cummDeldensity += 1e-40;
@@ -271,19 +254,17 @@ GaussMixBivariate.prototype.deldensity = function(nonZeroOK)
 }
 
 // for debugging
-GaussMixBivariate.prototype.plotDeldensity = function()
-{
+GaussMixBivariate.prototype.plotDeldensity = function () {
     var results = this.deldensityResult;
     if (!results) {
         results = this.deldensity();
     }
     var histogram = results.deldensity;
 
-    var w=results.histW, h=results.histH;
+    var w = results.histW, h = results.histH;
     var scalar = new ScalarField(w, h);
     var view = scalar.view;
-    for (var i=0, len=w*h; i<len; i++)
-    {
+    for (var i = 0, len = w * h; i < len; i++) {
         var t = histogram[i]
         view[i] = t;
     }
@@ -297,14 +278,13 @@ GaussMixBivariate.prototype.plotDeldensity = function()
 
 var RAD_2_DEGREES = 180 / Math.PI;
 
-GaussMixBivariate.prototype.plotModelCurves = function()
-{
+GaussMixBivariate.prototype.plotModelCurves = function () {
     if (!this.svg) {
         return;
     }
 
     var visibleModels = [];
-    for (var i=0; i<this.models.length; i++) {
+    for (var i = 0; i < this.models.length; i++) {
         var m = this.models[i];
         if (!m.invisible) {
             visibleModels.push(m);
@@ -319,8 +299,7 @@ GaussMixBivariate.prototype.plotModelCurves = function()
     ellipses
         //.attr('cx', function(d) { return d.mX; })
         //.attr('cy', function(d) { return d.mY; })
-        .attr('transform', function(d)
-        {
+        .attr('transform', function (d) {
             var rho = d.rho;
             if (rho == undefined || rho == null) {
                 rho = d.getAngle() //+ Math.PI/2;
@@ -334,11 +313,11 @@ GaussMixBivariate.prototype.plotModelCurves = function()
             var translation = 'translate(' + d.mX + ',' + d.mY + ')';
             return translation + ' ' + rotation;
         })
-        .attr('rx', function(d) { return d.getSigmaX(); })
-        .attr('ry', function(d) { return d.getSigmaY(); })
+        .attr('rx', function (d) { return d.getSigmaX(); })
+        .attr('ry', function (d) { return d.getSigmaY(); })
         .style('stroke-width', '3px')
-        .attr('stroke', function(d, i) {
-            return MODEL_COLORS[Math.min(i, MODEL_COLORS.length-1)];
+        .attr('stroke', function (d, i) {
+            return MODEL_COLORS[Math.min(i, MODEL_COLORS.length - 1)];
         })
         .attr('fill', 'none');
 
@@ -347,8 +326,8 @@ GaussMixBivariate.prototype.plotModelCurves = function()
     enter = lines.enter().append('line');
     lines = lines.merge(enter);
     lines
-        .attr('stroke', function(d, i) {
-            return MODEL_COLORS[Math.min(i, MODEL_COLORS.length-1)];
+        .attr('stroke', function (d, i) {
+            return MODEL_COLORS[Math.min(i, MODEL_COLORS.length - 1)];
         })
         .style('stroke-width', '3px')
         /*
@@ -365,8 +344,7 @@ GaussMixBivariate.prototype.plotModelCurves = function()
             return d.mY-3*Math.sin( Math.PI*.25*rho );
         })
         */
-        .each(function(d)
-        {
+        .each(function (d) {
             var rho = d.rho;
             if (rho == undefined || rho == null) {
                 rho = d.getAngle() //+ Math.PI/2;
@@ -377,11 +355,11 @@ GaussMixBivariate.prototype.plotModelCurves = function()
             // slop based on rho
             var len = d.getSigmaX();
 
-            var x1 = d.mX+3*Math.cos( rho );
-            var y1 = d.mY-3*Math.sin( rho );
+            var x1 = d.mX + 3 * Math.cos(rho);
+            var y1 = d.mY - 3 * Math.sin(rho);
 
-            var x2 = d.mX + len * Math.cos( rho );
-            var y2 = d.mY - len * Math.sin( rho );
+            var x2 = d.mX + len * Math.cos(rho);
+            var y2 = d.mY - len * Math.sin(rho);
 
             d3.select(this)
                 .attr('x1', x1).attr('y1', y1)
@@ -395,33 +373,31 @@ GaussMixBivariate.prototype.plotModelCurves = function()
         .attr('class', 'center');
     centers = centers.merge(enter);
     centers
-        .attr('cx', function(d) { return d.mX; })
-        .attr('cy', function(d) { return d.mY; })
-        .attr('fill', function(d, i) {
-            return MODEL_COLORS[Math.min(i, MODEL_COLORS.length-1)];
+        .attr('cx', function (d) { return d.mX; })
+        .attr('cy', function (d) { return d.mY; })
+        .attr('fill', function (d, i) {
+            return MODEL_COLORS[Math.min(i, MODEL_COLORS.length - 1)];
         })
         .attr('r', 3);
 
     // event handlers
-    (function(me, centers, ellipses) {
-        centers.on('mousedown', function(biG)
-        {
+    (function (me, centers, ellipses) {
+        centers.on('mousedown', function (biG) {
             me.mouseCoord = d3.mouse(me.svg.node());
             me.oldMX = biG.mX;
             me.oldMY = biG.mY;
             d3.select(document)
-                .on('mousemove.moveCenter', function()
-                {
+                .on('mousemove.moveCenter', function () {
                     var mouse = d3.mouse(me.svg.node());
                     var dMouse = [
-                        mouse[0]-me.mouseCoord[0],
-                        mouse[1]-me.mouseCoord[1]
+                        mouse[0] - me.mouseCoord[0],
+                        mouse[1] - me.mouseCoord[1]
                     ];
                     biG.mX = me.oldMX + dMouse[0];
                     biG.mY = me.oldMY + dMouse[1];
                     me.plotModelCurves();
                 })
-                .on('mouseup.moveCenter', function() {
+                .on('mouseup.moveCenter', function () {
                     me.updateModel();
                     me.fireCallbacks();
                     d3.select(document)
@@ -431,18 +407,16 @@ GaussMixBivariate.prototype.plotModelCurves = function()
                 });
         });
 
-        ellipses.on('mousedown', function(biG)
-        {
+        ellipses.on('mousedown', function (biG) {
             me.mouseCoord = d3.mouse(me.svg.node());
             me.oldSX = biG.getSigmaX();
             me.oldSY = biG.getSigmaY();
             d3.select(document)
-                .on('mousemove.moveCenter', function()
-                {
+                .on('mousemove.moveCenter', function () {
                     var mouse = d3.mouse(me.svg.node());
                     var dMouse = [
-                        mouse[0]-me.mouseCoord[0],
-                        mouse[1]-me.mouseCoord[1]
+                        mouse[0] - me.mouseCoord[0],
+                        mouse[1] - me.mouseCoord[1]
                     ];
 
                     var sX = Math.max(MIN_SIGMA, me.oldSX + dMouse[0]);
@@ -452,7 +426,7 @@ GaussMixBivariate.prototype.plotModelCurves = function()
 
                     me.plotModelCurves();
                 })
-                .on('mouseup.moveCenter', function() {
+                .on('mouseup.moveCenter', function () {
                     me.updateModel();
                     me.fireCallbacks();
                     d3.select(document)
@@ -462,34 +436,32 @@ GaussMixBivariate.prototype.plotModelCurves = function()
                 });
         });
 
-        lines.on('mousedown', function(BiG)
-        {
+        lines.on('mousedown', function (BiG) {
             me.mouseCoord = d3.mouse(me.svg.node());
             d3.select(document)
-                .on('mousemove.moveCenter', function()
-                {
+                .on('mousemove.moveCenter', function () {
                     // compute new rho based on slope created by line
                     // passing through model center and new mouse coordinates
                     var mouse = d3.mouse(me.svg.node());
-                    var slope = (mouse[1]-BiG.mY)/(mouse[0]-BiG.mX);
+                    var slope = (mouse[1] - BiG.mY) / (mouse[0] - BiG.mX);
 
 
                     if (BiG.updateRho) {
                         if (slope > 1) {
-                            slope=1;
+                            slope = 1;
                         }
                         else if (slope < -1) {
-                            slope=-1;
+                            slope = -1;
                         }
-                        BiG.updateRho(slope*-1);
+                        BiG.updateRho(slope * -1);
                     }
                     else {
-                        var a = -Math.atan2(mouse[1] - BiG.mY, mouse[0]-BiG.mX)
+                        var a = -Math.atan2(mouse[1] - BiG.mY, mouse[0] - BiG.mX)
                         BiG.updateAngle(a /*- Math.PI/2*/);
                     }
                     me.plotModelCurves();
                 })
-                .on('mouseup.moveCenter', function() {
+                .on('mouseup.moveCenter', function () {
                     me.updateModel();
                     me.fireCallbacks();
                     d3.select(document)
@@ -502,23 +474,21 @@ GaussMixBivariate.prototype.plotModelCurves = function()
     })(this, centers, ellipses);
 }
 
-GaussMixBivariate.prototype.updateModel = function()
-{
+GaussMixBivariate.prototype.updateModel = function () {
     // compute CDFs and maps
     this.computeCDFs();
 
     this.plotModelCurves();
 }
 
-GaussMixBivariate.prototype.computeCDFs = function()
-{
+GaussMixBivariate.prototype.computeCDFs = function () {
     var w = this.w;
     var h = this.h;
     var models = this.models;
     var mCount = models.length;
 
     // compute PDF / CDF
-    var cummDensity = 0, maxDensity = 0, minDensity=Number.MAX_VALUE;
+    var cummDensity = 0, maxDensity = 0, minDensity = Number.MAX_VALUE;
 
     // clear out
     this.pdf.zero();
@@ -528,14 +498,11 @@ GaussMixBivariate.prototype.computeCDFs = function()
     var cdf = this.cdf.view;
 
     // loop through all rows / columns
-    for (var r=0, I=0; r<h; r++)
-    {
-        for (var c=0; c<w; c++, I++)
-        {
+    for (var r = 0, I = 0; r < h; r++) {
+        for (var c = 0; c < w; c++, I++) {
             // evaluate density of all models
-            var P=0;
-            for (var m=0; m<mCount; m++)
-            {
+            var P = 0;
+            for (var m = 0; m < mCount; m++) {
                 var model = models[m];
                 P += model.eval(c, r);
             }
@@ -556,18 +523,15 @@ GaussMixBivariate.prototype.computeCDFs = function()
         }
     }
 
-    if (minDensity < 0)
-    {
+    if (minDensity < 0) {
         var k = -minDensity;
         minDensity = 0;
         maxDensity += k;
         cummDensity = 0;
 
         // loop again to shift densities to ensure all positive probabilities
-        for (var r=0, I=0; r<h; r++)
-        {
-            for (var c=0; c<w; c++, I++)
-            {
+        for (var r = 0, I = 0; r < h; r++) {
+            for (var c = 0; c < w; c++, I++) {
                 pdf[I] += k;
                 cummDensity += pdf[I];
                 cdf[I] = cummDensity;
@@ -590,8 +554,7 @@ GaussMixBivariate.prototype.computeCDFs = function()
 
 // construct map
 GPU_CDF_MAP = false;
-GaussMixBivariate.prototype.computeCDFMap = function()
-{
+GaussMixBivariate.prototype.computeCDFMap = function () {
     var cdf = this.cdf.view;
     var cummDensity = this.cummDensity;
     var cdfMap = this.cdfMap;
@@ -604,10 +567,8 @@ GaussMixBivariate.prototype.computeCDFMap = function()
         gpuMap = gpuMap.view;
     }
 
-    for (var i=0, last=0, p=0, step=cummDensity/cdfMapLen; i<cdfMapLen; i++, p+=step)
-    {
-        while (cdf[last] < p)
-        {
+    for (var i = 0, last = 0, p = 0, step = cummDensity / cdfMapLen; i < cdfMapLen; i++, p += step) {
+        while (cdf[last] < p) {
             last++;
         }
         cdfMap[i] = last;
@@ -620,38 +581,35 @@ GaussMixBivariate.prototype.computeCDFMap = function()
 }
 
 
-GaussMixBivariate.prototype.normalizedDivergence = function(other)
-{
+GaussMixBivariate.prototype.normalizedDivergence = function (other) {
     var kld = this.klDivergence(other);
     return kld;
     //return kld / (.5 * (this.entropy + other.entropy));
 }
 
-GaussMixBivariate.prototype.pdfDistance = function(other)
-{
+GaussMixBivariate.prototype.pdfDistance = function (other) {
     var P = this.pdf.view;
     var Q = other.pdf.view;
 
-    var maxP_1 = 1.0/this.cummDensity;
-    var maxQ_1 = 1.0/other.cummDensity;
+    var maxP_1 = 1.0 / this.cummDensity;
+    var maxQ_1 = 1.0 / other.cummDensity;
 
     var distance = 0;
 
     // amplitude distance
     // ==================
-    for (var i=0, len=P.length; i<len; i++)
-    {
+    for (var i = 0, len = P.length; i < len; i++) {
         var p = P[i];
         p *= maxP_1;
 
         var q = Q[i];
         q *= maxQ_1;
 
-        distance += Math.abs(p-q);
+        distance += Math.abs(p - q);
     }
 
     // distance is between 0..2, so multiply between 0.5
-    var distDistance = logDTransform(distance*.5)
+    var distDistance = logDTransform(distance * .5)
 
     // frequency-based distance
     // ==========================
@@ -665,37 +623,33 @@ GaussMixBivariate.prototype.pdfDistance = function(other)
     var maxfQ = delQ.cummDeldensity;
 
     distance = 0;
-    for (var i=0, len=fP.length; i<len; i++) {
-        distance += Math.abs(fP[i]-fQ[i]);
+    for (var i = 0, len = fP.length; i < len; i++) {
+        distance += Math.abs(fP[i] - fQ[i]);
     }
-    var freqDistance = logDTransform(distance/maxfP) *.5;
+    var freqDistance = logDTransform(distance / maxfP) * .5;
 
     // return weighted average of the two distances
     var ALPHA = 0.5;
-    return ALPHA * distDistance + (1-ALPHA) * freqDistance;
+    return ALPHA * distDistance + (1 - ALPHA) * freqDistance;
 }
 
-function logDTransform(x)
-{
-    var k =0.7;
+function logDTransform(x) {
+    var k = 0.7;
     var expK = Math.pow(10, -k);
-    return (Math.log10(x+expK) + k) / (Math.log10(1+expK)+k);
+    return (Math.log10(x + expK) + k) / (Math.log10(1 + expK) + k);
 }
 
-function expDTransform(x)
-{
+function expDTransform(x) {
     var b = 3;      // base
-    return (Math.pow(b, x-1) - 1/b) / (1-1/b);
+    return (Math.pow(b, x - 1) - 1 / b) / (1 - 1 / b);
 }
 
-GaussMixBivariate.prototype.klDivergence = function(other)
-{
+GaussMixBivariate.prototype.klDivergence = function (other) {
     var DELENTROPY = false;
     var delMe = null, delOt = null;
     var LOG_C_1 = 1.0 / (Math.log10(1.01) + 2.0);
 
-    if (DELENTROPY)
-    {
+    if (DELENTROPY) {
         delMe = this.deldensity();
         delOt = other.deldensity();
     }
@@ -712,16 +666,15 @@ GaussMixBivariate.prototype.klDivergence = function(other)
     var maxP = DELENTROPY ? delMe.cummDeldensity : this.cummDensity;
     var maxQ = DELENTROPY ? delOt.cummDeldensity : other.cummDensity;
 
-    var maxP_1 = 1.0/maxP;
-    var maxQ_1 = 1.0/maxQ;
+    var maxP_1 = 1.0 / maxP;
+    var maxQ_1 = 1.0 / maxQ;
 
     var divergence = 0, divergence2 = 0;
     var entropyMe = 0, entropyOther = 0;
     var distDistance = 0;
 
     //console.log('max densities: ' + maxP + ', ' + maxQ);
-    for (var i=0, len=P.length; i<len; i++)
-    {
+    for (var i = 0, len = P.length; i < len; i++) {
         var p = P[i];
         p *= maxP_1;
 
@@ -731,11 +684,11 @@ GaussMixBivariate.prototype.klDivergence = function(other)
         var logP = Math.log2(p);
         var logQ = Math.log2(q)
 
-        entropyMe    += logP * p;
+        entropyMe += logP * p;
         entropyOther += logQ * q;
 
         // divergence = p * log(p/q) = p * (log(p) - log(q))
-        divergence  += p * (logP - logQ);
+        divergence += p * (logP - logQ);
         divergence2 += q * (logQ - logP);
 
         /*
@@ -743,7 +696,7 @@ GaussMixBivariate.prototype.klDivergence = function(other)
         var d1 = (Math.log10(d+0.01) + 2) * LOG_C_1;
         */
 
-        distDistance += Math.abs(p-q);
+        distDistance += Math.abs(p - q);
         //console.log("d: " + d + ", d1: " + d1 + ', ' + distDistance);
     }
 
@@ -766,26 +719,22 @@ GaussMixBivariate.prototype.klDivergence = function(other)
 }
 
 var BI_SPLAT = [];
-var splatGauss = new biGauss(0, 0, SPLAT_SIZE/4, SPLAT_SIZE/4, 0);
-var cummSplat=0.0;
-for (var I=0,r=-SPLAT_SIZE; r<=SPLAT_SIZE; r++)
-{
-    for (var c=-SPLAT_SIZE; c<=SPLAT_SIZE; c++, I++)
-    {
+var splatGauss = new biGauss(0, 0, SPLAT_SIZE / 4, SPLAT_SIZE / 4, 0);
+var cummSplat = 0.0;
+for (var I = 0, r = -SPLAT_SIZE; r <= SPLAT_SIZE; r++) {
+    for (var c = -SPLAT_SIZE; c <= SPLAT_SIZE; c++, I++) {
         var s = splatGauss.eval(c, r);
         BI_SPLAT.push(s);
         cummSplat += s;
     }
 }
 
-for (var i=0; i<BI_SPLAT.length; i++) {
+for (var i = 0; i < BI_SPLAT.length; i++) {
     BI_SPLAT[i] /= cummSplat;
 }
 
-GaussMixBivariate.prototype.putOnTop = function()
-{
-    function putNodeOnTop(node)
-    {
+GaussMixBivariate.prototype.putOnTop = function () {
+    function putNodeOnTop(node) {
         var n = jQuery(node);
         n.parent().append(n.detach());
     }
@@ -793,28 +742,26 @@ GaussMixBivariate.prototype.putOnTop = function()
     if (!this.svg) {
         return;
     }
-    else
-    {
+    else {
         putNodeOnTop(this.svg.node());
     }
 }
 
-GaussMixBivariate.prototype.sampleModel = function(iterations, _field, upperPercentile)
-{
+GaussMixBivariate.prototype.sampleModel = function (iterations, _field, upperPercentile) {
     if (this.updateCDFMap) {
         this.computeCDFMap();
     }
 
-    var SPLAT_AREA=(SPLAT_SIZE*2+1)*(SPLAT_SIZE*2+1);
+    var SPLAT_AREA = (SPLAT_SIZE * 2 + 1) * (SPLAT_SIZE * 2 + 1);
     var splat = [];
-    for (var j=0;j<SPLAT_AREA; j++) {
+    for (var j = 0; j < SPLAT_AREA; j++) {
         splat.push(0);
     }
 
     var w = this.w;
     var h = this.h;
-    var w_1 = w-1;
-    var h_1 = h-1;
+    var w_1 = w - 1;
+    var h_1 = h - 1;
 
     var cdf = this.cdf.view;
     var cdfMap = this.cdfMap;
@@ -825,14 +772,13 @@ GaussMixBivariate.prototype.sampleModel = function(iterations, _field, upperPerc
     var view = _field.view;
 
     // iterate
-    for (var i=0; i<iterations; i++)
-    {
+    for (var i = 0; i < iterations; i++) {
         // find center of splat
-        var I = cdfMap[ Math.floor(Math.random() * cdfLen) ];
+        var I = cdfMap[Math.floor(Math.random() * cdfLen)];
 
         // convert to row, column coordinate
         var C = I % w;
-        var R = Math.floor(I/w);
+        var R = Math.floor(I / w);
 
         // SPLATTING: find splat boundary
         // ===============================
@@ -863,14 +809,13 @@ GaussMixBivariate.prototype.sampleModel = function(iterations, _field, upperPerc
         }
         */
 
-        view[ R*w + C ] += 1.0;
+        view[R * w + C] += 1.0;
     }
 
     if (upperPercentile) {
         _field.normalizeToPercentile(upperPercentile);
     }
-    else
-    {
+    else {
         _field.normalize();
     }
 }

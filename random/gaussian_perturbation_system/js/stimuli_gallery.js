@@ -66,6 +66,32 @@ class StimuliGallery {
         updateCoeff('coeff-stretch', 'stretch');
         updateCoeff('coeff-rotation', 'rotation');
         updateCoeff('coeff-amplitude', 'amplitude');
+
+        // Mixing Parameter Sliders
+        const updateMixParam = (id) => {
+            const slider = document.getElementById(id);
+            const numberInput = document.getElementById(id + '-value');
+
+            if (slider && numberInput) {
+                // Slider -> Number Input
+                slider.addEventListener('input', (e) => {
+                    numberInput.value = e.target.value;
+                });
+
+                // Number Input -> Slider
+                numberInput.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val)) {
+                        slider.value = val;
+                    }
+                });
+            }
+        };
+
+        updateMixParam('weight-high');
+        updateMixParam('weight-mid');
+        updateMixParam('weight-low');
+        updateMixParam('exponent-slider');
     }
 
     async generateGallery() {
@@ -196,6 +222,11 @@ class StimuliGallery {
             // 这里为了展示清晰，我们使用缩小版的参数
 
             // 重新生成
+            this.generator.setBandWeight('small', parseFloat(document.getElementById('weight-high-value').value));
+            this.generator.setBandWeight('medium', parseFloat(document.getElementById('weight-mid-value').value));
+            this.generator.setBandWeight('large', parseFloat(document.getElementById('weight-low-value').value));
+            this.generator.setExponent(parseFloat(document.getElementById('exponent-slider-value').value));
+
             this.generator.generateAll();
 
             // 2. 渲染原始图像

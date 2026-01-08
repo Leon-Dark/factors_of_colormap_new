@@ -186,23 +186,9 @@ class GaussianGenerator {
             // 生成相关系数
             const rho = (Math.random() * 2 - 1) * 0.6;
 
-            // 使用体积归一化生成幅值 (Scaler)
-            // 体积近似正比于 scaler * sigma^2
-            // 我们希望体积大致恒定（例如 500），这样高频会很亮，低频会很暗
-            const targetVolume = 500;
-            // 给体积添加一些随机性 (±20%)
-            const volumeVariation = 0.8 + Math.random() * 0.4;
-            const actualTargetVolume = targetVolume * volumeVariation;
 
-            // 计算所需的 scaler: Scaler = Volume / (sX * sY)
-            // 安全措施：限制 scaler 范围，防止极小 sigma 导致数值爆炸或极大 sigma 导致不可见
-            let scaler = actualTargetVolume / (sX * sY);
+            let scaler = 100;
 
-            // 可选：限制最大幅值，防止极小 sigma 产生过亮的光斑
-            scaler = Math.min(scaler, 3.0);
-
-            // 可选：限制最小幅值，确保至少有一定的可见度
-            scaler = Math.max(scaler, 0.1);
 
             // 创建高斯
             const gauss = new biGauss(p.x, p.y, sX, sY, rho, scaler);
@@ -329,60 +315,7 @@ class GaussianGenerator {
         const data = new Float32Array(width * height);
         const epsilon = 1e-10; // 防止除零
 
-        /*
-        if (useGradientNormalization) {
-            // 使用梯度能量归一化
-            for (const gauss of this.gaussians) {
-                let gradientEnergy, normalizationFactor;
-                let targetGauss = gauss;
-    
-                if (useOriginal) {
-                    // 临时创建原始状态的高斯用于计算
-                    targetGauss = new biGauss(
-                        gauss.originalMX, gauss.originalMY,
-                        gauss.originalSX, gauss.originalSY,
-                        gauss.originalRho, gauss.originalScaler
-                    );
-                    gradientEnergy = this.calculateGradientEnergy(targetGauss, width, height);
-                    normalizationFactor = gradientEnergy + epsilon;
-    
-                    const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);
-                    const range = maxSigma * 3;
-    
-                    const startX = Math.max(0, Math.floor(gauss.originalMX - range));
-                    const endX = Math.min(width - 1, Math.ceil(gauss.originalMX + range));
-                    const startY = Math.max(0, Math.floor(gauss.originalMY - range));
-                    const endY = Math.min(height - 1, Math.ceil(gauss.originalMY + range));
-    
-                    for (let y = startY; y <= endY; y++) {
-                        for (let x = startX; x <= endX; x++) {
-                            const index = y * width + x;
-                            data[index] += targetGauss.eval(x, y) / normalizationFactor;
-                        }
-                    }
-                } else {
-                    // 使用当前参数渲染
-                    gradientEnergy = this.calculateGradientEnergy(gauss, width, height);
-                    normalizationFactor = gradientEnergy + epsilon;
-    
-                    const maxSigma = Math.max(gauss.sX, gauss.sY);
-                    const range = maxSigma * 3;
-    
-                    const startX = Math.max(0, Math.floor(gauss.mX - range));
-                    const endX = Math.min(width - 1, Math.ceil(gauss.mX + range));
-                    const startY = Math.max(0, Math.floor(gauss.mY - range));
-                    const endY = Math.min(height - 1, Math.ceil(gauss.mY + range));
-    
-                    for (let y = startY; y <= endY; y++) {
-                        for (let x = startX; x <= endX; x++) {
-                            const index = y * width + x;
-                            data[index] += gauss.eval(x, y) / normalizationFactor;
-                        }
-                    }
-                }
-            }
-        } else {
-        */
+
         // 原始方法：直接叠加所有高斯
         for (const gauss of this.gaussians) {
             if (useOriginal) {
@@ -449,12 +382,6 @@ class GaussianGenerator {
                     }
                 }
             }
-        }
-        // }
-
-        // Apply logarithmic compression
-        for (let i = 0; i < data.length; i++) {
-            data[i] = Math.log(1 + data[i]);
         }
 
         return data;
