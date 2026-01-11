@@ -5,6 +5,40 @@
  * 负责对高斯分布应用各种扰动
  */
 
+/**
+ * Numerically stable atanh (inverse hyperbolic tangent)
+ * @param {number} x - Input value, must be in (-1, 1)
+ * @returns {number} - atanh(x)
+ */
+function stableAtanh(x) {
+    // Clamp to prevent NaN
+    const eps = 1e-7;
+    x = Math.max(-1 + eps, Math.min(1 - eps, x));
+    return 0.5 * Math.log((1 + x) / (1 - x));
+}
+
+/**
+ * Calculate maximum safe position shift using canvas boundaries
+ * @param {biGauss} gauss - Gaussian object
+ * @param {number} canvasWidth - Canvas width
+ * @param {number} canvasHeight - Canvas height
+ * @param {number} marginMultiplier - Margin as multiple of sigma (default: 2.0, reduced from 3.0 for larger movement)
+ * @returns {object} - {maxDx, maxDy}
+ */
+function calculateMaxPositionShift(gauss, canvasWidth, canvasHeight, marginMultiplier = 2.0) {
+    // Use smaller margin for large gaussians to allow more movement
+    const margin = Math.max(marginMultiplier * Math.max(gauss.sX, gauss.sY), 3);
+
+    const maxDx = Math.min(gauss.mX - margin, canvasWidth - margin - gauss.mX);
+    const maxDy = Math.min(gauss.mY - margin, canvasHeight - margin - gauss.mY);
+
+    // Return 0 if already too close to boundary
+    return {
+        maxDx: Math.max(0, maxDx),
+        maxDy: Math.max(0, maxDy)
+    };
+}
+
 class PerturbationSystem {
     /**
      * 构造函数
@@ -110,9 +144,28 @@ class PerturbationSystem {
 
             // 应用存储的扰动方向 * magnitude
             if (perturbTypes.includes('position')) {
-                const maxPositionShift = magnitude * delta.basePositionScale * this.coefficients.position;
-                gauss.mX += delta.positionDirX * maxPositionShift;
-                gauss.mY += delta.positionDirY * maxPositionShift;
+                // Use tanh saturation to prevent out-of-bounds
+                const canvasW = this.generator.width;
+                const canvasH = this.generator.height;
+                const bounds = calculateMaxPositionShift(gauss, canvasW, canvasH);
+
+                // Adaptive gain: larger for big gaussians (low frequency)
+                // Large gaussians need more aggressive perturbation
+                const avgSigma = (gauss.sX + gauss.sY) / 2;
+                const kPos = avgSigma > 20 ? 0.8 : (avgSigma > 10 ? 0.6 : 0.5);
+
+                // Boost coefficient for large gaussians
+                const effectiveCoeff = Math.max(this.coefficients.position, 1.0);
+                const boostFactor = avgSigma > 20 ? 1.5 : 1.0;
+
+                const sMaxX = bounds.maxDx;
+                const sMaxY = bounds.maxDy;
+
+                const scaleX = sMaxX * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
+                const scaleY = sMaxY * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
+
+                gauss.mX += delta.positionDirX * scaleX;
+                gauss.mY += delta.positionDirY * scaleY;
             }
 
             if (perturbTypes.includes('stretch')) {
@@ -133,9 +186,11 @@ class PerturbationSystem {
             }
 
             if (perturbTypes.includes('amplitude')) {
-                const ampChange = magnitude * this.coefficients.amplitude;
-                gauss.scaler = gauss.originalScaler * (1 + delta.amplitudeDir * ampChange);
-                gauss.scaler = Math.max(0.1, gauss.scaler);
+                // Log-domain perturbation to prevent negative amplitudes
+                const log_a0 = Math.log(Math.max(1e-6, gauss.originalScaler));
+                const log_a = log_a0 + delta.amplitudeDir * magnitude * this.coefficients.amplitude;
+                gauss.scaler = Math.exp(log_a);
+                gauss.scaler = Math.max(0.01, gauss.scaler); // Safety floor
             }
 
             gauss.isPerturbed = true;
@@ -186,11 +241,24 @@ class PerturbationSystem {
             for (const type of perturbTypes) {
                 switch (type) {
                     case 'position':
-                        // 扰动位置（中心点）
-                        // Position is safe, keep it strong (1.0)
-                        const maxPositionShift = magnitude * Math.max(gauss.sX, gauss.sY) * this.coefficients.position;
-                        gauss.mX += (Math.random() * 2 - 1) * maxPositionShift;
-                        gauss.mY += (Math.random() * 2 - 1) * maxPositionShift;
+                        // 扰动位置（中心点）with tanh saturation and adaptive parameters
+                        const canvasW = this.generator.width;
+                        const canvasH = this.generator.height;
+                        const bounds = calculateMaxPositionShift(gauss, canvasW, canvasH);
+
+                        // Adaptive gain for different gaussian sizes
+                        const avgSigma = (gauss.sX + gauss.sY) / 2;
+                        const kPos = avgSigma > 20 ? 0.8 : (avgSigma > 10 ? 0.6 : 0.5);
+
+                        // Boost for large gaussians
+                        const effectiveCoeff = Math.max(this.coefficients.position, 1.0);
+                        const boostFactor = avgSigma > 20 ? 1.5 : 1.0;
+
+                        const scaleX = bounds.maxDx * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
+                        const scaleY = bounds.maxDy * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
+
+                        gauss.mX += (Math.random() * 2 - 1) * scaleX;
+                        gauss.mY += (Math.random() * 2 - 1) * scaleY;
                         break;
 
                     case 'stretch':
@@ -224,11 +292,12 @@ class PerturbationSystem {
                         break;
 
                     case 'amplitude':
-                        // 扰动幅值
-                        // Adjusted to 0.6 to avoid extreme brightness clipping
-                        const ampChange = magnitude * this.coefficients.amplitude;
-                        gauss.scaler *= (1 + (Math.random() * 2 - 1) * ampChange);
-                        gauss.scaler = Math.max(0.1, gauss.scaler); // 确保不为负或太小
+                        // 扰动幅值 - Log-domain perturbation
+                        const log_a0 = Math.log(Math.max(1e-6, gauss.scaler));
+                        const ampDir = (Math.random() * 2 - 1);
+                        const log_a = log_a0 + ampDir * magnitude * this.coefficients.amplitude;
+                        gauss.scaler = Math.exp(log_a);
+                        gauss.scaler = Math.max(0.01, gauss.scaler); // Safety floor
                         break;
                 }
             } // end loop types

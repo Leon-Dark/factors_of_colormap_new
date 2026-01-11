@@ -90,10 +90,17 @@ class SoftAttributionPerturbation {
                 continue;
             }
 
-            // 渲染该频段的场
+            // 渲染该频段的场 - 使用原始参数（保证mask锚定在原始位置）
             const bandField = new Float32Array(width * height);
             for (const gauss of gaussians) {
-                const bbox = gauss.getBoundingBox(3);
+                // 使用原始参数创建临时高斯，确保能量场基于原始位置
+                const tempGauss = new biGauss(
+                    gauss.originalMX, gauss.originalMY,
+                    gauss.originalSX, gauss.originalSY,
+                    gauss.originalRho, gauss.originalScaler
+                );
+
+                const bbox = tempGauss.getBoundingBox(3);
                 const startX = Math.max(0, Math.floor(bbox.minX));
                 const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
                 const startY = Math.max(0, Math.floor(bbox.minY));
@@ -101,7 +108,7 @@ class SoftAttributionPerturbation {
 
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
-                        bandField[y * width + x] += gauss.eval(x, y);
+                        bandField[y * width + x] += tempGauss.eval(x, y);
                     }
                 }
             }

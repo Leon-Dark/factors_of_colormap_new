@@ -158,9 +158,9 @@
                 <div id="input-group-magnitude" style="margin-bottom: 15px;">
                     <label for="magnitudes-input"
                         style="font-weight: bold; display: block; margin-bottom: 5px;">Magnitudes Input:</label>
-                    <input type="text" id="magnitudes-input" value="0.05, 0.1, 0.2, 0.3, 0.4, 0.5"
+                    <input type="text" id="magnitudes-input" value="1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
                         style="width: 100%; padding: 5px; box-sizing: border-box;">
-                    <p style="font-size: 11px; color: #999; margin: 2px 0;">Values 0.0 - 1.0, comma separated</p>
+                    <p style="font-size: 11px; color: #999; margin: 2px 0;">Values 1 - 10, comma separated</p>
                 </div>
 
                 <div id="input-group-ssim" style="display: none; margin-bottom: 15px;">
@@ -216,17 +216,17 @@
 
                     <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
                         <label style="font-size: 12px; margin-bottom: 5px; color: #4daf4a;">Mid W</label>
-                        <input type="range" id="weight-mid" min="1" max="5.0" value="1.0" step="0.1"
+                        <input type="range" id="weight-mid" min="1" max="5.0" value="1.5" step="0.1"
                             style="width: 100%;">
-                        <input type="number" id="weight-mid-value" min="1" max="5.0" value="1.0" step="0.1"
+                        <input type="number" id="weight-mid-value" min="1" max="5.0" value="1.5" step="0.1"
                             style="width: 60px; text-align: center; margin-top: 5px;">
                     </div>
 
                     <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
                         <label style="font-size: 12px; margin-bottom: 5px; color: #ff7f00;">Low W</label>
-                        <input type="range" id="weight-low" min="1" max="10.0" value="1.0" step="0.1"
+                        <input type="range" id="weight-low" min="1" max="10.0" value="3.0" step="0.1"
                             style="width: 100%;">
-                        <input type="number" id="weight-low-value" min="1" max="10.0" value="1.0" step="0.1"
+                        <input type="number" id="weight-low-value" min="1" max="10.0" value="3.0" step="0.1"
                             style="width: 60px; text-align: center; margin-top: 5px;">
                     </div>
 
@@ -250,32 +250,38 @@
                 <div style="display: flex; gap: 20px; justify-content: space-around; flex-wrap: wrap;">
                     <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
                         <label style="font-size: 12px; margin-bottom: 5px;">Position</label>
-                        <input type="range" id="coeff-position" min="0" max="2" value="1.0" step="0.1"
-                            style="width: 100%;">
-                        <span id="coeff-position-value" style="font-size: 12px; font-weight: bold;">1.0</span>
+                        <input type="range" id="coeff-position" min="0" max="2" value="0" step="0.1"
+                            style="width: 100%;" disabled>
+                        <span id="coeff-position-value"
+                            style="font-size: 12px; font-weight: bold; color: #999;">Auto</span>
+                        <span style="font-size: 9px; color: #999;">(Tanh)</span>
                     </div>
 
                     <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
                         <label style="font-size: 12px; margin-bottom: 5px;">Stretch</label>
-                        <input type="range" id="coeff-stretch" min="0" max="2" value="0.5" step="0.1"
+                        <input type="range" id="coeff-stretch" min="0" max="2" value="0" step="0.1"
                             style="width: 100%;">
-                        <span id="coeff-stretch-value" style="font-size: 12px; font-weight: bold;">0.5</span>
+                        <span id="coeff-stretch-value" style="font-size: 12px; font-weight: bold;">0</span>
                     </div>
 
                     <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
                         <label style="font-size: 12px; margin-bottom: 5px;">Rotation</label>
-                        <input type="range" id="coeff-rotation" min="0" max="2" value="0.6" step="0.1"
+                        <input type="range" id="coeff-rotation" min="0" max="2" value="1.0" step="0.1"
                             style="width: 100%;">
-                        <span id="coeff-rotation-value" style="font-size: 12px; font-weight: bold;">0.6</span>
+                        <span id="coeff-rotation-value" style="font-size: 12px; font-weight: bold;">1.0</span>
                     </div>
 
                     <div style="display: flex; flex-direction: column; align-items: center; width: 80px;">
                         <label style="font-size: 12px; margin-bottom: 5px;">Amplitude</label>
-                        <input type="range" id="coeff-amplitude" min="0" max="2" value="0.6" step="0.1"
+                        <input type="range" id="coeff-amplitude" min="0" max="2" value="1.0" step="0.1"
                             style="width: 100%;">
-                        <span id="coeff-amplitude-value" style="font-size: 12px; font-weight: bold;">0.6</span>
+                        <span id="coeff-amplitude-value" style="font-size: 12px; font-weight: bold;">1.0</span>
                     </div>
                 </div>
+                <p style="font-size: 11px; color: #666; margin-top: 10px; line-height: 1.4;">
+                    <strong>Note:</strong> Position uses tanh saturation to prevent out-of-bounds.
+                    Rotation and Amplitude can scale freely with magnitude.
+                </p>
             </div>
             <button id="btn-start" class="btn-generate">Generate All Stimuli</button>
             <div id="loading" class="loading-text">Generating... Please wait</div>

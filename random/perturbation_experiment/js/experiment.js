@@ -10,18 +10,18 @@ class ExperimentController {
             width: 200,
             height: 200, // Matches canvas size in HTML
             repetitions: 2, // Trials per condition
-            magnitudes: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5],
+            ssimTargets: [0.995, 0.990, 0.985, 0.980, 0.975, 0.970, 0.965, 0.960, 0.955, 0.950],
             frequencies: [
                 { id: 'low', target: 'large' },
                 { id: 'medium', target: 'medium' },
                 { id: 'high', target: 'small' }
             ],
-            // Gaussian Generation Params (Same as Gallery but scaled if needed)
-            // Here using the standard settings from main app default
+            // Gaussian Generation Params
+            // User Request: 4 small(σ=15, high), 3 medium(σ=25, mid), 2 large(σ=50, low)
             sizeLevels: {
                 'small': { sigma: 15, count: 4, color: '#377eb8' },
-                'medium': { sigma: 25, count: 4, color: '#4daf4a' },
-                'large': { sigma: 50, count: 4, color: '#ff7f00' }
+                'medium': { sigma: 25, count: 3, color: '#4daf4a' },
+                'large': { sigma: 50, count: 2, color: '#ff7f00' }
             }
         };
 
@@ -31,7 +31,10 @@ class ExperimentController {
         this.results = [];
         this.participantId = '';
         this.isTrialActive = false;
+        this.isTrialActive = false;
         this.startTime = 0;
+        this.nextTrialPromise = null; // Promise for the next trial data
+        this.nextTrialIndex = -1;     // Index of the trial being preloaded
 
         // --- Components ---
         // Initialize Generator & Perturbation Systems
@@ -115,13 +118,13 @@ class ExperimentController {
         let id = 1;
 
         for (const freq of this.config.frequencies) {
-            for (const mag of this.config.magnitudes) {
+            for (const ssim of this.config.ssimTargets) {
                 for (let r = 0; r < this.config.repetitions; r++) {
                     this.trials.push({
                         id: id++,
                         frequencyId: freq.id,
                         targetLevel: freq.target,
-                        magnitude: mag,
+                        targetSSIM: ssim,
                         repetition: r + 1
                     });
                 }
@@ -143,57 +146,180 @@ class ExperimentController {
         this.display.trialCurrent.textContent = index + 1;
         const progress = ((index) / this.trials.length) * 100;
         this.display.progressBar.style.width = `${progress}%`;
+
+        // Show loading state
         this.display.waitMessage.style.display = 'block';
         this.display.stimuliContainer.style.opacity = '0.5';
 
-        // Use setTimeout to allow UI to render "Loading" state
-        setTimeout(async () => {
-            await this.renderTrial(trial);
+        // 1. Get Data (either from preload or generate now)
+        let trialData;
+        const startTime = performance.now();
 
-            this.display.waitMessage.style.display = 'none';
-            this.display.stimuliContainer.style.opacity = '1';
-            this.isTrialActive = true;
-            this.startTime = performance.now();
-        }, 50);
+        if (this.nextTrialIndex === index && this.nextTrialPromise) {
+            // Use preloaded data
+            console.log(`Using preloaded data for trial ${index}`);
+            trialData = await this.nextTrialPromise;
+        } else {
+            // Generate on demand (first trial or if preload failed/mistimmed)
+            console.log(`Generating data on demand for trial ${index}`);
+            // Give UI a moment to render "Loading" text before freezing in generation
+            await new Promise(r => setTimeout(r, 50));
+            trialData = await this.generateTrialData(trial);
+        }
+
+        // 2. Render to Screen
+        this.renderTrialDataToScreen(trialData);
+
+        const loadTime = performance.now() - startTime;
+        console.log(`Trial ${index} loaded in ${loadTime.toFixed(0)}ms`);
+
+        // 3. UI Ready
+        this.display.waitMessage.style.display = 'none';
+        this.display.stimuliContainer.style.opacity = '1';
+        this.isTrialActive = true;
+        this.startTime = performance.now();
+
+        // 4. Preload NEXT trial (background)
+        const nextIndex = index + 1;
+        if (nextIndex < this.trials.length) {
+            console.log(`Starting preload for trial ${nextIndex}...`);
+            this.nextTrialIndex = nextIndex;
+            this.nextTrialPromise = this.generateTrialData(this.trials[nextIndex]);
+        }
     }
 
-    async renderTrial(trial) {
+    /**
+     * Generates all data needed for a trial (heavy computation)
+     */
+    async generateTrialData(trial) {
         // 1. Setup Generator
         this.generator.updateDimensions(this.config.width, this.config.height);
-        // Force reset params to ensure consistency
         this.generator.sizeLevels = JSON.parse(JSON.stringify(this.config.sizeLevels));
 
         // 2. Generate Random Distribution (The "Base")
         this.generator.generateAll();
 
         // 3. Render "Original" (Unperturbed)
-        // renderTo1DArray(width, height, useOriginal, useGradientNormalization)
-        // We useGradientNormalization=true normally, let's stick to default consistent with main app
         const originalData = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true);
 
-        // 4. Create "Perturbed" version
-        // Apply Physical Perturbation
-        this.perturbation.resetToOriginal();
-        // Perturb 50% of target level (same as gallery)
-        this.perturbation.applyGlobalPerturbation(trial.magnitude, 0.5, trial.targetLevel, 'all');
+        // 4. Find Perturbation Magnitude that matches SSIM Target
+        const optimizationResult = await this.findMagnitudeForSSIM(trial.targetSSIM, trial.targetLevel, originalData);
 
-        // Apply Soft Attribution Gating
-        const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
-        const perturbedData = saResult.perturbedTotal;
+        // Store optimization results in the trial object for recording later
+        trial.actualMagnitude = optimizationResult.magnitude;
+        trial.actualSSIM = optimizationResult.ssim;
 
-        // 5. Assign to Slots
-        // Randomly choose target position (0-3)
+        // 5. Randomly choose target position
         const targetPos = Math.floor(Math.random() * 4);
-        this.currentTargetPos = targetPos;
+
+        return {
+            originalData: originalData,
+            perturbedData: optimizationResult.data,
+            targetPos: targetPos,
+            trial: trial
+        };
+    }
+
+    /**
+     * Puts the generated data onto the canvas
+     */
+    renderTrialDataToScreen(trialData) {
+        this.currentTargetPos = trialData.targetPos;
+        const originalData = trialData.originalData;
+        const perturbedData = trialData.perturbedData;
 
         // Render to Canvases
         for (let i = 0; i < 4; i++) {
             const canvas = this.display.canvases[i];
             const ctx = canvas.getContext('2d');
-            const data = (i === targetPos) ? perturbedData : originalData;
+            const data = (i === this.currentTargetPos) ? perturbedData : originalData;
 
             this.renderDataToCanvas(ctx, data, this.config.width, this.config.height);
         }
+    }
+
+    /**
+     * Finds the magnitude that produces a result closest to the target SSIM.
+     */
+    async findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal) {
+        const tolerance = 0.001;
+        const maxRetries = 5;
+        const maxIterPerTry = 40;
+
+        let bestOverallDiff = Infinity;
+        let bestOverallResult = null;
+        let bestOverallMagnitude = 0;
+        let foundGoodResult = false;
+
+        const coefficients = {
+            position: 0,       // Auto-controlled by tanh saturation (in perturbation.js)
+            stretch: 0.0,      // Disabled
+            rotation: 1.0,     // Free to scale
+            amplitude: 1.0     // Free to scale
+        };
+
+        for (let retry = 0; retry < maxRetries && !foundGoodResult; retry++) {
+            this.perturbation.resetToOriginal();
+            this.perturbation.setCoefficients(coefficients);
+            this.perturbation.generatePerturbationDeltas(freqTarget, 1.0, 'all');
+
+            // Adaptive max magnitude: large gaussians need higher values
+            const maxMagnitude = (freqTarget === 'large') ? 8.0 : 5.0;
+            let min = 0.0, max = maxMagnitude;
+            let bestDiff = Infinity;
+
+            for (let i = 0; i < maxIterPerTry; i++) {
+                // Yield to main thread every 5 iterations to keep UI responsive
+                if (i % 5 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+
+                const mid = (min + max) / 2;
+
+                this.perturbation.applyStoredPerturbation(mid);
+                const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+                const tempPerturbed = saResult.perturbedTotal;
+
+                const currentSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                const diff = Math.abs(currentSSIM - targetSSIM);
+
+                if (diff < bestDiff) {
+                    bestDiff = diff;
+                }
+
+                if (diff < bestOverallDiff) {
+                    bestOverallDiff = diff;
+                    bestOverallMagnitude = mid;
+                    bestOverallResult = tempPerturbed;
+
+                    if (diff < tolerance) {
+                        foundGoodResult = true;
+                        break;
+                    }
+                }
+
+                // Bisect (SSIM decreases as Magnitude increases)
+                if (currentSSIM > targetSSIM) {
+                    // Too similar -> Need more perturbation -> Increase Mag
+                    min = mid;
+                } else {
+                    // Too different -> Need less perturbation -> Decrease Mag
+                    max = mid;
+                }
+            }
+        }
+
+        if (!bestOverallResult) {
+            console.warn("Failed to find valid perturbation, returning last attempt");
+            // Fallback (should rarely happen)
+            this.perturbation.applyStoredPerturbation(0);
+            const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+            return { data: saResult.perturbedTotal, magnitude: 0, ssim: 1 };
+        }
+
+        return {
+            data: bestOverallResult,
+            magnitude: bestOverallMagnitude,
+            ssim: calculateSSIM(dataOriginal, bestOverallResult, this.config.width, this.config.height)
+        };
     }
 
     renderDataToCanvas(ctx, data, width, height) {
@@ -246,7 +372,9 @@ class ExperimentController {
             participantId: this.participantId,
             trialId: trialData.id,
             frequencyId: trialData.frequencyId,
-            magnitude: trialData.magnitude,
+            targetSSIM: trialData.targetSSIM,
+            actualSSIM: trialData.actualSSIM,
+            actualMagnitude: trialData.actualMagnitude,
             repetition: trialData.repetition,
             targetPosition: this.currentTargetPos,
             selectedPosition: selectedIndex,

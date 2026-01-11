@@ -20,10 +20,10 @@ class StimuliGallery {
         this.softAttribution = new SoftAttributionPerturbation(this.generator);
 
         this.coefficients = {
-            position: 1.0,
-            stretch: 0.5,
-            rotation: 0.6,
-            amplitude: 0.6
+            position: 0,       // Position uses tanh saturation (auto-controlled)
+            stretch: 0.0,      // Removed as planned
+            rotation: 1.0,     // Free to scale
+            amplitude: 1.0     // Free to scale
         };
 
         this.bindEvents();
@@ -214,8 +214,8 @@ class StimuliGallery {
             this.generator.updateDimensions(this.config.width, this.config.height);
             this.generator.sizeLevels = {
                 'small': { sigma: 7.5, count: 4, color: '#377eb8' },   // 尺寸按比例缩小 (原15 -> 7.5)
-                'medium': { sigma: 12.5, count: 4, color: '#4daf4a' }, // (原25 -> 12.5)
-                'large': { sigma: 25, count: 4, color: '#ff7f00' }     // (原50 -> 25)
+                'medium': { sigma: 12.5, count: 3, color: '#4daf4a' }, // (原25 -> 12.5)
+                'large': { sigma: 25, count: 2, color: '#ff7f00' }     // (原50 -> 25)
             };
             // 注意：因为画布从200x200缩小到了100x100，所以sigma也应该减半，
             // 但如果用户想要保持视觉上的相对比例，我们需要调整sigma。
@@ -256,7 +256,7 @@ class StimuliGallery {
                 // Optimization Search (Stable Algorithm with Retry)
                 // 如果单次搜索未达到精度，换初始化重试
 
-                const tolerance = step / 2;  // 动态阈值
+                const tolerance = 0.001;  // 动态阈值
                 const maxRetries = 6;        // 最多重试5次
                 const maxIterPerTry = 60;    // 每次尝试最多50次迭代
 
@@ -274,7 +274,9 @@ class StimuliGallery {
                     this.perturbation.setCoefficients(this.coefficients);
                     this.perturbation.generatePerturbationDeltas(freq.target, 1.0, 'all');
 
-                    let min = 0.0, max = 2.5;
+                    // Adaptive max magnitude: large gaussians need higher values
+                    const maxMagnitude = (freq.target === 'large') ? 8.0 : 5.0;
+                    let min = 0.0, max = maxMagnitude;
                     let bestDiff = Infinity;
 
                     // 二分搜索
@@ -345,6 +347,8 @@ class StimuliGallery {
 
                 if (!foundGoodResult) {
                     console.warn(`Warning: Could not achieve tolerance ${tolerance} for target ${targetVal} after ${maxRetries} retries. Best diff: ${bestOverallDiff.toFixed(6)}`);
+                    resolve();
+                    return;
                 }
             }
 
