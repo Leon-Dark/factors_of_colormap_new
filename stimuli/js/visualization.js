@@ -170,8 +170,19 @@ function drawGivenColormap2(candidates, condition_name) {
                 borderColor = '#f44336';
             }
         } else {
-            const isPassing = metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
-            borderColor = isPassing ? '#4CAF50' : '#f44336';
+            // Uniform mode: 4 states matching filters.js and statistics.js
+            const passSmall = metrics.uniform_small_window_diff >= UNIFORM_SMALL_MIN_DIFF;
+            const passLarge = metrics.uniform_large_window_diff >= UNIFORM_LARGE_MIN_DIFF;
+
+            if (passSmall && passLarge) {
+                borderColor = '#4CAF50'; // Pass Both
+            } else if (!passSmall && passLarge) {
+                borderColor = '#FF9800'; // Fail Small
+            } else if (passSmall && !passLarge) {
+                borderColor = '#9C27B0'; // Fail Large
+            } else {
+                borderColor = '#f44336'; // Fail Both
+            }
         }
 
         div.style("border-color", borderColor)
@@ -212,7 +223,8 @@ function updateMetricsDisplay(divElement, metrics) {
         );
     } else {
         metricsData.unshift(
-            { name: "Uniform Min Diff", value: metrics.uniform_min_diff, color: "#795548" }
+            { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
+            { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
         );
     }
 
@@ -300,7 +312,8 @@ function displayMetricsInDiv(div, metrics) {
         );
     } else {
         metricsData.unshift(
-            { name: "Uniform Min Diff", value: metrics.uniform_min_diff, color: "#795548" }
+            { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
+            { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
         );
     }
 

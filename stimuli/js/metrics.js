@@ -598,9 +598,12 @@ function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
         console.log(`Sample Interval Min Diff (k=${SAMPLE_INTERVAL_K}):`, metrics.sample_interval_min_diff.toFixed(3));
 
         // 2. Uniform Mode Metrics
-        // Uniform Mode: Calculate single condition
-        metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT) || 0;
-        console.log(`Uniform Min Diff (n=${UNIFORM_SAMPLE_COUNT}):`, metrics.uniform_min_diff.toFixed(3));
+        // Uniform Mode: Calculate condition 1 (Small Window) and condition 2 (Large Window)
+        metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
+        console.log(`Uniform Small Window Diff (k=${UNIFORM_SMALL_INTERVAL_K}):`, metrics.uniform_small_window_diff.toFixed(3));
+
+        metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
+        console.log(`Uniform Large Window Diff (k=${UNIFORM_LARGE_INTERVAL_K}):`, metrics.uniform_large_window_diff.toFixed(3));
 
         console.log('==========================================\n');
 

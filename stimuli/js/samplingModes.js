@@ -15,7 +15,7 @@ function generateJndSamples(palette, jndStep) {
         // Sample points using JND step
         const jndSamples = [fineSamples[0]];
         let currentIdx = 0;
-        
+
         while (currentIdx < fineSamples.length - 1) {
             let foundNext = false;
             for (let i = currentIdx + 1; i < fineSamples.length; i++) {
@@ -29,7 +29,7 @@ function generateJndSamples(palette, jndStep) {
             }
             if (!foundNext) break;
         }
-        
+
         return jndSamples;
     } catch (error) {
         console.error('Error in generateJndSamples:', error);
@@ -47,7 +47,7 @@ function calcJndConsistency(paletteOrSamples, jndStep) {
         const jndSamples = Array.isArray(paletteOrSamples[0]) && paletteOrSamples[0].length === 3
             ? paletteOrSamples
             : generateJndSamples(paletteOrSamples, jndStep);
-        
+
         if (jndSamples.length < 2) {
             return 0;
         }
@@ -61,7 +61,7 @@ function calcJndConsistency(paletteOrSamples, jndStep) {
                 }
             }
         }
-        
+
         return min_color_diff === Number.MAX_VALUE ? 0 : min_color_diff;
     } catch (error) {
         console.error('Error in calcJndConsistency:', error);
@@ -79,7 +79,7 @@ function calcSampleIntervalMinDiff(paletteOrSamples, intervalK, jndStep) {
         const jndSamples = Array.isArray(paletteOrSamples[0]) && paletteOrSamples[0].length === 3
             ? paletteOrSamples
             : generateJndSamples(paletteOrSamples, jndStep);
-        
+
         if (jndSamples.length <= intervalK) {
             return 0;
         }
@@ -91,10 +91,41 @@ function calcSampleIntervalMinDiff(paletteOrSamples, intervalK, jndStep) {
                 min_interval_diff = diff;
             }
         }
-        
+
         return min_interval_diff === Number.MAX_VALUE ? 0 : min_interval_diff;
     } catch (error) {
         console.error('Error in calcSampleIntervalMinDiff:', error);
+        return 0;
+    }
+}
+
+// Uniform Mode: Calculate min color diff for samples at interval k
+function calcUniformIntervalMinDiff(palette, intervalK, sampleCount) {
+    let min_interval_diff = Number.MAX_VALUE;
+    try {
+        // Uniformly sample points from the palette
+        const samples = [];
+        for (let i = 0; i < sampleCount; i++) {
+            const t = i / (sampleCount - 1);
+            const idx = Math.min(Math.floor(t * palette.length), palette.length - 1);
+            samples.push(palette[idx]);
+        }
+
+        if (samples.length <= intervalK) {
+            return 0;
+        }
+
+        // Calculate min diff between samples i and i+k
+        for (let i = 0; i + intervalK < samples.length; i++) {
+            const diff = ciede2000(samples[i], samples[i + intervalK]);
+            if (diff < min_interval_diff) {
+                min_interval_diff = diff;
+            }
+        }
+
+        return min_interval_diff === Number.MAX_VALUE ? 0 : min_interval_diff;
+    } catch (error) {
+        console.error('Error in calcUniformIntervalMinDiff:', error);
         return 0;
     }
 }
@@ -120,7 +151,7 @@ function calcUniformMinDiff(palette, sampleCount) {
                 }
             }
         }
-        
+
         return min_color_diff === Number.MAX_VALUE ? 0 : min_color_diff;
     } catch (error) {
         console.error('Error in calcUniformMinDiff:', error);

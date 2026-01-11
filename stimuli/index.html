@@ -55,17 +55,17 @@
 
                 <div style="display: flex; gap: 20px; margin-bottom: 15px;">
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <input type="radio" name="samplingMode" value="jnd" checked onchange="switchSamplingMode()">
+                        <input type="radio" name="samplingMode" value="jnd" onchange="switchSamplingMode()">
                         <span style="font-weight: 500;">JND-based Sampling</span>
                     </label>
                     <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <input type="radio" name="samplingMode" value="uniform" onchange="switchSamplingMode()">
+                        <input type="radio" name="samplingMode" value="uniform" checked onchange="switchSamplingMode()">
                         <span style="font-weight: 500;">Uniform Sampling</span>
                     </label>
                 </div>
 
                 <!-- JND Mode Parameters -->
-                <div id="jndModePanel" style="display: block;">
+                <div id="jndModePanel" style="display: none;">
                     <div
                         style="margin-bottom: 12px; padding: 10px; background: #fff9e6; border-radius: 4px; border: 1px solid #ffe066;">
                         <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📊 JND Step Size</div>
@@ -112,7 +112,7 @@
                 </div>
 
                 <!-- Uniform Mode Parameters -->
-                <div id="uniformModePanel" style="display: none;">
+                <div id="uniformModePanel" style="display: block;">
                     <div
                         style="margin-bottom: 12px; padding: 10px; background: #e8f5e9; border-radius: 4px; border: 1px solid #81c784;">
                         <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📊 Sample Count</div>
@@ -126,16 +126,47 @@
                         </div>
                     </div>
 
-                    <div style="padding: 10px; background: #f0f8ff; border-radius: 4px;">
-                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📐 Min Color Diff Threshold
+                    <div style="margin-bottom: 12px; padding: 10px; background: #f0f8ff; border-radius: 4px;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📏 Small Window Check</div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <label style="min-width: 120px; font-size: 13px;">Interval k =</label>
+                            <input type="range" id="uniformSmallIntervalSlider" min="1" max="10" step="1" value="1"
+                                style="flex: 1; cursor: pointer;"
+                                oninput="updateUniformSmallWindow(this.value, document.getElementById('uniformSmallDiffValue').value)">
+                            <input type="number" id="uniformSmallIntervalValue" min="1" max="10" step="1" value="1"
+                                style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                oninput="updateUniformSmallWindow(this.value, document.getElementById('uniformSmallDiffValue').value)">
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <label style="min-width: 120px; font-size: 13px;">Min diff ≥</label>
-                            <input type="range" id="uniformThresholdSlider" min="0" max="50" step="0.5" value="10"
-                                style="flex: 1; cursor: pointer;" oninput="updateUniformThreshold(this.value)">
-                            <input type="number" id="uniformThresholdValue" min="0" max="50" step="0.5" value="10"
+                            <input type="range" id="uniformSmallDiffSlider" min="0" max="50" step="0.5" value="5"
+                                style="flex: 1; cursor: pointer;"
+                                oninput="updateUniformSmallWindow(document.getElementById('uniformSmallIntervalValue').value, this.value)">
+                            <input type="number" id="uniformSmallDiffValue" min="0" max="50" step="0.5" value="5"
                                 style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
-                                oninput="updateUniformThreshold(this.value)">
+                                oninput="updateUniformSmallWindow(document.getElementById('uniformSmallIntervalValue').value, this.value)">
+                        </div>
+                    </div>
+
+                    <div style="padding: 10px; background: #fff8e1; border-radius: 4px;">
+                        <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📐 Large Window Check</div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <label style="min-width: 120px; font-size: 13px;">Interval k =</label>
+                            <input type="range" id="uniformLargeIntervalSlider" min="1" max="20" step="1" value="5"
+                                style="flex: 1; cursor: pointer;"
+                                oninput="updateUniformLargeWindow(this.value, document.getElementById('uniformLargeDiffValue').value)">
+                            <input type="number" id="uniformLargeIntervalValue" min="1" max="20" step="1" value="5"
+                                style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                oninput="updateUniformLargeWindow(this.value, document.getElementById('uniformLargeDiffValue').value)">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="min-width: 120px; font-size: 13px;">Min diff ≥</label>
+                            <input type="range" id="uniformLargeDiffSlider" min="0" max="50" step="0.5" value="15"
+                                style="flex: 1; cursor: pointer;"
+                                oninput="updateUniformLargeWindow(document.getElementById('uniformLargeIntervalValue').value, this.value)">
+                            <input type="number" id="uniformLargeDiffValue" min="0" max="50" step="0.5" value="15"
+                                style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
+                                oninput="updateUniformLargeWindow(document.getElementById('uniformLargeIntervalValue').value, this.value)">
                         </div>
                     </div>
                 </div>
@@ -146,7 +177,7 @@
                 <div style="font-weight: bold; margin-bottom: 8px; color: #555;">🔍 Display mode:</div>
 
                 <!-- JND Mode Filters -->
-                <div id="jndFilterOptions" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <div id="jndFilterOptions" style="display: none; gap: 15px; flex-wrap: wrap;">
                     <label style="cursor: pointer;">
                         <input type="radio" name="filterMode" value="all" checked onchange="applyFilter()">
                         Show all (<span id="filterAllCount">0</span>)
@@ -170,18 +201,26 @@
                 </div>
 
                 <!-- Uniform Mode Filters -->
-                <div id="uniformFilterOptions" style="display: none; gap: 15px; flex-wrap: wrap;">
+                <div id="uniformFilterOptions" style="display: flex; gap: 15px; flex-wrap: wrap;">
                     <label style="cursor: pointer;">
                         <input type="radio" name="filterModeUniform" value="all" checked onchange="applyFilter()">
                         Show all (<span id="filterAllCountUniform">0</span>)
                     </label>
                     <label style="cursor: pointer; color: #4CAF50;">
                         <input type="radio" name="filterModeUniform" value="pass" onchange="applyFilter()">
-                        ✅ Pass (<span id="filterPassCountUniform">0</span>)
+                        ✅ Pass both (<span id="filterPassCountUniform">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #FF9800;">
+                        <input type="radio" name="filterModeUniform" value="failSmall" onchange="applyFilter()">
+                        ⚠️ Fail Small (<span id="filterFailSmallCountUniform">0</span>)
+                    </label>
+                    <label style="cursor: pointer; color: #9C27B0;">
+                        <input type="radio" name="filterModeUniform" value="failLarge" onchange="applyFilter()">
+                        ⚠️ Fail Large (<span id="filterFailLargeCountUniform">0</span>)
                     </label>
                     <label style="cursor: pointer; color: #f44336;">
-                        <input type="radio" name="filterModeUniform" value="fail" onchange="applyFilter()">
-                        ❌ Fail (<span id="filterFailCountUniform">0</span>)
+                        <input type="radio" name="filterModeUniform" value="failBoth" onchange="applyFilter()">
+                        ❌ Fail both (<span id="filterFailBothCountUniform">0</span>)
                     </label>
                 </div>
             </div>

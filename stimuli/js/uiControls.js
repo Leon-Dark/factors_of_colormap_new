@@ -9,7 +9,6 @@ function switchSamplingMode() {
     if (selectedMode === 'jnd') {
         document.getElementById('jndModePanel').style.display = 'block';
         document.getElementById('uniformModePanel').style.display = 'none';
-        // Show/hide filter options
         document.getElementById('jndFilterOptions').style.display = 'flex';
         document.getElementById('uniformFilterOptions').style.display = 'none';
         // Reset to "Show all" for JND mode
@@ -37,7 +36,8 @@ function switchSamplingMode() {
             cm.metrics.jnd_consistency = calcJndConsistency(jndSamples, JND_STEP);
             cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, SAMPLE_INTERVAL_K, JND_STEP);
         } else {
-            cm.metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT);
+            cm.metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
+            cm.metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
         }
 
         // Update the metrics display on the card (important for mode switch)
@@ -140,7 +140,8 @@ function updateUniformCount(value) {
             const hcl = d3.hcl(lab);
             return [hcl.h, hcl.c, hcl.l];
         });
-        cm.metrics.uniform_min_diff = calcUniformMinDiff(hclPalette, count);
+        cm.metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, count);
+        cm.metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, count);
 
         // Update the metrics display on the card
         if (colormapElements[idx]) {
@@ -153,14 +154,66 @@ function updateUniformCount(value) {
     updateColormapBorders();
 }
 
-// Uniform Mode: Update threshold
-function updateUniformThreshold(value) {
-    const threshold = parseFloat(value);
-    UNIFORM_MIN_DIFF_THRESHOLD = threshold;
+// Uniform Mode: Update Small Window Check
+function updateUniformSmallWindow(k, diff) {
+    const intervalK = parseInt(k);
+    const minDiff = parseFloat(diff);
 
-    // Sync slider and number input
-    document.getElementById('uniformThresholdSlider').value = threshold;
-    document.getElementById('uniformThresholdValue').value = threshold;
+    UNIFORM_SMALL_INTERVAL_K = intervalK;
+    UNIFORM_SMALL_MIN_DIFF = minDiff;
+
+    // Sync sliders and number inputs
+    document.getElementById('uniformSmallIntervalSlider').value = intervalK;
+    document.getElementById('uniformSmallIntervalValue').value = intervalK;
+    document.getElementById('uniformSmallDiffSlider').value = minDiff;
+    document.getElementById('uniformSmallDiffValue').value = minDiff;
+
+    // Recalculate metrics
+    allColormaps.forEach((cm, idx) => {
+        const hclPalette = cm.colormap.map(color => {
+            const lab = d3.lab(color);
+            const hcl = d3.hcl(lab);
+            return [hcl.h, hcl.c, hcl.l];
+        });
+        cm.metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
+
+        if (colormapElements[idx]) {
+            updateMetricsDisplay(colormapElements[idx], cm.metrics);
+        }
+    });
+
+    updateStatistics();
+    applyFilter();
+    updateColormapBorders();
+}
+
+// Uniform Mode: Update Large Window Check
+function updateUniformLargeWindow(k, diff) {
+    const intervalK = parseInt(k);
+    const minDiff = parseFloat(diff);
+
+    UNIFORM_LARGE_INTERVAL_K = intervalK;
+    UNIFORM_LARGE_MIN_DIFF = minDiff;
+
+    // Sync sliders and number inputs
+    document.getElementById('uniformLargeIntervalSlider').value = intervalK;
+    document.getElementById('uniformLargeIntervalValue').value = intervalK;
+    document.getElementById('uniformLargeDiffSlider').value = minDiff;
+    document.getElementById('uniformLargeDiffValue').value = minDiff;
+
+    // Recalculate metrics
+    allColormaps.forEach((cm, idx) => {
+        const hclPalette = cm.colormap.map(color => {
+            const lab = d3.lab(color);
+            const hcl = d3.hcl(lab);
+            return [hcl.h, hcl.c, hcl.l];
+        });
+        cm.metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
+
+        if (colormapElements[idx]) {
+            updateMetricsDisplay(colormapElements[idx], cm.metrics);
+        }
+    });
 
     updateStatistics();
     applyFilter();
