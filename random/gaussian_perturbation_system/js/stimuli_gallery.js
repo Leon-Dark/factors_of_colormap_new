@@ -47,6 +47,9 @@ class StimuliGallery {
                     if (groups[k]) groups[k].style.display = (k === mode) ? 'block' : 'none';
                 });
             });
+
+            // Trigger initial state
+            modeSelect.dispatchEvent(new Event('change'));
         }
 
         // Coefficient Sliders
