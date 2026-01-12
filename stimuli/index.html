@@ -118,9 +118,9 @@
                         <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📊 Sample Count</div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <label style="min-width: 120px; font-size: 13px;">Sample count =</label>
-                            <input type="range" id="uniformCountSlider" min="5" max="50" step="1" value="10"
+                            <input type="range" id="uniformCountSlider" min="5" max="50" step="1" value="20"
                                 style="flex: 1; cursor: pointer;" oninput="updateUniformCount(this.value)">
-                            <input type="number" id="uniformCountValue" min="5" max="50" step="1" value="10"
+                            <input type="number" id="uniformCountValue" min="5" max="50" step="1" value="20"
                                 style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
                                 oninput="updateUniformCount(this.value)">
                         </div>
@@ -130,19 +130,19 @@
                         <div style="font-weight: 500; margin-bottom: 8px; color: #666;">📏 Small Window Check</div>
                         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                             <label style="min-width: 120px; font-size: 13px;">Interval k =</label>
-                            <input type="range" id="uniformSmallIntervalSlider" min="1" max="10" step="1" value="1"
+                            <input type="range" id="uniformSmallIntervalSlider" min="1" max="10" step="1" value="2"
                                 style="flex: 1; cursor: pointer;"
                                 oninput="updateUniformSmallWindow(this.value, document.getElementById('uniformSmallDiffValue').value)">
-                            <input type="number" id="uniformSmallIntervalValue" min="1" max="10" step="1" value="1"
+                            <input type="number" id="uniformSmallIntervalValue" min="1" max="10" step="1" value="2"
                                 style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
                                 oninput="updateUniformSmallWindow(this.value, document.getElementById('uniformSmallDiffValue').value)">
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <label style="min-width: 120px; font-size: 13px;">Min diff ≥</label>
-                            <input type="range" id="uniformSmallDiffSlider" min="0" max="50" step="0.5" value="5"
+                            <input type="range" id="uniformSmallDiffSlider" min="0" max="50" step="0.5" value="3"
                                 style="flex: 1; cursor: pointer;"
                                 oninput="updateUniformSmallWindow(document.getElementById('uniformSmallIntervalValue').value, this.value)">
-                            <input type="number" id="uniformSmallDiffValue" min="0" max="50" step="0.5" value="5"
+                            <input type="number" id="uniformSmallDiffValue" min="0" max="50" step="0.5" value="3"
                                 style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
                                 oninput="updateUniformSmallWindow(document.getElementById('uniformSmallIntervalValue').value, this.value)">
                         </div>
@@ -161,10 +161,10 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <label style="min-width: 120px; font-size: 13px;">Min diff ≥</label>
-                            <input type="range" id="uniformLargeDiffSlider" min="0" max="50" step="0.5" value="15"
+                            <input type="range" id="uniformLargeDiffSlider" min="0" max="50" step="0.5" value="10"
                                 style="flex: 1; cursor: pointer;"
                                 oninput="updateUniformLargeWindow(document.getElementById('uniformLargeIntervalValue').value, this.value)">
-                            <input type="number" id="uniformLargeDiffValue" min="0" max="50" step="0.5" value="15"
+                            <input type="number" id="uniformLargeDiffValue" min="0" max="50" step="0.5" value="10"
                                 style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px;"
                                 oninput="updateUniformLargeWindow(document.getElementById('uniformLargeIntervalValue').value, this.value)">
                         </div>
