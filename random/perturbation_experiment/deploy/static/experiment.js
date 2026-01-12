@@ -19,9 +19,9 @@ class ExperimentController {
             // Gaussian Generation Params
             // User Request: 4 small(σ=15, high), 3 medium(σ=25, mid), 2 large(σ=50, low)
             sizeLevels: {
-                'small': { sigma: 15, count: 4, color: '#377eb8' },
+                'small': { sigma: 15, count: 2, color: '#377eb8' },
                 'medium': { sigma: 25, count: 3, color: '#4daf4a' },
-                'large': { sigma: 50, count: 2, color: '#ff7f00' }
+                'large': { sigma: 50, count: 4, color: '#ff7f00' }
             }
         };
 
@@ -270,7 +270,7 @@ class ExperimentController {
 
             for (let i = 0; i < maxIterPerTry; i++) {
                 // Yield to main thread every 5 iterations to keep UI responsive
-                if (i % 5 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+                if (i % 20 === 0) await new Promise(resolve => setTimeout(resolve, 0));
 
                 const mid = (min + max) / 2;
 

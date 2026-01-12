@@ -18,16 +18,16 @@ class GaussianGenerator {
 
         // 尺寸级别配置 - 三层固定sigma，适配200×200画布
         this.sizeLevels = {
-            'small': { sigma: 15, count: 4, color: '#377eb8' },      // 高频 σ=4px (Blue)
-            'medium': { sigma: 25, count: 4, color: '#4daf4a' },    // 中频 σ=16px
+            'small': { sigma: 15, count: 2, color: '#377eb8' },      // 高频 σ=4px (Blue)
+            'medium': { sigma: 25, count: 3, color: '#4daf4a' },    // 中频 σ=16px
             'large': { sigma: 50, count: 4, color: '#ff7f00' }      // 低频 σ=40px
         };
 
         this.exponent = 1.0;
         this.bandWeights = {
             'small': 1.0,
-            'medium': 1.0,
-            'large': 1.0
+            'medium': 1.5,
+            'large': 3.0
         };
     }
 
