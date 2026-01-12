@@ -210,12 +210,12 @@ class StimuliGallery {
     async createStimulusCard(container, freq, targetVal, repetition, mode, step = 0.01) {
         return new Promise(resolve => {
             // 1. 设置生成器参数
-            // 4个低频，4个中频，4个高频
+            // 4个低频，3个中频，2个高频
             this.generator.updateDimensions(this.config.width, this.config.height);
             this.generator.sizeLevels = {
-                'small': { sigma: 7.5, count: 4, color: '#377eb8' },   // 尺寸按比例缩小 (原15 -> 7.5)
+                'small': { sigma: 7.5, count: 2, color: '#377eb8' },   // 尺寸按比例缩小 (原15 -> 7.5)
                 'medium': { sigma: 12.5, count: 3, color: '#4daf4a' }, // (原25 -> 12.5)
-                'large': { sigma: 25, count: 2, color: '#ff7f00' }     // (原50 -> 25)
+                'large': { sigma: 25, count: 4, color: '#ff7f00' }     // (原50 -> 25)
             };
             // 注意：因为画布从200x200缩小到了100x100，所以sigma也应该减半，
             // 但如果用户想要保持视觉上的相对比例，我们需要调整sigma。

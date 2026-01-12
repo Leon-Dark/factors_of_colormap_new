@@ -18,7 +18,8 @@ function getFailedColormaps() {
             const passCond2 = cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
             isFailed = !passCond1 || !passCond2;
         } else {
-            isFailed = cm.metrics.uniform_min_diff < UNIFORM_MIN_DIFF_THRESHOLD;
+            isFailed = cm.metrics.uniform_small_window_diff < UNIFORM_SMALL_MIN_DIFF ||
+                cm.metrics.uniform_large_window_diff < UNIFORM_LARGE_MIN_DIFF;
         }
 
         if (isFailed) {
@@ -210,7 +211,8 @@ function drawComparisonCard(candidates, title, container) {
             const passCond2 = metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
             isPassing = passCond1 && passCond2;
         } else {
-            isPassing = metrics.uniform_min_diff >= UNIFORM_MIN_DIFF_THRESHOLD;
+            isPassing = metrics.uniform_small_window_diff >= UNIFORM_SMALL_MIN_DIFF &&
+                metrics.uniform_large_window_diff >= UNIFORM_LARGE_MIN_DIFF;
         }
 
         div.style("border-color", isPassing ? "#4CAF50" : "#f44336").style("border-width", "3px");
@@ -377,8 +379,9 @@ function retryGeneration(failedItem, iteration) {
                 const intervalDiff = calcSampleIntervalMinDiff(jndSamples, SAMPLE_INTERVAL_K, JND_STEP) || 0;
                 passes = jndConsistency >= JND_STEP && intervalDiff >= MIN_INTERVAL_DIFF_J;
             } else {
-                const uniformDiff = calcUniformMinDiff(hclPalette, UNIFORM_SAMPLE_COUNT) || 0;
-                passes = uniformDiff >= UNIFORM_MIN_DIFF_THRESHOLD;
+                const smallDiff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
+                const largeDiff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
+                passes = smallDiff >= UNIFORM_SMALL_MIN_DIFF && largeDiff >= UNIFORM_LARGE_MIN_DIFF;
             }
 
             if (passes) {
