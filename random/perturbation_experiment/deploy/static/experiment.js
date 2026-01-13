@@ -10,7 +10,7 @@ class ExperimentController {
             width: 200,
             height: 200, // Matches canvas size in HTML
             repetitions: 2, // Trials per condition
-            ssimTargets: [0.995, 0.990, 0.985, 0.980, 0.975, 0.970, 0.965, 0.960, 0.955, 0.950],
+            ssimTargets: [0.995, 0.993, 0.991, 0.989, 0.987, 0.985, 0.983, 0.981, 0.979, 0.977],
             frequencies: [
                 { id: 'low', target: 'large' },
                 { id: 'medium', target: 'medium' },
@@ -22,7 +22,8 @@ class ExperimentController {
                 'small': { sigma: 15, count: 2, color: '#377eb8' },
                 'medium': { sigma: 25, count: 3, color: '#4daf4a' },
                 'large': { sigma: 50, count: 4, color: '#ff7f00' }
-            }
+            },
+            preloadBufferSize: 6 // Maintain a buffer of 6 generated trials
         };
 
         // --- State ---
@@ -31,10 +32,12 @@ class ExperimentController {
         this.results = [];
         this.participantId = '';
         this.isTrialActive = false;
-        this.isTrialActive = false;
         this.startTime = 0;
-        this.nextTrialPromise = null; // Promise for the next trial data
-        this.nextTrialIndex = -1;     // Index of the trial being preloaded
+
+        // Preloading System
+        this.preloadedTrials = new Map(); // Index -> Promise
+        this.preloadPointer = 0;
+        this.isPreloading = false;
 
         // --- Components ---
         // Initialize Generator & Perturbation Systems
@@ -102,6 +105,7 @@ class ExperimentController {
     startExperiment() {
         this.generateTrials();
         this.shuffleArray(this.trials);
+        this.insertEngagementChecks();
 
         console.log(`Starting experiment with ${this.trials.length} trials.`);
 
@@ -110,7 +114,11 @@ class ExperimentController {
         this.switchScreen('experiment');
 
         // Start first trial
+        // Start first trial
         this.loadTrial(0);
+
+        // Start preloading immediately (loadTrial(0) calls it, but ensures it starts)
+        // loadTrial calls queuePreload, so we are good.
     }
 
     generateTrials() {
@@ -125,11 +133,47 @@ class ExperimentController {
                         frequencyId: freq.id,
                         targetLevel: freq.target,
                         targetSSIM: ssim,
-                        repetition: r + 1
+                        repetition: r + 1,
+                        isEngagementCheck: false
                     });
                 }
             }
         }
+    }
+
+    insertEngagementChecks() {
+        // Insert catch trials at specific indices: 15, 30, 45
+        // We do this AFTER shuffling normal trials so their position is fixed absolute
+        const checkPositions = [15, 30, 45];
+
+        // Use 'medium' frequency for checks, but very easy SSIM
+        const checkTrialTempl = {
+            frequencyId: 'medium',
+            targetLevel: 'medium',
+            targetSSIM: 0.95,
+            isEngagementCheck: true,
+            repetition: 0
+        };
+
+        let insertedCount = 0;
+        checkPositions.forEach(pos => {
+            // Adjust position for previously inserted items if we wanted relative, 
+            // but user likely means absolute index in the final sequence.
+            // Since we insert into an array, inserting at 15 shifts everything after.
+            // So if we want them at exactly 15, 30, 45 of the FINAL array:
+            // We should insert them. Note that inserting at 15 makes the old 15 become 16.
+            // If the user meant "after 15th trial" (index 15), "after 30th trial" (index 30)...
+
+            // Let's assume 0-based index 15, 30, 45.
+            if (pos <= this.trials.length) {
+                const trial = { ...checkTrialTempl, id: 9000 + insertedCount };
+                this.trials.splice(pos, 0, trial);
+                insertedCount++;
+            }
+        });
+
+        // Re-index slightly or just keep IDs unique
+        this.trials.forEach((t, i) => t.trialIndex = i);
     }
 
     async loadTrial(index) {
@@ -147,6 +191,14 @@ class ExperimentController {
         const progress = ((index) / this.trials.length) * 100;
         this.display.progressBar.style.width = `${progress}%`;
 
+        // Cleanup old preloads
+        for (const [key, val] of this.preloadedTrials) {
+            if (key < index) this.preloadedTrials.delete(key);
+        }
+
+        // Trigger buffering for future trials
+        this.queuePreload();
+
         // Show loading state
         this.display.waitMessage.style.display = 'block';
         this.display.stimuliContainer.style.opacity = '0.5';
@@ -155,16 +207,19 @@ class ExperimentController {
         let trialData;
         const startTime = performance.now();
 
-        if (this.nextTrialIndex === index && this.nextTrialPromise) {
+        if (this.preloadedTrials.has(index)) {
             // Use preloaded data
             console.log(`Using preloaded data for trial ${index}`);
-            trialData = await this.nextTrialPromise;
+            trialData = await this.preloadedTrials.get(index);
         } else {
             // Generate on demand (first trial or if preload failed/mistimmed)
             console.log(`Generating data on demand for trial ${index}`);
-            // Give UI a moment to render "Loading" text before freezing in generation
+            // Give UI a moment to render "Loading" text
             await new Promise(r => setTimeout(r, 50));
-            trialData = await this.generateTrialData(trial);
+
+            const p = this.generateTrialData(trial);
+            this.preloadedTrials.set(index, p); // Store promise
+            trialData = await p;
         }
 
         // 2. Render to Screen
@@ -178,13 +233,47 @@ class ExperimentController {
         this.display.stimuliContainer.style.opacity = '1';
         this.isTrialActive = true;
         this.startTime = performance.now();
+    }
 
-        // 4. Preload NEXT trial (background)
-        const nextIndex = index + 1;
-        if (nextIndex < this.trials.length) {
-            console.log(`Starting preload for trial ${nextIndex}...`);
-            this.nextTrialIndex = nextIndex;
-            this.nextTrialPromise = this.generateTrialData(this.trials[nextIndex]);
+    /**
+     * Manages the background generation of future trials
+     */
+    async queuePreload() {
+        if (this.isPreloading) return; // Already running
+        this.isPreloading = true;
+
+        try {
+            // Start looking from the next trial
+            if (this.preloadPointer <= this.currentTrialIndex) {
+                this.preloadPointer = this.currentTrialIndex + 1;
+            }
+
+            // Fill buffer
+            while (this.preloadPointer < this.trials.length &&
+                this.preloadPointer < this.currentTrialIndex + this.config.preloadBufferSize) {
+
+                // If not already in map, generate it
+                if (!this.preloadedTrials.has(this.preloadPointer)) {
+                    console.log(`[Preload] Starting background generation for trial ${this.preloadPointer}`);
+                    const promise = this.generateTrialData(this.trials[this.preloadPointer]);
+
+                    this.preloadedTrials.set(this.preloadPointer, promise);
+
+                    // Wait for it to finish so we don't hog CPU (sequential background loading)
+                    await promise;
+                }
+
+                this.preloadPointer++;
+            }
+        } catch (e) {
+            console.error("Preload error:", e);
+        } finally {
+            this.isPreloading = false;
+            // If we still have room (e.g. user moved fast during generation), restart loop
+            if (this.preloadPointer < this.trials.length &&
+                this.preloadPointer < this.currentTrialIndex + this.config.preloadBufferSize) {
+                this.queuePreload();
+            }
         }
     }
 
@@ -242,7 +331,7 @@ class ExperimentController {
      * Finds the magnitude that produces a result closest to the target SSIM.
      */
     async findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal) {
-        const tolerance = 0.001;
+        const tolerance = 0.0005;
         const maxRetries = 5;
         const maxIterPerTry = 40;
 

@@ -15,7 +15,8 @@ body {
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 900px; /* Accommodate grid */
+    max-width: 900px;
+    /* Accommodate grid */
     text-align: center;
 }
 
@@ -89,10 +90,11 @@ input[type="text"] {
 
 .stimuli-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(2, auto);
     gap: 20px;
     justify-items: center;
+    justify-content: center;
     margin-bottom: 1rem;
 }
 
@@ -103,7 +105,7 @@ input[type="text"] {
     transition: transform 0.1s, border-color 0.1s;
     padding: 5px;
     background: #fff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .stimulus-item:hover {
