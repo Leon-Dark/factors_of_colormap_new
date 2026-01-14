@@ -115,11 +115,13 @@ function calcUniformIntervalMinDiff(palette, intervalK, sampleCount) {
             return 0;
         }
 
-        // Calculate min diff between samples i and i+k
-        for (let i = 0; i + intervalK < samples.length; i++) {
-            const diff = ciede2000(samples[i], samples[i + intervalK]);
-            if (diff < min_interval_diff) {
-                min_interval_diff = diff;
+        // Calculate min diff between samples i and any j where distance >= k
+        for (let i = 0; i < samples.length; i++) {
+            for (let j = i + intervalK; j < samples.length; j++) {
+                const diff = ciede2000(samples[i], samples[j]);
+                if (diff < min_interval_diff) {
+                    min_interval_diff = diff;
+                }
             }
         }
 

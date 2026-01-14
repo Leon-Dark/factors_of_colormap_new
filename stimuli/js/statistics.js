@@ -120,6 +120,9 @@ function updateStatistics() {
     // Calculate detailed statistics
     updateDetailedStatistics();
 
+    // Calculate correlation analysis
+    updateCorrelationAnalysis();
+
     // Show statistics panel
     document.getElementById('statisticsPanel').style.display = 'block';
 }
@@ -270,4 +273,154 @@ function updateDetailedStatistics() {
         html += '</div>';
         document.getElementById('detailedStats').innerHTML = html;
     }
+}
+
+
+// Correlation Visualization Functions
+function updateCorrelationAnalysis() {
+    // 1. Get filtered colormaps (only those passing both conditions)
+    const passedColormaps = allColormaps.filter(cm => {
+        if (SAMPLING_MODE === 'jnd') {
+            return cm.metrics.jnd_consistency >= JND_STEP &&
+                cm.metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
+        } else {
+            return cm.metrics.uniform_small_window_diff >= UNIFORM_SMALL_MIN_DIFF &&
+                cm.metrics.uniform_large_window_diff >= UNIFORM_LARGE_MIN_DIFF;
+        }
+    });
+
+    if (passedColormaps.length < 2) {
+        document.getElementById('correlationHeatmap').innerHTML = '<p style="color: #666; font-style: italic;">Not enough passing colormaps to calculate correlations (need at least 2).</p>';
+        return;
+    }
+
+    // 2. Define metrics to analyze
+    const metricKeys = [
+        { key: 'discriminatory_cie', label: 'Discrim. CIE' },
+        { key: 'discriminatory_contrast', label: 'Contrast Sens.' },
+        { key: 'discriminatory_hue', label: 'Hue Var.' },
+        { key: 'luminance_var', label: 'Luminance Var.' },
+        { key: 'chromatic_var', label: 'Chroma Var.' },
+        { key: 'lab_length', label: 'LAB Length' },
+        { key: 'color_name_var', label: 'Name Var.' },
+        { key: 'categorization_tendency', label: 'Categ. Tendency' }
+    ];
+
+    // 3. Prepare data matrix
+    const correlationMatrix = [];
+
+    for (let i = 0; i < metricKeys.length; i++) {
+        const row = [];
+        for (let j = 0; j < metricKeys.length; j++) {
+            if (i === j) {
+                row.push(1);
+            } else {
+                const values1 = passedColormaps.map(cm => cm.metrics[metricKeys[i].key] || 0);
+                const values2 = passedColormaps.map(cm => cm.metrics[metricKeys[j].key] || 0);
+                row.push(calculatePearsonCorrelation(values1, values2));
+            }
+        }
+        correlationMatrix.push({
+            metric: metricKeys[i].label,
+            values: row
+        });
+    }
+
+    // 4. Render Heatmap
+    renderCorrelationHeatmap(correlationMatrix, metricKeys.map(m => m.label));
+}
+
+function calculatePearsonCorrelation(x, y) {
+    if (x.length !== y.length || x.length === 0) return 0;
+
+    const n = x.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+
+    for (let i = 0; i < n; i++) {
+        sumX += x[i];
+        sumY += y[i];
+        sumXY += x[i] * y[i];
+        sumX2 += x[i] * x[i];
+        sumY2 += y[i] * y[i];
+    }
+
+    const numerator = (n * sumXY) - (sumX * sumY);
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+
+    if (denominator === 0) return 0;
+    return numerator / denominator;
+}
+
+function renderCorrelationHeatmap(matrix, labels) {
+    const margin = { top: 80, right: 30, bottom: 30, left: 100 };
+    const gridSize = 40;
+    const width = labels.length * gridSize;
+    const height = labels.length * gridSize;
+
+    const container = d3.select("#correlationHeatmap");
+    container.html(""); // Clear previous
+
+    const svg = container.append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    // X Labels
+    svg.selectAll(".xLabel")
+        .data(labels)
+        .enter().append("text")
+        .text(d => d)
+        .attr("x", 0)
+        .attr("y", 0)
+        .style("text-anchor", "start")
+        .attr("transform", (d, i) => "translate(" + (i * gridSize + gridSize / 2) + ", -6) rotate(-45)")
+        .attr("class", "xLabel mono axis")
+        .style("font-size", "10px")
+        .style("fill", "#555");
+
+    // Y Labels
+    svg.selectAll(".yLabel")
+        .data(labels)
+        .enter().append("text")
+        .text(d => d)
+        .attr("x", 0)
+        .attr("y", (d, i) => i * gridSize + gridSize / 2)
+        .style("text-anchor", "end")
+        .attr("transform", "translate(-6, " + 3 + ")")
+        .attr("class", "yLabel mono axis")
+        .style("font-size", "10px")
+        .style("fill", "#555");
+
+    // Color Scale
+    const colorScale = d3.scaleLinear()
+        .domain([-1, 0, 1])
+        .range(["#2196F3", "#ffffff", "#F44336"]); // Blue to White to Red
+
+    // Heatmap cells
+    matrix.forEach((row, i) => {
+        svg.selectAll(".cell-row-" + i)
+            .data(row.values)
+            .enter().append("rect")
+            .attr("x", (d, j) => j * gridSize)
+            .attr("y", i * gridSize)
+            .attr("class", "hour bordered")
+            .attr("width", gridSize - 1)
+            .attr("height", gridSize - 1)
+            .style("fill", d => colorScale(d))
+            .style("stroke", "#eee")
+            .append("title")
+            .text((d, j) => `${labels[i]} vs ${labels[j]}: ${d.toFixed(3)}`);
+
+        // Add values text
+        svg.selectAll(".cell-text-" + i)
+            .data(row.values)
+            .enter().append("text")
+            .text(d => d.toFixed(2))
+            .attr("x", (d, j) => j * gridSize + gridSize / 2)
+            .attr("y", i * gridSize + gridSize / 2 + 4)
+            .style("text-anchor", "middle")
+            .style("font-size", "9px")
+            .style("fill", d => Math.abs(d) > 0.6 ? "#fff" : "#333");
+    });
 }
