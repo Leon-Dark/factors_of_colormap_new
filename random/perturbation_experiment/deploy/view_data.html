@@ -219,7 +219,7 @@
 
     <div id="sidebar">
         <div id="sidebar-header">
-            <h2>Data Files</h2>
+            <h2 id="files-header-title">Data Files</h2>
             <button id="refresh-btn">Refresh List</button>
         </div>
         <div id="sidebar-analysis">
@@ -232,11 +232,23 @@
 
     <div id="main-content">
         <div id="content-header">
-            <h2 id="current-filename">Select a file</h2>
+            <div style="display:flex; align-items:center;">
+                <h2 id="current-filename" style="margin-right:20px; margin-bottom:0;">Select a file</h2>
+                <div id="engagement-stats" style="font-weight: bold; color: #555;"></div>
+            </div>
 
             <div class="view-controls">
+                <div style="margin-right: 15px; display: flex; align-items: center; gap: 8px;">
+                    <span>Metric:</span>
+                    <label><input type="radio" name="metric" value="accuracy" checked
+                            onchange="switchMetric(this.value)"> Accuracy</label>
+                    <label><input type="radio" name="metric" value="time" onchange="switchMetric(this.value)">
+                        Time</label>
+                </div>
+                <div style="border-left: 1px solid #ccc; height: 20px; margin-right: 15px;"></div>
                 <button class="view-btn active" onclick="switchView('table')">Table</button>
-                <button class="view-btn" onclick="switchView('chart')">Chart</button>
+                <button class="view-btn" onclick="switchView('bar')">Bar Chart</button>
+                <button class="view-btn" onclick="switchView('line')">Line Chart</button>
             </div>
 
             <a href="#" id="download-btn" download>Download CSV</a>
@@ -262,6 +274,8 @@
 
         let currentData = [];
         let myChart = null;
+        let currentChartType = 'bar';
+        let currentMetric = 'accuracy'; // 'accuracy' or 'time'
 
         // Configuration
         // backendURL: The address where server.py is running.
@@ -280,14 +294,72 @@
                 // Sort by name (timestamp usually) descending
                 files.sort().reverse();
 
-                renderFileList(files);
+                // Prefetch data to check engagement status
+                // Limit to recent 50 to avoid network storm if huge folder, or just fetch all logic
+                const validations = await validateFiles(files);
+
+                // Count valid
+                let validCount = 0;
+                files.forEach(f => {
+                    if (validations[f] && validations[f].passed) validCount++;
+                });
+
+                // Update header
+                const filesHeaderTitle = document.getElementById('files-header-title');
+                if (filesHeaderTitle) {
+                    filesHeaderTitle.innerHTML = `Data Files <span style="font-size:0.8em; font-weight:normal; color:#555;">(${validCount} available)</span>`;
+                }
+
+                renderFileList(files, validations);
             } catch (error) {
                 console.error('Error fetching file list:', error);
                 fileListEl.innerHTML = '<li style="padding:20px; color:red">Error loading files. Is server.py running?</li>';
             }
         }
 
-        function renderFileList(files) {
+        async function validateFiles(files) {
+            const results = {};
+            const promises = files.map(async file => {
+                try {
+                    const res = await fetch(`${backendURL}/api/get_data/${file}`);
+                    const txt = await res.text();
+                    const rows = parseCSV(txt);
+                    // Check engagement
+                    // We need to re-parse logic briefly or extract it
+                    // Finding headers
+                    if (rows.length < 2) return;
+                    const h = rows[0];
+                    const idxSSIM = h.indexOf('targetSSIM');
+                    const idxCorrect = h.indexOf('isCorrect');
+
+                    if (idxSSIM === -1 || idxCorrect === -1) return;
+
+                    let total = 0;
+                    let correct = 0;
+
+                    for (let i = 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        const ssim = r[idxSSIM];
+                        // Check for ~0.95
+                        if (Math.abs(parseFloat(ssim) - 0.95) < 0.0001) {
+                            total++;
+                            if (parseInt(r[idxCorrect]) === 1) correct++;
+                        }
+                    }
+
+                    if (total > 0 && correct < total) {
+                        results[file] = { passed: false, score: `${correct}/${total}` };
+                    } else {
+                        results[file] = { passed: true };
+                    }
+
+                } catch (e) { console.error(e); }
+            });
+            await Promise.all(promises);
+            return results;
+        }
+
+        function renderFileList(files, validations = {}) {
             fileListEl.innerHTML = '';
             files.forEach(file => {
                 const li = document.createElement('li');
@@ -303,8 +375,16 @@
                     }
                 }
 
+                const val = validations[file];
+                let warnings = '';
+                if (val && !val.passed) {
+                    li.style.color = '#e03131';
+                    li.style.background = '#fff5f5';
+                    warnings = ` <span style="font-weight:bold; font-size:0.8em; border:1px solid red; border-radius:3px; padding:1px 3px;">⚠️ ${val.score}</span>`;
+                }
+
                 li.innerHTML = `
-                    <div>${file}</div>
+                    <div>${file}${warnings}</div>
                     ${dateStr ? `<div class="file-date">${dateStr}</div>` : ''}
                 `;
                 li.onclick = () => loadFile(file, li);
@@ -373,10 +453,14 @@
                 // Render
                 currentData = combinedRows;
                 renderTableFromData(currentData);
-                renderChart(currentData);
+                renderChart(currentData, currentChartType);
 
                 // Auto switch to chart view for aggregate
-                switchView('chart');
+                if (currentChartType === 'table') {
+                    switchView('bar'); // Default to bar for aggregate if currently table
+                } else {
+                    switchView(currentChartType);
+                }
 
             } catch (e) {
                 console.error(e);
@@ -387,7 +471,7 @@
         function processAndRender(csvText) {
             currentData = parseCSV(csvText);
             renderTableFromData(currentData);
-            renderChart(currentData);
+            renderChart(currentData, currentChartType);
         }
 
         function parseCSV(csvText) {
@@ -451,9 +535,17 @@
             tableContainer.appendChild(table);
         }
 
+
+        function switchMetric(val) {
+            currentMetric = val;
+            if (currentChartType !== 'table') {
+                renderChart(currentData, currentChartType);
+            }
+        }
+
         // --- Visualization Logic ---
 
-        function renderChart(data) {
+        function renderChart(data, type) {
             if (!data || data.length < 2) return;
 
             const headers = data[0];
@@ -463,43 +555,81 @@
             const idxFreq = headers.indexOf('frequencyId');
             const idxSSIM = headers.indexOf('targetSSIM');
             const idxCorrect = headers.indexOf('isCorrect');
+            // Try to find response time column
+            let idxRT = headers.indexOf('reactionTimeMs');
+            if (idxRT === -1) idxRT = headers.indexOf('responseTime');
+            if (idxRT === -1) idxRT = headers.indexOf('rt');
+            if (idxRT === -1) idxRT = headers.indexOf('time');
 
             if (idxFreq === -1 || idxSSIM === -1 || idxCorrect === -1) {
                 console.warn("Missing necessary columns for visualization");
                 return;
             }
 
-            // Grouping: Freq -> SSIM -> {correct, total}
             const stats = {};
+            let engagementCorrect = 0;
+            let engagementTotal = 0;
 
             rows.forEach(row => {
                 const freq = row[idxFreq];
                 const ssim = row[idxSSIM];
                 const correct = parseInt(row[idxCorrect]);
+                const rt = idxRT !== -1 ? parseFloat(row[idxRT]) : 0;
+
+                // Handle Engagement Checks (SSIM 0.95)
+                if (Math.abs(parseFloat(ssim) - 0.95) < 0.0001) {
+                    engagementTotal++;
+                    if (correct === 1) engagementCorrect++;
+                    return; // Skip from main chart
+                }
 
                 if (!stats[freq]) stats[freq] = {};
-                if (!stats[freq][ssim]) stats[freq][ssim] = { correct: 0, total: 0 };
+                if (!stats[freq][ssim]) stats[freq][ssim] = { correct: 0, total: 0, rtSum: 0 };
 
                 stats[freq][ssim].correct += (correct === 1 ? 1 : 0);
+                stats[freq][ssim].rtSum += (!isNaN(rt) ? rt : 0);
                 stats[freq][ssim].total += 1;
             });
 
-            // Prepare Chart Data
-            // We want labels to be SSIM levels (sorted)
-            // Datasets to be Frequencies
+            // Update Engagement Stats UI
+            const engStatsEl = document.getElementById('engagement-stats');
+            if (engagementTotal > 0) {
+                const engAcc = (engagementCorrect / engagementTotal * 100).toFixed(1);
+                engStatsEl.textContent = `Engagement Check: ${engAcc}% (${engagementCorrect}/${engagementTotal})`;
+                engStatsEl.style.color = (engAcc >= 80) ? '#2b8a3e' : '#e03131'; // Green or Red
+            } else {
+                engStatsEl.textContent = '';
+            }
 
-            // Get all unique SSIMs
+            // Prepare Chart Data
+            // We want labels to be SSIM levels (numerically sorted)
             let allSSIMs = new Set();
             Object.values(stats).forEach(freqGroup => {
                 Object.keys(freqGroup).forEach(s => allSSIMs.add(s));
             });
-            const labels = Array.from(allSSIMs).sort().reverse(); // High SSIM (easy) to Low SSIM (hard)
+
+            // Sort numerically descending (High SSIM -> Low SSIM) i.e., Easy -> Hard
+            // Or usually plots go Low -> High (Hard -> Easy).
+            // Previous code was string sort reverse: "1.0", "0.9".
+            // Let's do standard numeric sort descending to keep "1.0" at left if that's what it was,
+            // or maybe user wants X-axis to be 0 -> 1.
+            // "Target SSIM": 1.0 is reference, lower is more perturbed.
+            // Usually X-axis is "Amount of Perturbation" or "SSIM".
+            // If SSIM: 1.0 is max. 
+            // Let's sort numerically ascending (0 -> 1). That is standard for axes.
+            // Wait, previous code `sort().reverse()` on strings like "0.9", "0.75".
+            // "0.9" vs "0.75"? "0.9" > "0.75". Reverse -> "0.9", "0.75" ...
+            // Let's stick to Descending SSIM (1.0 -> 0.0) so it goes from "Reference" to "Distorted".
+            // Or Ascending?
+            // User likely wants consistent X-axis. 
+            // Let's do Descending Numeric: 1.0, 0.95, ... 0.5.
+            const labels = Array.from(allSSIMs).sort((a, b) => parseFloat(b) - parseFloat(a));
 
             const datasets = [];
             const colors = {
-                'low': 'rgba(255, 127, 0, 0.7)',   // Orange
-                'medium': 'rgba(77, 175, 74, 0.7)', // Green
-                'high': 'rgba(55, 126, 184, 0.7)'   // Blue
+                'low': 'rgba(255, 127, 0)',   // Orange
+                'medium': 'rgba(77, 175, 74)', // Green
+                'high': 'rgba(55, 126, 184)'   // Blue
             };
 
             for (const freq of ['high', 'medium', 'low']) { // Order: Small, Medium, Large
@@ -508,15 +638,51 @@
                 const dataPoints = labels.map(ssim => {
                     const item = stats[freq][ssim];
                     if (!item) return 0;
-                    return (item.correct / item.total); // Rate 0-1
+
+                    if (currentMetric === 'accuracy') {
+                        return (item.correct / item.total); // Rate 0-1
+                    } else {
+                        // Time
+                        return item.total > 0 ? (item.rtSum / item.total) : 0;
+                    }
                 });
 
-                datasets.push({
+                const baseColor = colors[freq] || 'rgba(200, 200, 200)';
+
+                const dataset = {
                     label: freq.toUpperCase() + ' Freq',
                     data: dataPoints,
-                    backgroundColor: colors[freq] || '#ccc',
-                    borderColor: (colors[freq] || '#ccc').replace('0.7', '1'),
-                    borderWidth: 1
+                    borderColor: baseColor,
+                    borderWidth: 2
+                };
+
+                if (type === 'line') {
+                    dataset.backgroundColor = baseColor.replace(')', ', 0.1)'); // Transparent fill
+                    dataset.fill = false; // No fill for clean lines
+                    dataset.tension = 0.1; // Smooth lines
+                    dataset.pointRadius = 4;
+                } else {
+                    // Bar settings
+                    dataset.backgroundColor = baseColor.replace(')', ', 0.7)'); // 0.7 opacity
+                    dataset.borderWidth = 1;
+                }
+
+                datasets.push(dataset);
+            }
+
+            // Add 62.5% Threshold Line (Only for Accuracy)
+            if (currentMetric === 'accuracy') {
+                const thresholdValue = 0.625;
+                datasets.push({
+                    type: 'line', // Mixed charts: line on top of bars
+                    label: '62.5% Threshold',
+                    data: Array(labels.length).fill(thresholdValue),
+                    borderColor: 'rgba(0, 0, 0, 0.6)',
+                    borderWidth: 2, // Thicker line
+                    borderDash: [8, 8], // Longer dashes
+                    pointRadius: 0,
+                    fill: false,
+                    order: 0 // Render on top
                 });
             }
 
@@ -528,7 +694,7 @@
             }
 
             myChart = new Chart(ctx, {
-                type: 'bar',
+                type: type,
                 data: {
                     labels: labels,
                     datasets: datasets
@@ -539,10 +705,10 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 1.0,
+                            max: currentMetric === 'accuracy' ? 1.0 : undefined,
                             title: {
                                 display: true,
-                                text: 'Accuracy'
+                                text: currentMetric === 'accuracy' ? 'Accuracy' : 'Avg Response Time (ms)'
                             }
                         },
                         x: {
@@ -555,7 +721,18 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: 'Accuracy by Frequency & SSIM'
+                            text: currentMetric === 'accuracy' ? 'Accuracy by Frequency & SSIM' : 'Response Time by Frequency & SSIM'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    if (currentMetric === 'accuracy') {
+                                        return context.dataset.label + ': ' + (context.raw * 100).toFixed(1) + '%';
+                                    } else {
+                                        return context.dataset.label + ': ' + context.raw.toFixed(0) + ' ms';
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -563,15 +740,25 @@
         }
 
         function switchView(viewName) {
+            // Update buttons
             document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector(`button[onclick="switchView('${viewName}')"]`).classList.add('active');
+            // Find the button for this view
+            const btn = document.querySelector(`button[onclick="switchView('${viewName}')"]`);
+            if (btn) btn.classList.add('active');
 
             if (viewName === 'table') {
                 tableContainer.style.display = 'block';
                 chartContainer.style.display = 'none';
+                currentChartType = 'table';
             } else {
+                // 'bar' or 'line'
                 tableContainer.style.display = 'none';
                 chartContainer.style.display = 'block';
+
+                if (currentChartType !== viewName || !myChart) {
+                    currentChartType = viewName;
+                    renderChart(currentData, viewName);
+                }
             }
         }
 

@@ -10,7 +10,7 @@ class ExperimentController {
             width: 200,
             height: 200, // Matches canvas size in HTML
             repetitions: 2, // Trials per condition
-            ssimTargets: [0.995, 0.993, 0.991, 0.989, 0.987, 0.985, 0.983, 0.981, 0.979, 0.977],
+            ssimTargets: [0.998, 0.997, 0.996, 0.995, 0.994, 0.993, 0.992, 0.991, 0.990, 0.989],
             frequencies: [
                 { id: 'low', target: 'large' },
                 { id: 'medium', target: 'medium' },
@@ -67,7 +67,8 @@ class ExperimentController {
         };
 
         this.buttons = {
-            start: document.getElementById('btn-start')
+            start: document.getElementById('btn-start'),
+            noDiff: document.getElementById('btn-no-diff')
         };
 
         this.bindEvents();
@@ -98,6 +99,14 @@ class ExperimentController {
         // Download Button
         // Download Button Removed
 
+        // No Difference Button
+        if (this.buttons.noDiff) {
+            this.buttons.noDiff.addEventListener('click', () => {
+                if (this.isTrialActive) {
+                    this.handleSelection(-1);
+                }
+            });
+        }
     }
 
     // --- Experiment Flow ---
@@ -150,7 +159,7 @@ class ExperimentController {
         const checkTrialTempl = {
             frequencyId: 'medium',
             targetLevel: 'medium',
-            targetSSIM: 0.95,
+            targetSSIM: 0.90,
             isEngagementCheck: true,
             repetition: 0
         };
@@ -185,6 +194,7 @@ class ExperimentController {
         this.currentTrialIndex = index;
         const trial = this.trials[index];
         this.isTrialActive = false; // Block input while loading
+        if (this.buttons.noDiff) this.buttons.noDiff.disabled = true;
 
         // UI Update
         this.display.trialCurrent.textContent = index + 1;
@@ -232,6 +242,7 @@ class ExperimentController {
         this.display.waitMessage.style.display = 'none';
         this.display.stimuliContainer.style.opacity = '1';
         this.isTrialActive = true;
+        if (this.buttons.noDiff) this.buttons.noDiff.disabled = false;
         this.startTime = performance.now();
     }
 

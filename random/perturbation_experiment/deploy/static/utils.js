@@ -232,6 +232,7 @@ function create2DArray(width, height, defaultValue = 0) {
 /**
  * 计算SSIM (简化版本)
  * 结构相似性指数
+ * 动态计算c1和c2基于实际数据范围
  */
 function calculateSSIM(img1, img2, width, height) {
     if (img1.length !== img2.length) {
@@ -239,8 +240,21 @@ function calculateSSIM(img1, img2, width, height) {
         return 0;
     }
 
-    const c1 = 0.01 * 0.01;
-    const c2 = 0.03 * 0.03;
+    // 动态计算数据范围L
+    let maxVal = 0;
+    for (let i = 0; i < img1.length; i++) {
+        maxVal = Math.max(maxVal, img1[i], img2[i]);
+    }
+
+    // 如果数据范围为0，说明图像完全相同
+    if (maxVal === 0) return 1.0;
+
+    // 使用动态范围计算常数
+    const L = maxVal;
+    const k1 = 0.01;
+    const k2 = 0.03;
+    const c1 = (k1 * L) * (k1 * L);
+    const c2 = (k2 * L) * (k2 * L);
 
     // 计算均值
     let mean1 = 0, mean2 = 0;
@@ -276,28 +290,28 @@ function calculateSSIM(img1, img2, width, height) {
  * D_KL(P || Q) = sum(P(i) * log(P(i) / Q(i)))
  * P: 真实分布 (Original)
  * Q: 近似分布 (Perturbed)
- * 注意：输入数据会被当作概率分布处理（自动归一化使和为1）
+ * 注意：输入数据会被当作概率分布处理（先加epsilon再归一化）
  */
 function calculateKLDivergence(imgP, imgQ) {
     if (imgP.length !== imgQ.length) return Infinity;
 
-    // 1. 转换为概率分布 (Sum = 1)
+    // 极小值epsilon避免log(0)和除以0
+    const epsilon = 1e-10;
+
+    // 1. 先加epsilon，再计算总和
     let sumP = 0, sumQ = 0;
     for (let i = 0; i < imgP.length; i++) {
-        sumP += Math.abs(imgP[i]);
-        sumQ += Math.abs(imgQ[i]);
+        sumP += imgP[i] + epsilon;
+        sumQ += imgQ[i] + epsilon;
     }
 
     if (sumP === 0 || sumQ === 0) return 0; // 避免除零
 
-    // 2. 计算 KL Divergence
-    // 增加一个极小值 epsilon 避免 log(0) 或 除以 0
-    const epsilon = 1e-10;
+    // 2. 计算KL散度
     let kl = 0;
-
     for (let i = 0; i < imgP.length; i++) {
-        const p = (Math.abs(imgP[i]) + epsilon) / (sumP + epsilon * imgP.length);
-        const q = (Math.abs(imgQ[i]) + epsilon) / (sumQ + epsilon * imgQ.length);
+        const p = (imgP[i] + epsilon) / sumP;
+        const q = (imgQ[i] + epsilon) / sumQ;
 
         kl += p * Math.log(p / q);
     }
