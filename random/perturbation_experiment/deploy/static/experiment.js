@@ -9,8 +9,8 @@ class ExperimentController {
         this.config = {
             width: 200,
             height: 200, // Matches canvas size in HTML
-            repetitions: 2, // Trials per condition
-            ssimTargets: [0.998, 0.997, 0.996, 0.995, 0.994, 0.993, 0.992, 0.991, 0.990, 0.989],
+            repetitions: 1, // Trials per condition
+            ssimTargets: [0.999, 0.998, 0.997, 0.996, 0.995, 0.994, 0.993, 0.992, 0.991, 0.990, 0.989, 0.988, 0.987, 0.986, 0.985, 0.984, 0.983, 0.982, 0.981, 0.980],
             frequencies: [
                 { id: 'low', target: 'large' },
                 { id: 'medium', target: 'medium' },
@@ -68,7 +68,7 @@ class ExperimentController {
 
         this.buttons = {
             start: document.getElementById('btn-start'),
-            noDiff: document.getElementById('btn-no-diff')
+
         };
 
         this.bindEvents();
@@ -96,17 +96,9 @@ class ExperimentController {
             });
         });
 
-        // Download Button
-        // Download Button Removed
 
-        // No Difference Button
-        if (this.buttons.noDiff) {
-            this.buttons.noDiff.addEventListener('click', () => {
-                if (this.isTrialActive) {
-                    this.handleSelection(-1);
-                }
-            });
-        }
+
+
     }
 
     // --- Experiment Flow ---
@@ -116,7 +108,7 @@ class ExperimentController {
         this.shuffleArray(this.trials);
         this.insertEngagementChecks();
 
-        console.log(`Starting experiment with ${this.trials.length} trials.`);
+
 
         // UI Update
         this.display.trialTotal.textContent = this.trials.length;
@@ -194,7 +186,7 @@ class ExperimentController {
         this.currentTrialIndex = index;
         const trial = this.trials[index];
         this.isTrialActive = false; // Block input while loading
-        if (this.buttons.noDiff) this.buttons.noDiff.disabled = true;
+        this.isTrialActive = false; // Block input while loading
 
         // UI Update
         this.display.trialCurrent.textContent = index + 1;
@@ -219,11 +211,11 @@ class ExperimentController {
 
         if (this.preloadedTrials.has(index)) {
             // Use preloaded data
-            console.log(`Using preloaded data for trial ${index}`);
+
             trialData = await this.preloadedTrials.get(index);
         } else {
             // Generate on demand (first trial or if preload failed/mistimmed)
-            console.log(`Generating data on demand for trial ${index}`);
+
             // Give UI a moment to render "Loading" text
             await new Promise(r => setTimeout(r, 50));
 
@@ -236,13 +228,13 @@ class ExperimentController {
         this.renderTrialDataToScreen(trialData);
 
         const loadTime = performance.now() - startTime;
-        console.log(`Trial ${index} loaded in ${loadTime.toFixed(0)}ms`);
+
 
         // 3. UI Ready
         this.display.waitMessage.style.display = 'none';
         this.display.stimuliContainer.style.opacity = '1';
         this.isTrialActive = true;
-        if (this.buttons.noDiff) this.buttons.noDiff.disabled = false;
+
         this.startTime = performance.now();
     }
 
@@ -265,7 +257,7 @@ class ExperimentController {
 
                 // If not already in map, generate it
                 if (!this.preloadedTrials.has(this.preloadPointer)) {
-                    console.log(`[Preload] Starting background generation for trial ${this.preloadPointer}`);
+
                     const promise = this.generateTrialData(this.trials[this.preloadPointer]);
 
                     this.preloadedTrials.set(this.preloadPointer, promise);

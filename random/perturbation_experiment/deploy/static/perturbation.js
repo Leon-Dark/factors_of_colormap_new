@@ -112,7 +112,6 @@ class PerturbationSystem {
             perturbTypes: perturbTypes
         };
 
-        console.log(`Generated perturbation deltas for ${toPerturb.length} Gaussians`);
     }
 
     /**
@@ -152,8 +151,8 @@ class PerturbationSystem {
                 // Adaptive gain: larger for big gaussians (low frequency)
                 // Large gaussians need more aggressive perturbation
                 const avgSigma = (gauss.sX + gauss.sY) / 2;
-                const kPos = avgSigma > 20 ? 0.8 : (avgSigma > 10 ? 0.6 : 0.5);
-
+                // const kPos = avgSigma > 20 ? 0.8 : (avgSigma > 10 ? 0.6 : 0.5);
+                const kPos = 0.8;
                 // Boost coefficient for large gaussians
                 const effectiveCoeff = Math.max(this.coefficients.position, 1.0);
                 const boostFactor = avgSigma > 20 ? 1.5 : 1.0;
@@ -399,7 +398,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-        console.log(`Applied global perturbation to ${toPerturb.length} Gaussians across entire space`);
+
         return toPerturb;
     }
 
@@ -431,7 +430,7 @@ class PerturbationSystem {
         // 计算包围圆
         const circle = this.calculateBoundingCircle(compactCluster);
 
-        console.log(`Found compact cluster of ${clusterSize} Gaussians with radius ${circle.radius.toFixed(2)}px at (${circle.centerX.toFixed(1)}, ${circle.centerY.toFixed(1)})`);
+
 
         // 在簇中选择最中心的 perturbCount 个高斯进行扰动
         const gaussWithDist = compactCluster.map(g => ({
@@ -464,7 +463,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-        console.log(`Applied local perturbation to ${toPerturb.length} Gaussians in cluster of ${clusterSize}`);
+
         return { perturbed: toPerturb, cluster: compactCluster, circle };
     }
 
@@ -646,7 +645,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-        console.log(`Applied frequency-selective perturbation to ${toPerturb.length} Gaussians`);
+
         return toPerturb;
     }
 
@@ -684,7 +683,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-        console.log(`Applied structured perturbation to ${perturbedGaussians.size} Gaussians`);
+
         return Array.from(perturbedGaussians);
     }
 
@@ -700,7 +699,7 @@ class PerturbationSystem {
             type: 'reset',
             timestamp: Date.now()
         });
-        console.log('Reset all perturbations');
+
     }
 
     /**
@@ -801,7 +800,7 @@ class PerturbationSystem {
             gauss.isPerturbed = false;
         }
         this.clearHistory();
-        console.log('Reset all Gaussians to original state');
+
     }
 
     /**

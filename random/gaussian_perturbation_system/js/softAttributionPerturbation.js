@@ -16,13 +16,16 @@ class SoftAttributionPerturbation {
     constructor(generator) {
         this.generator = generator;
 
-        // 默认参数
+        // 默认参数 (Adaptive Ratios)
         this.params = {
-            sigma_E: 4.0,        // 能量平滑尺度
+            // Ratios relative to the band's characteristic sigma
+            sigma_E_ratio: 0.5,      // Energy smooth ratio (e.g. 0.5 * sigma)
+            sigma_m_ratio: 0.8,      // Mask feathering ratio 
+            sigma_Delta_ratio: 0.5,  // Delta low-pass ratio (Critical for cleaning dipoles)
+
             tau_low: 0.3,        // smoothstep下边界
             tau_high: 0.7,       // smoothstep上边界
-            sigma_m: 8.0,        // 门控羽化尺度
-            sigma_Delta: 4.0,    // ★ Delta低通滤波尺度 (消除偶极子硬边)
+
             lambda: {            // 频段扰动强度
                 low: 1.0,
                 mid: 1.0,
@@ -116,8 +119,14 @@ class SoftAttributionPerturbation {
             // 计算梯度幅值平方
             const gradientSq = computeGradientMagnitudeSquared(bandField, width, height);
 
+            // 获取该频段的特征尺度 sigma
+            const bandSigma = this.generator.sizeLevels[sizeLevel].sigma;
+
+            // 计算自适应 sigma_E
+            const adaptiveSigmaE = bandSigma * this.params.sigma_E_ratio;
+
             // 高斯模糊得到能量场
-            energyFields[freqBand] = gaussianBlur2D(gradientSq, width, height, this.params.sigma_E);
+            energyFields[freqBand] = gaussianBlur2D(gradientSq, width, height, adaptiveSigmaE);
         }
 
         this.cache.energyFields = energyFields;
@@ -188,8 +197,16 @@ class SoftAttributionPerturbation {
                 );
             }
 
-            // 高斯模糊羽化
-            masks[band] = gaussianBlur2D(smoothed, width, height, this.params.sigma_m);
+            // 计算自适应 sigma_m
+            // Map freqBand (low/mid/high) back to sizeLevel (large/medium/small)
+            const freqToSize = { 'low': 'large', 'mid': 'medium', 'high': 'small' };
+            const sizeLevel = freqToSize[band];
+            const bandSigma = this.generator.sizeLevels[sizeLevel].sigma;
+
+            const adaptiveSigmaM = bandSigma * this.params.sigma_m_ratio;
+
+            // 高斯模糊羽化 (Adaptive)
+            masks[band] = gaussianBlur2D(smoothed, width, height, adaptiveSigmaM);
         }
 
         this.cache.gatingMasks = masks;
@@ -232,8 +249,14 @@ class SoftAttributionPerturbation {
 
             // ★ Step B: Delta Blur - 关键修复！
             // 对 Delta 场进行高斯低通滤波，消除几何位移产生的偶极子锐利边缘
-            if (this.params.sigma_Delta > 0) {
-                deltaField = gaussianBlur2D(deltaField, width, height, this.params.sigma_Delta);
+            // 使用自适应 Sigma (Adaptive)
+            const freqToSize = { 'low': 'large', 'mid': 'medium', 'high': 'small' };
+            const sizeLevel = freqToSize[band];
+            const bandSigma = this.generator.sizeLevels[sizeLevel].sigma;
+            const adaptiveSigmaDelta = bandSigma * this.params.sigma_Delta_ratio;
+
+            if (adaptiveSigmaDelta > 0) {
+                deltaField = gaussianBlur2D(deltaField, width, height, adaptiveSigmaDelta);
             }
 
             // ★ Step C: 应用门控 Mask

@@ -340,8 +340,9 @@
                     for (let i = 1; i < rows.length; i++) {
                         const r = rows[i];
                         const ssim = r[idxSSIM];
-                        // Check for ~0.95
-                        if (Math.abs(parseFloat(ssim) - 0.95) < 0.0001) {
+                        // Check for ~0.95 or 0.90
+                        const val = parseFloat(ssim);
+                        if (Math.abs(val - 0.95) < 0.0001 || Math.abs(val - 0.90) < 0.0001) {
                             total++;
                             if (parseInt(r[idxCorrect]) === 1) correct++;
                         }
@@ -576,8 +577,9 @@
                 const correct = parseInt(row[idxCorrect]);
                 const rt = idxRT !== -1 ? parseFloat(row[idxRT]) : 0;
 
-                // Handle Engagement Checks (SSIM 0.95)
-                if (Math.abs(parseFloat(ssim) - 0.95) < 0.0001) {
+                // Handle Engagement Checks (SSIM 0.95 or 0.90)
+                const ssimVal = parseFloat(ssim);
+                if (Math.abs(ssimVal - 0.95) < 0.0001 || Math.abs(ssimVal - 0.90) < 0.0001) {
                     engagementTotal++;
                     if (correct === 1) engagementCorrect++;
                     return; // Skip from main chart

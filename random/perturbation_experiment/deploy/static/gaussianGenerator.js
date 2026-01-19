@@ -5,6 +5,14 @@
  * 负责生成不同尺寸级别的高斯分布
  */
 
+/**
+ * Helper: Random Range
+ */
+function randomRange(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+
 class GaussianGenerator {
     /**
      * 构造函数
@@ -76,7 +84,7 @@ class GaussianGenerator {
         for (const [level, config] of Object.entries(this.sizeLevels)) {
             this.generateLevel(level, config.sigma, config.count, config.color);
         }
-        console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
+
 
         return this.gaussians;
     }
@@ -209,7 +217,7 @@ class GaussianGenerator {
             this.gaussians.push(gauss);
         }
 
-        console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Relaxed Force-Directed`);
+
 
         return levelGaussians;
     }

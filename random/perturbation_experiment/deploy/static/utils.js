@@ -240,8 +240,9 @@ function calculateSSIM(img1, img2, width, height) {
         return 0;
     }
 
-    // 动态计算数据范围L
+    // // 动态计算数据范围L
     let maxVal = 0;
+
     for (let i = 0; i < img1.length; i++) {
         maxVal = Math.max(maxVal, img1[i], img2[i]);
     }
@@ -251,6 +252,7 @@ function calculateSSIM(img1, img2, width, height) {
 
     // 使用动态范围计算常数
     const L = maxVal;
+
     const k1 = 0.01;
     const k2 = 0.03;
     const c1 = (k1 * L) * (k1 * L);

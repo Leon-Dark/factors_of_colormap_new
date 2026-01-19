@@ -1,6 +1,6 @@
-var BLUR=false;
+var BLUR = false;
 var BLUR_STAGE = 9;
-var SCALAR_UPPER_PERCENTILE = 1-.001/1;
+var SCALAR_UPPER_PERCENTILE = 1 - .001 / 1;
 var HISTOGRAM_BINS = 60;
 var GPU_SAMPLING = true;
 
@@ -12,20 +12,19 @@ var CALLBACK_SAMPLE = true;
 var SHADER_PATH = '';
 
 var shaderList = [
-    {name: 'pdfSample', path: 'design/src/shaders/pdfSample.glsl'},
-    {name: 'pdfPlot', path: 'design/src/shaders/pdfPlot.glsl'},
-    {name: 'vis',		path: 'design/src/shaders/vis.frag'},
-    {name: 'visWithMax',		path: 'design/src/shaders/visWithMax.frag'},
-    {name: 'vertex',	path: 'design/src/shaders/vertex.vert'},
-    {name: 'blur',		path: 'design/src/shaders/blur7.frag'},
-    {name: 'blurOff',   path: 'design/src/shaders/blur7Offscreen.frag'},
-    {name: 'median', path: 'design/src/shaders/medianBlur.frag'},
-    {name: 'medianOff', path: 'design/src/shaders/medianBlurOffscreen.frag'}
+    { name: 'pdfSample', path: 'design/src/shaders/pdfSample.glsl' },
+    { name: 'pdfPlot', path: 'design/src/shaders/pdfPlot.glsl' },
+    { name: 'vis', path: 'design/src/shaders/vis.frag' },
+    { name: 'visWithMax', path: 'design/src/shaders/visWithMax.frag' },
+    { name: 'vertex', path: 'design/src/shaders/vertex.vert' },
+    { name: 'blur', path: 'design/src/shaders/blur7.frag' },
+    { name: 'blurOff', path: 'design/src/shaders/blur7Offscreen.frag' },
+    { name: 'median', path: 'design/src/shaders/medianBlur.frag' },
+    { name: 'medianOff', path: 'design/src/shaders/medianBlurOffscreen.frag' }
 
 ];
 
-function ScalarSample(w, h, canvas, model, colormap)
-{
+function ScalarSample(w, h, canvas, model, colormap) {
     this.w = w;
     this.h = h;
     this.field = new ScalarField(w, h);
@@ -33,8 +32,7 @@ function ScalarSample(w, h, canvas, model, colormap)
     this.canvas = canvas;
 
     // add myself to the model
-    if (model)
-    {
+    if (model) {
         this.setModel(model);
     }
 
@@ -45,22 +43,19 @@ function ScalarSample(w, h, canvas, model, colormap)
 
     // if there's a shader path prefix, add it to all shaders
     if (SHADER_PATH !== null && SHADER_PATH !== undefined) {
-        for (var i=0; i<shaderList.length; i++)
-        {
+        for (var i = 0; i < shaderList.length; i++) {
             var shader = shaderList[i];
             shader.path = SHADER_PATH + shader.path;
         }
         SHADER_PATH = null;
     }
 
-    if (this.canvas)
-    {
-        (function(me) {
+    if (this.canvas) {
+        (function (me) {
             me.visualizer = new ColorAnalysis(
                 me.field, me.canvas,
-                function()
-                {
-                    console.log('initVisPipeline');
+                function () {
+
                     me.initVisPipeline();
                 }, shaderList
             );
@@ -76,9 +71,8 @@ function ScalarSample(w, h, canvas, model, colormap)
     ALL_SAMPLERS.push(this);
 }
 
-ScalarSample.prototype.dispose = function()
-{
-    for (var i=0; i<ALL_SAMPLERS.length; i++) {
+ScalarSample.prototype.dispose = function () {
+    for (var i = 0; i < ALL_SAMPLERS.length; i++) {
         var s = ALL_SAMPLERS[i];
         if (s == this) {
             ALL_SAMPLERS.splice(i, 1);
@@ -101,36 +95,31 @@ ScalarSample.prototype.dispose = function()
     this.h = null;
 }
 
-ScalarSample.prototype.setColorMap = function(colormap)
-{
+ScalarSample.prototype.setColorMap = function (colormap) {
     this.field.setColorMap(colormap);
 }
 
-ScalarSample.setUniversalColormap = function(colormap, dontVis) {
-    for (var i=0; i<ALL_SAMPLERS.length; i++)
-    {
+ScalarSample.setUniversalColormap = function (colormap, dontVis) {
+    for (var i = 0; i < ALL_SAMPLERS.length; i++) {
         ALL_SAMPLERS[i].setColorMap(colormap);
 
         // render?
         if (!dontVis) {
-         ALL_SAMPLERS[i].vis();
+            ALL_SAMPLERS[i].vis();
         }
     }
 }
 
-ScalarSample.prototype.setModel = function(_model, dontVis)
-{
+ScalarSample.prototype.setModel = function (_model, dontVis) {
     if (this.model) {
         this.model.unregisterCallback(this.callbackID);
         this.model = null;
     }
 
     this.model = _model;
-    (function(me) {
-        me.callbackID = me.model.addCallback(function()
-        {
-            if (CALLBACK_SAMPLE || me.callbackSample)
-            {
+    (function (me) {
+        me.callbackID = me.model.addCallback(function () {
+            if (CALLBACK_SAMPLE || me.callbackSample) {
                 //console.log('callback sampling');
                 me.sampleModel();
                 if (me.canvas || me.svg) {
@@ -140,33 +129,28 @@ ScalarSample.prototype.setModel = function(_model, dontVis)
         });
     })(this);
 
-    if (this.canvas && !dontVis)
-    {
+    if (this.canvas && !dontVis) {
         this.sampleModel();
         this.vis();
     }
 }
 
-ScalarSample.prototype.setSamplingFidelity = function(fidelity)
-{
+ScalarSample.prototype.setSamplingFidelity = function (fidelity) {
     this.localN = fidelity;
 }
 
-ScalarSample.prototype.sampleModel = function(_fidelity, model)
-{
+ScalarSample.prototype.sampleModel = function (_fidelity, model) {
     if (!model) {
         model = this.model;
     }
 
-    if (GPU_SAMPLING)
-    {
+    if (GPU_SAMPLING) {
         // copy pdf over to field
         var pdf = model.getPDF().view;
         var field = this.field.view;
         var minP = Number.MAX_VALUE, maxP = Number.MIN_VALUE;
 
-        for (var i=0, len=field.length; i<len; i++)
-        {
+        for (var i = 0, len = field.length; i < len; i++) {
             var p = pdf[i];
             field[i] = p;
             if (p < minP) {
@@ -176,12 +160,11 @@ ScalarSample.prototype.sampleModel = function(_fidelity, model)
                 maxP = p;
             }
         }
-        var _lenP = 1 / (maxP-minP);
-        for (var i=0, len=field.length; i<len; i++)
-        {
+        var _lenP = 1 / (maxP - minP);
+        for (var i = 0, len = field.length; i < len; i++) {
             var p = (field[i] - minP) * _lenP;
             if (model.flipDensity) {
-                p = 1-p;
+                p = 1 - p;
             }
             field[i] = p;
         }
@@ -211,20 +194,16 @@ ScalarSample.prototype.sampleModel = function(_fidelity, model)
     }
 }
 
-ScalarSample.prototype.sampleAndVis = function(_fidelity)
-{
+ScalarSample.prototype.sampleAndVis = function (_fidelity) {
     this.sampleModel(_fidelity);
     this.vis();
 }
 
-ScalarSample.prototype.vis = function()
-{
-    if (!this.canvas)
-    {
-        console.log("Error: ScalarSample doesn't have a canvas.");
+ScalarSample.prototype.vis = function () {
+    if (!this.canvas) {
+
     }
-    else if (!this.visualizer || !this.visualizer.ready())
-    {
+    else if (!this.visualizer || !this.visualizer.ready()) {
         // pipeline not yet ready. Set flag to callVis when it's ready
         this.callVisFlag = true;
     }
@@ -238,22 +217,20 @@ ScalarSample.prototype.vis = function()
     }
 }
 
-ScalarSample.prototype.computeValueHistogram = function(_bins)
-{
+ScalarSample.prototype.computeValueHistogram = function (_bins) {
 
     var field = this.field;
     var hist = field.calcAmplitudeFrequency(_bins || HISTOGRAM_BINS);
     var histSum = d3.sum(hist);
-    for (var i=0; i<hist.length; i++) {
+    for (var i = 0; i < hist.length; i++) {
         hist[i] /= histSum;
     }
     return hist;
 }
 
-ScalarSample.prototype.initVisPipeline = function()
-{
+ScalarSample.prototype.initVisPipeline = function () {
     if (!this.canvas) {
-        console.log("Error: ScalarSample doesn't have a canvas.");
+
         return;
     }
 
@@ -274,7 +251,7 @@ ScalarSample.prototype.initVisPipeline = function()
         uniforms:
         {
             scalarField: {},
-            randomSeed: {value: -1.0},
+            randomSeed: { value: -1.0 },
         },
         inTexture: 'scalarField',
         fragment: this.visualizer.shaders['pdfSample'],
@@ -282,18 +259,15 @@ ScalarSample.prototype.initVisPipeline = function()
     });
 
     // blur
-    for (var i=1, stageCount = BLUR_STAGE-1; i<=stageCount; i++)
-    {
+    for (var i = 1, stageCount = BLUR_STAGE - 1; i <= stageCount; i++) {
         var blurShader;
-        if (i == stageCount)
-        {
+        if (i == stageCount) {
             // add a CPU computation stages
             var cpuStage = {
-                cpuComputation: function(buffer) {
+                cpuComputation: function (buffer) {
                     var minValue = Number.MAX_VALUE;
                     var maxValue = Number.MIN_VALUE;
-                    for (var i=0, len=buffer.length; i<len; i++)
-                    {
+                    for (var i = 0, len = buffer.length; i < len; i++) {
                         var v = buffer[i];
                         if (v > maxValue) {
                             maxValue = v;
@@ -305,7 +279,7 @@ ScalarSample.prototype.initVisPipeline = function()
                     return {
                         maxValue: maxValue,
                         minValue: minValue,
-                        normTerm: 1.0 / (maxValue-minValue)
+                        normTerm: 1.0 / (maxValue - minValue)
                     };
                 }
             }
@@ -317,7 +291,7 @@ ScalarSample.prototype.initVisPipeline = function()
                 uniforms: {
                     scalarField: {},
                     colormap: {},
-                    contour: {value: -1},
+                    contour: { value: -1 },
                     minValue: {
                         value: null,
                         cpuComputation: true,
@@ -357,7 +331,7 @@ ScalarSample.prototype.initVisPipeline = function()
                 uniforms: {
                     scalarField: {},
                     colormap: {},
-                    pitch: {value: [1/this.field.w, 1/this.field.h]}
+                    pitch: { value: [1 / this.field.w, 1 / this.field.h] }
                 },
                 inTexture: 'scalarField',
                 fragment: this.visualizer.shaders[blurShader],
@@ -372,7 +346,7 @@ ScalarSample.prototype.initVisPipeline = function()
         uniforms: {
             scalarField: {},
             colormap: {},
-            contour: {value: -1.0},
+            contour: { value: -1.0 },
         },
         inTexture: 'scalarField',
         fragment: this.visualizer.shaders['vis'],
@@ -383,18 +357,15 @@ ScalarSample.prototype.initVisPipeline = function()
     var blur = new GLPipeline(this.visualizer.glCanvas);
 
     // for multi-stage blurring, add a final medianBlur
-    for (var i=1; i<=BLUR_STAGE; i++)
-    {
+    for (var i = 1; i <= BLUR_STAGE; i++) {
         var blurShader;
-        if (i == BLUR_STAGE)
-        {
+        if (i == BLUR_STAGE) {
             // add a CPU computation stages
             var cpuStage = {
-                cpuComputation: function(buffer) {
+                cpuComputation: function (buffer) {
                     var minValue = Number.MAX_VALUE;
                     var maxValue = Number.MIN_VALUE;
-                    for (var i=0, len=buffer.length; i<len; i++)
-                    {
+                    for (var i = 0, len = buffer.length; i < len; i++) {
                         var v = buffer[i];
                         if (v > maxValue) {
                             maxValue = v;
@@ -417,7 +388,7 @@ ScalarSample.prototype.initVisPipeline = function()
                 uniforms: {
                     scalarField: {},
                     colormap: {},
-                    contour: {value: -1},
+                    contour: { value: -1 },
                     maxValue: {
                         value: null,
                         cpuComputation: true,
@@ -436,7 +407,7 @@ ScalarSample.prototype.initVisPipeline = function()
                 uniforms: {
                     scalarField: {},
                     colormap: {},
-                    pitch: {value: [1/this.field.w, 1/this.field.h]}
+                    pitch: { value: [1 / this.field.w, 1 / this.field.h] }
                 },
                 inTexture: 'scalarField',
                 fragment: this.visualizer.shaders[blurShader],
