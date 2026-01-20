@@ -19,9 +19,9 @@ class SoftAttributionPerturbation {
         // 默认参数 (Adaptive Ratios)
         this.params = {
             // Ratios relative to the band's characteristic sigma
-            sigma_E_ratio: 0.5,      // Energy smooth ratio (e.g. 0.5 * sigma)
-            sigma_m_ratio: 0.8,      // Mask feathering ratio 
-            sigma_Delta_ratio: 0.5,  // Delta low-pass ratio (Critical for cleaning dipoles)
+            sigma_E_ratio: 0.4,      // Energy smooth ratio (e.g. 0.5 * sigma)
+            sigma_m_ratio: 0.6,      // Mask feathering ratio 
+            sigma_Delta_ratio: 0.4,  // Delta low-pass ratio (Critical for cleaning dipoles)
 
             tau_low: 0.3,        // smoothstep下边界
             tau_high: 0.7,       // smoothstep上边界
