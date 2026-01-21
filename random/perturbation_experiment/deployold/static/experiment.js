@@ -40,12 +40,14 @@ class ExperimentController {
         this.isPreloading = false;
 
         // --- Components ---
-        // Image Library System (Preloaded)
-        this.imageLibrary = [];
-        this.imageLibraryLoaded = false;
-        
-        // Load image library metadata on initialization
-        this.loadImageLibrary();
+        // Initialize Generator & Perturbation Systems
+        this.generator = new GaussianGenerator(this.config.width, this.config.height);
+        this.perturbation = new PerturbationSystem(this.generator);
+        this.softAttribution = new SoftAttributionPerturbation(this.generator);
+
+        // Initialize Web Worker for SSIM optimization
+        this.ssimWorker = new Worker('static/ssim-worker.js');
+        this.workerBusy = false;
 
         // --- DOM Elements ---
         this.screens = {
@@ -78,23 +80,13 @@ class ExperimentController {
 
     bindEvents() {
         // Start Button
-        this.buttons.start.addEventListener('click', async () => {
+        this.buttons.start.addEventListener('click', () => {
             const pid = this.inputs.participantId.value.trim();
             if (!pid) {
                 alert('Please enter a Participant ID.');
                 return;
             }
             this.participantId = pid;
-            
-            // Ensure image library is loaded
-            if (!this.imageLibraryLoaded) {
-                this.buttons.start.disabled = true;
-                this.buttons.start.textContent = 'Loading Image Library...';
-                await this.loadImageLibrary();
-                this.buttons.start.textContent = 'Start Experiment';
-                this.buttons.start.disabled = false;
-            }
-            
             this.startExperiment();
         });
 
@@ -293,120 +285,144 @@ class ExperimentController {
     }
 
     /**
-     * Load image library metadata from the perturbation_images folder
-     */
-    async loadImageLibrary() {
-        try {
-            // Fetch the list of available images by querying the server
-            const response = await fetch('/api/list_images');
-            if (!response.ok) {
-                throw new Error('Failed to load image library');
-            }
-            
-            const data = await response.json();
-            this.imageLibrary = data.images || [];
-            this.imageLibraryLoaded = true;
-            
-            console.log(`Image library loaded: ${this.imageLibrary.length} image pairs available`);
-        } catch (error) {
-            console.error('Error loading image library:', error);
-            alert('Failed to load image library. Please refresh the page.');
-        }
-    }
-
-    /**
-     * Select appropriate image from library based on trial configuration
-     */
-    selectImageForTrial(trial) {
-        // Filter images matching frequency and close to target SSIM
-        const candidates = this.imageLibrary.filter(img => {
-            return img.frequency === trial.frequencyId &&
-                   Math.abs(img.targetValue - trial.targetSSIM) < 0.0001; // Tolerance of 0.0001
-        });
-
-        if (candidates.length === 0) {
-            console.warn(`No matching images found for trial ${trial.id} (${trial.frequencyId}, SSIM ${trial.targetSSIM})`);
-            // Fallback: randomly select from all images with same frequency
-            const fallback = this.imageLibrary.filter(img => img.frequency === trial.frequencyId);
-            
-            if (fallback.length > 0) {
-                const randomIndex = Math.floor(Math.random() * fallback.length);
-                return fallback[randomIndex];
-            }
-            return null;
-        }
-
-        // Randomly select from candidates
-        const selected = candidates[Math.floor(Math.random() * candidates.length)];
-        return selected;
-    }
-
-    /**
-     * Load trial data from pregenerated images
+     * Generates all data needed for a trial (heavy computation)
      */
     async generateTrialData(trial) {
-        // 1. Select appropriate image from library
-        const imageInfo = this.selectImageForTrial(trial);
-        
-        if (!imageInfo) {
-            throw new Error(`No suitable image found for trial ${trial.id}`);
-        }
+        // 1. Setup Generator
+        this.generator.updateDimensions(this.config.width, this.config.height);
+        this.generator.sizeLevels = JSON.parse(JSON.stringify(this.config.sizeLevels));
 
-        // 2. Load images
-        const originalImg = await this.loadImage(imageInfo.originalPath);
-        const perturbedImg = await this.loadImage(imageInfo.perturbedPath);
+        // 2. Generate Random Distribution (The "Base")
+        this.generator.generateAll();
 
-        // Store actual values from metadata
-        trial.actualMagnitude = imageInfo.magnitude;
-        trial.actualSSIM = imageInfo.ssim;
-        trial.actualKL = imageInfo.kl;
+        // 3. Render "Original" (Unperturbed)
+        const originalData = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true);
 
-        // Log selection
-        console.log(`Trial ${trial.id} [${trial.frequencyId}]: Target SSIM = ${trial.targetSSIM.toFixed(5)}, Selected SSIM = ${trial.actualSSIM.toFixed(5)}, File = ${imageInfo.prefix}`);
+        // 4. Find Perturbation Magnitude that matches SSIM Target
+        const optimizationResult = await this.findMagnitudeForSSIM(trial.targetSSIM, trial.targetLevel, originalData);
 
-        // 3. Randomly choose target position
+        // Store optimization results in the trial object for recording later
+        trial.actualMagnitude = optimizationResult.magnitude;
+        trial.actualSSIM = optimizationResult.ssim;
+
+        // Log SSIM values
+        console.log(`Trial ${trial.id} [${trial.frequencyId}]: Target SSIM = ${trial.targetSSIM.toFixed(5)}, Actual SSIM = ${trial.actualSSIM.toFixed(5)}, Diff = ${Math.abs(trial.targetSSIM - trial.actualSSIM).toFixed(6)}`);
+
+        // 5. Randomly choose target position
         const targetPos = Math.floor(Math.random() * 4);
 
         return {
-            originalImg: originalImg,
-            perturbedImg: perturbedImg,
+            originalData: originalData,
+            perturbedData: optimizationResult.data,
             targetPos: targetPos,
             trial: trial
         };
     }
 
     /**
-     * Load an image and return as HTMLImageElement
-     */
-    loadImage(path) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
-            img.src = path;
-        });
-    }
-
-    /**
-     * Puts the loaded images onto the canvas
+     * Puts the generated data onto the canvas
      */
     renderTrialDataToScreen(trialData) {
         this.currentTargetPos = trialData.targetPos;
-        const originalImg = trialData.originalImg;
-        const perturbedImg = trialData.perturbedImg;
+        const originalData = trialData.originalData;
+        const perturbedData = trialData.perturbedData;
 
         // Render to Canvases
         for (let i = 0; i < 4; i++) {
             const canvas = this.display.canvases[i];
             const ctx = canvas.getContext('2d');
-            const img = (i === this.currentTargetPos) ? perturbedImg : originalImg;
+            const data = (i === this.currentTargetPos) ? perturbedData : originalData;
 
-            // Draw image to canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            this.renderDataToCanvas(ctx, data, this.config.width, this.config.height);
         }
     }
 
+    /**
+     * Finds the magnitude that produces a result closest to the target SSIM.
+     * Uses Web Worker for heavy computation to keep UI responsive.
+     */
+    async findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal) {
+        const coefficients = {
+            position: 0,       // Auto-controlled by tanh saturation (in perturbation.js)
+            stretch: 0.0,      // Disabled
+            rotation: 1.0,     // Free to scale
+            amplitude: 1.0     // Free to scale
+        };
+
+        // Export generator state for worker
+        const generatorState = this.generator.exportConfig();
+
+        // Send optimization task to worker
+        return new Promise((resolve, reject) => {
+            const messageHandler = (e) => {
+                const { type, result, error } = e.data;
+                
+                if (type === 'SUCCESS') {
+                    // Convert array back to Float32Array
+                    const perturbedData = new Float32Array(result.data);
+                    
+                    this.ssimWorker.removeEventListener('message', messageHandler);
+                    this.workerBusy = false;
+                    
+                    resolve({
+                        data: perturbedData,
+                        magnitude: result.magnitude,
+                        ssim: result.ssim
+                    });
+                } else if (type === 'ERROR') {
+                    console.error('Worker error:', error);
+                    this.ssimWorker.removeEventListener('message', messageHandler);
+                    this.workerBusy = false;
+                    reject(new Error(error));
+                }
+            };
+
+            this.ssimWorker.addEventListener('message', messageHandler);
+            this.workerBusy = true;
+
+            // Send task to worker
+            this.ssimWorker.postMessage({
+                type: 'OPTIMIZE_SSIM',
+                data: {
+                    targetSSIM,
+                    freqTarget,
+                    generatorState,
+                    width: this.config.width,
+                    height: this.config.height,
+                    sizeLevels: this.config.sizeLevels,
+                    coefficients,
+                    tolerance: 0.0001,
+                    maxRetries: 6,
+                    maxIterPerTry: 60
+                }
+            });
+        });
+    }
+
+    renderDataToCanvas(ctx, data, width, height) {
+        const imgData = ctx.createImageData(width, height);
+
+        // Auto-scale (min-max normalization) for display
+        let min = Infinity, max = -Infinity;
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] < min) min = data[i];
+            if (data[i] > max) max = data[i];
+        }
+
+        const range = max - min || 1;
+
+        for (let i = 0; i < data.length; i++) {
+            const val = (data[i] - min) / range;
+            const pixelIndex = i * 4;
+            const color = Math.floor(val * 255);
+            imgData.data[pixelIndex] = color;
+            imgData.data[pixelIndex + 1] = color;
+            imgData.data[pixelIndex + 2] = color;
+            imgData.data[pixelIndex + 3] = 255;
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    }
 
     handleSelection(selectedIndex) {
         if (!this.isTrialActive) return;

@@ -12,7 +12,9 @@ class StimuliGallery {
 
         this.container = document.getElementById('gallery-content');
         this.btnStart = document.getElementById('btn-start');
+        this.btnDownload = document.getElementById('btn-download');
         this.loadingText = document.getElementById('loading');
+        this.downloadOptions = document.getElementById('download-options');
 
         // 只用于生成的临时生成器
         this.generator = new GaussianGenerator(this.config.width, this.config.height);
@@ -26,11 +28,14 @@ class StimuliGallery {
             amplitude: 1.0     // Free to scale
         };
 
+        this.generatedData = [];
+
         this.bindEvents();
     }
 
     bindEvents() {
         this.btnStart.addEventListener('click', () => this.generateGallery());
+        this.btnDownload.addEventListener('click', () => this.downloadAllData());
 
         // Mode Switch
         const modeSelect = document.getElementById('generation-mode');
@@ -99,8 +104,11 @@ class StimuliGallery {
 
     async generateGallery() {
         this.btnStart.disabled = true;
+        this.btnDownload.disabled = true;
+        this.downloadOptions.style.display = 'none';
         this.loadingText.style.display = 'block';
         this.container.innerHTML = '';
+        this.generatedData = [];
 
         // 使用setTimeout让UI有机会更新
         setTimeout(async () => {
@@ -143,7 +151,9 @@ class StimuliGallery {
                 this.loadingText.style.display = 'none';
                 return;
             }
-            const repetitions = 1;
+            
+            // Get repetitions from input
+            const repetitions = parseInt(document.getElementById('repetitions').value) || 1;
 
             for (const freq of frequencies) {
                 const section = document.createElement('div');
@@ -172,6 +182,8 @@ class StimuliGallery {
 
             this.btnStart.disabled = false;
             this.loadingText.style.display = 'none';
+            this.btnDownload.disabled = false;
+            this.downloadOptions.style.display = 'block';
         }, 100);
     }
 
@@ -387,11 +399,315 @@ class StimuliGallery {
             labels.innerHTML = '<span>Original</span><span>Perturbed</span>';
             card.appendChild(labels);
 
+            // Add refresh button
+            const btnRefresh = document.createElement('button');
+            btnRefresh.className = 'btn-refresh';
+            btnRefresh.textContent = '🔄 Refresh';
+            btnRefresh.addEventListener('click', async () => {
+                btnRefresh.disabled = true;
+                btnRefresh.textContent = 'Refreshing...';
+                await this.refreshStimulusCard(card, freq, targetVal, repetition, mode);
+                btnRefresh.textContent = '🔄 Refresh';
+                btnRefresh.disabled = false;
+            });
+            card.appendChild(btnRefresh);
+
             container.appendChild(card);
+
+            // Store data for download
+            this.generatedData.push({
+                frequency: freq.id,
+                frequencyName: freq.name,
+                targetValue: targetVal,
+                repetition: repetition,
+                mode: mode,
+                magnitude: chosenMagnitude,
+                ssim: achievedSSIM,
+                kl: achievedKL,
+                canvasOriginal: canvasOriginal,
+                canvasPerturbed: canvasPerturbed,
+                dataOriginal: dataOriginal,
+                dataPerturbed: dataPerturbed
+            });
 
             // 稍微延迟一下以免阻塞主线程
             setTimeout(resolve, 0);
         });
+    }
+
+    async downloadAllData() {
+        if (this.generatedData.length === 0) {
+            alert('No data to download. Please generate stimuli first.');
+            return;
+        }
+
+        const downloadType = document.querySelector('input[name="download-type"]:checked').value;
+
+        if (downloadType === 'json' || downloadType === 'both') {
+            await this.downloadJSON();
+        }
+
+        if (downloadType === 'images' || downloadType === 'both') {
+            await this.downloadImages();
+        }
+    }
+
+    async downloadJSON() {
+        const exportData = this.generatedData.map(item => ({
+            frequency: item.frequency,
+            frequencyName: item.frequencyName,
+            targetValue: item.targetValue,
+            repetition: item.repetition,
+            mode: item.mode,
+            magnitude: item.magnitude,
+            ssim: item.ssim,
+            kl: item.kl,
+            dataOriginal: Array.from(item.dataOriginal),
+            dataPerturbed: Array.from(item.dataPerturbed),
+            config: {
+                width: this.config.width,
+                height: this.config.height
+            }
+        }));
+
+        const jsonStr = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `perturbation_data_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    async downloadImages() {
+        if (typeof JSZip === 'undefined') {
+            alert('JSZip library not loaded. Cannot download images.');
+            return;
+        }
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder('perturbation_images');
+
+        for (let i = 0; i < this.generatedData.length; i++) {
+            const item = this.generatedData[i];
+            const prefix = `${i + 1}_${item.frequency}_${item.mode}_${item.targetValue.toFixed(5)}`;
+
+            const originalBlob = await this.canvasToBlob(item.canvasOriginal);
+            const perturbedBlob = await this.canvasToBlob(item.canvasPerturbed);
+
+            imgFolder.file(`${prefix}_original.png`, originalBlob);
+            imgFolder.file(`${prefix}_perturbed.png`, perturbedBlob);
+            const metadata = {
+                frequency: item.frequency,
+                frequencyName: item.frequencyName,
+                targetValue: item.targetValue,
+                mode: item.mode,
+                magnitude: item.magnitude,
+                ssim: item.ssim,
+                kl: item.kl
+            };
+            imgFolder.file(`${prefix}_metadata.json`, JSON.stringify(metadata, null, 2));
+        }
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `perturbation_images_${new Date().toISOString().slice(0, 10)}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    canvasToBlob(canvas) {
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => {
+                resolve(blob);
+            }, 'image/png');
+        });
+    }
+
+    async refreshStimulusCard(card, freq, targetVal, repetition, mode) {
+        // Find and remove old data from generatedData
+        const dataIndex = this.generatedData.findIndex(item => 
+            item.frequency === freq.id && 
+            item.targetValue === targetVal && 
+            item.repetition === repetition
+        );
+
+        // Find the canvas pair and title
+        const title = card.querySelector('h4');
+        const canvasPair = card.querySelector('.canvas-pair');
+        const canvases = canvasPair.querySelectorAll('canvas');
+        
+        // Clear canvases
+        canvases.forEach(canvas => {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Regenerate stimulus
+        this.generator.updateDimensions(this.config.width, this.config.height);
+        this.generator.sizeLevels = {
+            'small': { sigma: 15, count: 2, color: '#377eb8' },
+            'medium': { sigma: 25, count: 3, color: '#4daf4a' },
+            'large': { sigma: 50, count: 4, color: '#ff7f00' }
+        };
+
+        this.generator.setBandWeight('small', parseFloat(document.getElementById('weight-high-value').value));
+        this.generator.setBandWeight('medium', parseFloat(document.getElementById('weight-mid-value').value));
+        this.generator.setBandWeight('large', parseFloat(document.getElementById('weight-low-value').value));
+        this.generator.setExponent(parseFloat(document.getElementById('exponent-slider-value').value));
+
+        this.generator.generateAll();
+        const dataOriginal = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true);
+
+        let chosenMagnitude = targetVal;
+        let achievedMetric = 0;
+        let achievedKL = 0;
+        let achievedSSIM = 0;
+        let dataPerturbed = null;
+
+        if (mode === 'magnitude') {
+            this.perturbation.resetToOriginal();
+            this.perturbation.setCoefficients(this.coefficients);
+            this.perturbation.applyGlobalPerturbation(targetVal, 1.0, freq.target, 'all');
+            const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+            dataPerturbed = saResult.perturbedTotal;
+            achievedSSIM = calculateSSIM(dataOriginal, dataPerturbed, this.config.width, this.config.height);
+            achievedKL = calculateKLDivergence(dataOriginal, dataPerturbed);
+        } else {
+            // Run optimization for SSIM/KL
+            const tolerance = 0.0001;
+            const maxRetries = 6;
+            const maxIterPerTry = 60;
+            let bestOverallDiff = Infinity;
+            let bestOverallMagnitude = 0;
+            let bestOverallData = null;
+            let bestOverallMetric = 0;
+            let bestOverallSSIM = 0;
+            let bestOverallKL = 0;
+            let foundGoodResult = false;
+
+            for (let retry = 0; retry < maxRetries && !foundGoodResult; retry++) {
+                this.perturbation.resetToOriginal();
+                this.perturbation.setCoefficients(this.coefficients);
+                this.perturbation.generatePerturbationDeltas(freq.target, 1.0, 'all');
+
+                const maxMagnitude = (freq.target === 'large') ? 8.0 : 5.0;
+                let min = 0.0, max = maxMagnitude;
+                let bestDiff = Infinity;
+
+                for (let i = 0; i < maxIterPerTry; i++) {
+                    const mid = (min + max) / 2;
+                    this.perturbation.applyStoredPerturbation(mid);
+                    const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
+                    const tempPerturbed = saResult.perturbedTotal;
+
+                    let currentMetric = 0;
+                    if (mode === 'ssim') {
+                        currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                    } else {
+                        currentMetric = calculateKLDivergence(dataOriginal, tempPerturbed);
+                    }
+
+                    const diff = Math.abs(currentMetric - targetVal);
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        if (diff < bestOverallDiff) {
+                            bestOverallDiff = diff;
+                            bestOverallMagnitude = mid;
+                            bestOverallData = tempPerturbed;
+                            bestOverallMetric = currentMetric;
+                            if (mode === 'ssim') {
+                                bestOverallSSIM = currentMetric;
+                                bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
+                            } else {
+                                bestOverallKL = currentMetric;
+                                bestOverallSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                            }
+                        }
+                        if (diff < tolerance) {
+                            foundGoodResult = true;
+                            break;
+                        }
+                    }
+
+                    if (mode === 'ssim') {
+                        if (currentMetric > targetVal) min = mid;
+                        else max = mid;
+                    } else {
+                        if (currentMetric < targetVal) min = mid;
+                        else max = mid;
+                    }
+                }
+            }
+
+            chosenMagnitude = bestOverallMagnitude;
+            dataPerturbed = bestOverallData;
+            achievedMetric = bestOverallMetric;
+            achievedSSIM = bestOverallSSIM;
+            achievedKL = bestOverallKL;
+        }
+
+        // Update title
+        if (mode === 'magnitude') {
+            title.innerHTML = `Mag: ${targetVal}<br><span style="font-size:10px; font-weight:normal">SSIM:${achievedSSIM.toFixed(5)} | KL:${achievedKL.toFixed(5)}</span>`;
+        } else {
+            const targetLabel = mode.toUpperCase();
+            title.innerHTML = `Target ${targetLabel}: ${targetVal}<br><span style="font-size:10px; font-weight:normal">Mag:${chosenMagnitude.toFixed(3)} | Actual:${achievedMetric.toFixed(5)}</span>`;
+        }
+
+        // Render new canvases
+        const canvasOriginal = canvases[0];
+        const canvasPerturbed = canvases[1];
+        this.renderToCanvas(canvasOriginal, dataOriginal);
+        this.renderToCanvas(canvasPerturbed, dataPerturbed);
+
+        // Update stored data
+        if (dataIndex >= 0) {
+            this.generatedData[dataIndex] = {
+                frequency: freq.id,
+                frequencyName: freq.name,
+                targetValue: targetVal,
+                repetition: repetition,
+                mode: mode,
+                magnitude: chosenMagnitude,
+                ssim: achievedSSIM,
+                kl: achievedKL,
+                canvasOriginal: canvasOriginal,
+                canvasPerturbed: canvasPerturbed,
+                dataOriginal: dataOriginal,
+                dataPerturbed: dataPerturbed
+            };
+        }
+    }
+
+    renderToCanvas(canvas, data) {
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(this.config.width, this.config.height);
+
+        let max = 0;
+        for (let i = 0; i < data.length; i++) {
+            max = Math.max(max, data[i]);
+        }
+        if (max === 0) max = 1;
+
+        const colormap = 'greyscale';
+        for (let i = 0; i < data.length; i++) {
+            const normalizedVal = data[i] / max;
+            const color = valueToColor(normalizedVal, colormap);
+            const pixelIndex = i * 4;
+            imgData.data[pixelIndex] = color[0];
+            imgData.data[pixelIndex + 1] = color[1];
+            imgData.data[pixelIndex + 2] = color[2];
+            imgData.data[pixelIndex + 3] = 255;
+        }
+        ctx.putImageData(imgData, 0, 0);
     }
 
     createCanvas(data) {

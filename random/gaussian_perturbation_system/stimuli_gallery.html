@@ -57,11 +57,47 @@
             cursor: not-allowed;
         }
 
+        .btn-download {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-left: 10px;
+        }
+
+        .btn-download:hover {
+            background-color: #218838;
+        }
+
+        .btn-download:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
         .loading-text {
             margin-top: 10px;
             color: #666;
             font-style: italic;
             display: none;
+        }
+
+        .download-options {
+            margin-top: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            display: none;
+        }
+
+        .download-options label {
+            margin-right: 15px;
+            font-size: 14px;
+            cursor: pointer;
         }
 
         .section-frequency {
@@ -130,6 +166,27 @@
             color: #999;
             padding: 0 5px;
         }
+
+        .btn-refresh {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-top: 5px;
+            transition: background-color 0.2s;
+        }
+
+        .btn-refresh:hover {
+            background-color: #138496;
+        }
+
+        .btn-refresh:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 
@@ -146,13 +203,19 @@
 
             <div
                 style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
-                <div style="margin-bottom: 10px;">
-                    <label style="font-weight: bold; margin-right: 10px;">Generation Mode:</label>
-                    <select id="generation-mode" style="padding: 5px;">
-                        <option value="ssim">Target SSIM</option>
-                        <option value="magnitude">Fixed Magnitudes (Old)</option>
-                        <option value="kl">Target KL Divergence</option>
-                    </select>
+                <div style="margin-bottom: 10px; display: flex; gap: 20px; align-items: center;">
+                    <div>
+                        <label style="font-weight: bold; margin-right: 10px;">Generation Mode:</label>
+                        <select id="generation-mode" style="padding: 5px;">
+                            <option value="ssim">Target SSIM</option>
+                            <option value="magnitude">Fixed Magnitudes (Old)</option>
+                            <option value="kl">Target KL Divergence</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight: bold; margin-right: 10px;">Repetitions:</label>
+                        <input type="number" id="repetitions" value="1" min="1" max="10" style="width: 60px; padding: 5px;">
+                    </div>
                 </div>
 
                 <div id="input-group-magnitude" style="margin-bottom: 15px;">
@@ -284,7 +347,22 @@
                 </p>
             </div>
             <button id="btn-start" class="btn-generate">Generate All Stimuli</button>
+            <button id="btn-download" class="btn-download" disabled>Download All Data</button>
             <div id="loading" class="loading-text">Generating... Please wait</div>
+            <div id="download-options" class="download-options">
+                <label>
+                    <input type="radio" name="download-type" value="images" checked> 
+                    Download as Images (PNG in ZIP)
+                </label>
+                <label>
+                    <input type="radio" name="download-type" value="json"> 
+                    Download as JSON Data
+                </label>
+                <label>
+                    <input type="radio" name="download-type" value="both"> 
+                    Download Both
+                </label>
+            </div>
         </div>
 
         <div id="gallery-content">
@@ -293,6 +371,7 @@
     </div>
 
     <!-- 依赖库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script
         src="../../rainbows good or bad for/supplementary materials/experiment interface/jnd/lib/d3.min.js"></script>
     <script src="../../rainbows good or bad for/supplementary materials/experiment interface/src/scalar.js"></script>
