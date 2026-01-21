@@ -19,9 +19,9 @@ class SoftAttributionPerturbation {
         // 默认参数 (Adaptive Ratios)
         this.params = {
             // Ratios relative to the band's characteristic sigma
-            sigma_E_ratio: 0.5,      // Energy smooth ratio (e.g. 0.5 * sigma)
-            sigma_m_ratio: 0.8,      // Mask feathering ratio 
-            sigma_Delta_ratio: 0.5,  // Delta low-pass ratio (Critical for cleaning dipoles)
+            sigma_E_ratio: 0.4,      // Energy smooth ratio (e.g. 0.5 * sigma)
+            sigma_m_ratio: 0.6,      // Mask feathering ratio 
+            sigma_Delta_ratio: 0.4,  // Delta low-pass ratio (Critical for cleaning dipoles)
 
             tau_low: 0.3,        // smoothstep下边界
             tau_high: 0.7,       // smoothstep上边界
@@ -76,8 +76,7 @@ class SoftAttributionPerturbation {
      * @returns {Object} 三个频段的能量场 {low, mid, high}
      */
     computeGradientEnergyFields(width, height) {
-        console.log('Computing gradient energy fields...');
-
+      
         const energyFields = {
             low: new Float32Array(width * height),
             mid: new Float32Array(width * height),
@@ -142,7 +141,7 @@ class SoftAttributionPerturbation {
      * @returns {Object} 归一化权重 {low, mid, high}
      */
     computeAttributionWeights(energyFields, width, height) {
-        console.log('Computing attribution weights...');
+       
 
         const weights = {
             low: new Float32Array(width * height),
@@ -176,7 +175,7 @@ class SoftAttributionPerturbation {
      * @returns {Object} 门控mask {low, mid, high}
      */
     generateGatingMasks(attributionWeights, width, height) {
-        console.log('Generating gating masks...');
+    
 
         const masks = {
             low: new Float32Array(width * height),
@@ -226,9 +225,7 @@ class SoftAttributionPerturbation {
      * @returns {Float32Array} 扰动后的总场
      */
     applyGatedPerturbation(originalField, originalBands, perturbedBands, masks, width, height) {
-        console.log('Applying gated perturbation...');
-        console.log('=== 关键：这里才是真正的软归因门控！===');
-        console.log(`  Delta Blur: sigma_Delta = ${this.params.sigma_Delta}`);
+    
 
         const result = new Float32Array(originalField);
 
@@ -237,7 +234,6 @@ class SoftAttributionPerturbation {
             const lambda = this.params.lambda[band];
 
             if (lambda === 0) {
-                console.log(`  ${band} band: DISABLED (λ=${lambda})`);
                 continue;
             }
 
@@ -278,10 +274,9 @@ class SoftAttributionPerturbation {
             }
 
             const suppressionRatio = (totalDelta > 0) ? (gatedDelta / totalDelta) : 0;
-            console.log(`  ${band} band: λ=${lambda}, 扰动抑制率=${(1 - suppressionRatio) * 100}%, 有效像素=${effectivePixels}`);
+        
         }
 
-        console.log('=== 软归因门控完成：扰动只在主导区域生效 ===');
         return result;
     }
 
@@ -337,7 +332,6 @@ class SoftAttributionPerturbation {
      * @returns {Object} 包含所有中间结果和最终结果
      */
     performGatedPerturbation(width, height) {
-        console.log('=== Starting Soft Attribution Gated Perturbation ===');
 
         // 渲染原始总场
         const originalTotal = this.generator.renderTo1DArray(width, height, true, false);
@@ -374,8 +368,6 @@ class SoftAttributionPerturbation {
             width,
             height
         );
-
-        console.log('=== Gated Perturbation Complete ===');
 
         return {
             originalTotal,

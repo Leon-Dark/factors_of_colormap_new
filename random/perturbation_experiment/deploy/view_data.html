@@ -246,6 +246,11 @@
                         Time</label>
                 </div>
                 <div style="border-left: 1px solid #ccc; height: 20px; margin-right: 15px;"></div>
+                <label style="display: flex; align-items: center; gap: 5px; margin-right: 15px; cursor: pointer;">
+                    <input type="checkbox" id="filter-ssim-diff" onchange="toggleSSIMFilter(this.checked)">
+                    <span style="font-size: 0.9rem;">Filter SSIM Δ > 0.0005</span>
+                </label>
+                <div style="border-left: 1px solid #ccc; height: 20px; margin-right: 15px;"></div>
                 <button class="view-btn active" onclick="switchView('table')">Table</button>
                 <button class="view-btn" onclick="switchView('bar')">Bar Chart</button>
                 <button class="view-btn" onclick="switchView('line')">Line Chart</button>
@@ -276,6 +281,7 @@
         let myChart = null;
         let currentChartType = 'bar';
         let currentMetric = 'accuracy'; // 'accuracy' or 'time'
+        let filterSSIMDiff = false; // Filter out rows with |targetSSIM - actualSSIM| > 0.0005
 
         // Configuration
         // backendURL: The address where server.py is running.
@@ -490,10 +496,26 @@
                 return;
             }
 
+            const headers = data[0];
+            let rows = data.slice(1);
+
+            // Apply SSIM difference filter if enabled
+            if (filterSSIMDiff) {
+                const idxTargetSSIM = headers.indexOf('targetSSIM');
+                const idxActualSSIM = headers.indexOf('actualSSIM');
+                
+                if (idxTargetSSIM !== -1 && idxActualSSIM !== -1) {
+                    rows = rows.filter(row => {
+                        const target = parseFloat(row[idxTargetSSIM]);
+                        const actual = parseFloat(row[idxActualSSIM]);
+                        return Math.abs(target - actual) <= 0.0005;
+                    });
+                }
+            }
+
             const table = document.createElement('table');
 
             // Header
-            const headers = data[0];
             const thead = document.createElement('thead');
             const trHead = document.createElement('tr');
             headers.forEach(h => {
@@ -508,11 +530,11 @@
             const tbody = document.createElement('tbody');
             // Limit to showing 500 rows to prevent crash on aggregate
             const maxRows = 500;
-            const limit = Math.min(data.length, maxRows);
+            const limit = Math.min(rows.length, maxRows);
 
-            for (let i = 1; i < limit; i++) {
+            for (let i = 0; i < limit; i++) {
                 const tr = document.createElement('tr');
-                const cols = data[i];
+                const cols = rows[i];
                 cols.forEach(c => {
                     const td = document.createElement('td');
                     td.textContent = c;
@@ -520,11 +542,11 @@
                 });
                 tbody.appendChild(tr);
             }
-            if (data.length > maxRows) {
+            if (rows.length > maxRows) {
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
                 td.colSpan = headers.length;
-                td.textContent = `... and ${data.length - maxRows} more rows ...`;
+                td.textContent = `... and ${rows.length - maxRows} more rows ...`;
                 td.style.textAlign = "center";
                 td.style.color = "#888";
                 tr.appendChild(td);
@@ -544,13 +566,38 @@
             }
         }
 
+        function toggleSSIMFilter(enabled) {
+            filterSSIMDiff = enabled;
+            if (currentChartType !== 'table') {
+                renderChart(currentData, currentChartType);
+            } else {
+                renderTableFromData(currentData);
+            }
+        }
+
         // --- Visualization Logic ---
 
         function renderChart(data, type) {
             if (!data || data.length < 2) return;
 
             const headers = data[0];
-            const rows = data.slice(1);
+            let rows = data.slice(1);
+
+            // Apply SSIM difference filter if enabled
+            if (filterSSIMDiff) {
+                const idxTargetSSIM = headers.indexOf('targetSSIM');
+                const idxActualSSIM = headers.indexOf('actualSSIM');
+                
+                if (idxTargetSSIM !== -1 && idxActualSSIM !== -1) {
+                    const originalCount = rows.length;
+                    rows = rows.filter(row => {
+                        const target = parseFloat(row[idxTargetSSIM]);
+                        const actual = parseFloat(row[idxActualSSIM]);
+                        return Math.abs(target - actual) <= 0.0005;
+                    });
+                    console.log(`SSIM Filter: ${originalCount} -> ${rows.length} rows (removed ${originalCount - rows.length})`);
+                }
+            }
 
             // Accessors
             const idxFreq = headers.indexOf('frequencyId');

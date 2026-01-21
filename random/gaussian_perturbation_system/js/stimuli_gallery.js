@@ -259,7 +259,7 @@ class StimuliGallery {
                 // Optimization Search (Stable Algorithm with Retry)
                 // 如果单次搜索未达到精度，换初始化重试
 
-                const tolerance = 0.001;  // 动态阈值
+                const tolerance = 0.0005;  // 动态阈值
                 const maxRetries = 6;        // 最多重试5次
                 const maxIterPerTry = 60;    // 每次尝试最多50次迭代
 
