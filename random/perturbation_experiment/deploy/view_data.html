@@ -348,7 +348,7 @@
                         const ssim = r[idxSSIM];
                         // Check for ~0.95 or 0.90
                         const val = parseFloat(ssim);
-                        if (Math.abs(val - 0.95) < 0.0001 || Math.abs(val - 0.90) < 0.0001) {
+                        if (Math.abs(val - 0.95) < 0.0005 || Math.abs(val - 0.90) < 0.0005) {
                             total++;
                             if (parseInt(r[idxCorrect]) === 1) correct++;
                         }

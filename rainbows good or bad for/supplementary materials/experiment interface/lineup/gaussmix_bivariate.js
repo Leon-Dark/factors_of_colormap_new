@@ -60,7 +60,7 @@ biGauss.prototype.eval = function (x, y) {
     var e = this.rhoExpConst * (stX * stX - 2 * this.rho * stXY + stY * stY);
     var a = this.rhoSqrConst * (1 / (this.sX * this.sY))
 
-    return this.scaler * Math.exp(e) * a;
+    return this.scaler * Math.exp(e) //* a;
 }
 
 GaussMixBivariate.prototype = Object.create(GaussMix.prototype);
