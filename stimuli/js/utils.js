@@ -250,6 +250,29 @@ function interpolateMultiSegment(t, controlPoints) {
     return controlPoints[segment] * (1 - localT) + controlPoints[segment + 1] * localT;
 }
 
+// Convert colormap to HCL palette (handles different color formats)
+function convertColormapToHCLPalette(colormap) {
+    return colormap.map(color => {
+        let rgb;
+        
+        // Handle different color formats
+        if (color.r !== undefined && color.g !== undefined && color.b !== undefined) {
+            // Plain {r, g, b} object
+            rgb = d3.rgb(color.r, color.g, color.b);
+        } else if (Array.isArray(color) && color.length >= 3) {
+            // [r, g, b] array
+            rgb = d3.rgb(color[0], color[1], color[2]);
+        } else {
+            // Assume it's already a d3 color object
+            rgb = d3.rgb(color);
+        }
+        
+        const lab = d3.lab(rgb);
+        const hcl = d3.hcl(lab);
+        return [hcl.h, hcl.c, hcl.l];
+    });
+}
+
 // Check if colormap satisfies discriminability
 function satisfyDiscriminability(colormap, sampleNum = 10) {
     const sampled_colormap = [];

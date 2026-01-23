@@ -573,11 +573,7 @@ function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
         console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
 
         // Convert colormap to HCL format for sampling metrics
-        const hclPalette = colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(colormap);
 
         // Calculate metrics based on current sampling mode
         // MODIFICATION: Calculate BOTH metrics regardless of mode

@@ -365,11 +365,7 @@ function retryGeneration(failedItem, iteration) {
         if (colormap.length > 0) {
             // Check if new colormap passes
             const newColormap = colormap[0].colormap;
-            const hclPalette = newColormap.map(color => {
-                const lab = d3.lab(color);
-                const hcl = d3.hcl(lab);
-                return [hcl.h, hcl.c, hcl.l];
-            });
+            const hclPalette = convertColormapToHCLPalette(newColormap);
 
             let passes = false;
 

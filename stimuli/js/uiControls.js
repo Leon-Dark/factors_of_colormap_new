@@ -25,11 +25,7 @@ function switchSamplingMode() {
 
     // Recalculate all metrics based on new mode
     allColormaps.forEach((cm, idx) => {
-        const hclPalette = cm.colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(cm.colormap);
 
         if (selectedMode === 'jnd') {
             const jndSamples = generateJndSamples(hclPalette, JND_STEP);
@@ -67,11 +63,7 @@ function updateJndStep(value) {
 
     // Recalculate JND metrics for all colormaps
     allColormaps.forEach((cm, idx) => {
-        const hclPalette = cm.colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(cm.colormap);
 
         const jndSamples = generateJndSamples(hclPalette, step);
         cm.metrics.jnd_consistency = calcJndConsistency(jndSamples, step);
@@ -104,11 +96,7 @@ function updateJndInterval(k, j) {
 
     // Recalculate condition 2 for all colormaps
     allColormaps.forEach((cm, idx) => {
-        const hclPalette = cm.colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(cm.colormap);
 
         const jndSamples = generateJndSamples(hclPalette, JND_STEP);
         cm.metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, intervalK, JND_STEP);
@@ -135,11 +123,7 @@ function updateUniformCount(value) {
 
     // Recalculate uniform metric for all colormaps
     allColormaps.forEach((cm, idx) => {
-        const hclPalette = cm.colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(cm.colormap);
         cm.metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, count);
         cm.metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, count);
 
@@ -170,11 +154,7 @@ function updateUniformSmallWindow(k, diff) {
 
     // Recalculate metrics
     allColormaps.forEach((cm, idx) => {
-        const hclPalette = cm.colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(cm.colormap);
         cm.metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
 
         if (colormapElements[idx]) {
@@ -203,11 +183,7 @@ function updateUniformLargeWindow(k, diff) {
 
     // Recalculate metrics
     allColormaps.forEach((cm, idx) => {
-        const hclPalette = cm.colormap.map(color => {
-            const lab = d3.lab(color);
-            const hcl = d3.hcl(lab);
-            return [hcl.h, hcl.c, hcl.l];
-        });
+        const hclPalette = convertColormapToHCLPalette(cm.colormap);
         cm.metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
 
         if (colormapElements[idx]) {

@@ -192,8 +192,8 @@ function drawGivenColormap2(candidates, condition_name) {
 
 // Update metrics display for an existing colormap card
 function updateMetricsDisplay(divElement, metrics) {
-    // Select the metrics div (should be the last div in the card)
-    const metricsDiv = d3.select(divElement).select('div:last-child');
+    // Select the metrics div by class
+    const metricsDiv = d3.select(divElement).select('.metrics-container');
 
     // Clear existing table
     metricsDiv.select('table').remove();
@@ -274,6 +274,7 @@ function updateMetricsDisplay(divElement, metrics) {
 // Display metrics in a div
 function displayMetricsInDiv(div, metrics) {
     const metricsDiv = div.append("div")
+        .attr("class", "metrics-container")
         .style("margin-top", "0")
         .style("padding", "8px")
         .style("background", "white")
