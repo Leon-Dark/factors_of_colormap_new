@@ -123,6 +123,12 @@ class SoftAttributionPerturbation {
             // 计算梯度幅值平方
             const gradientSq = computeGradientMagnitudeSquared(bandField, width, height);
 
+            // FIX: Add small intensity component to prevent zero energy at Gaussian peaks (where gradient is 0)
+            const intensityWeight = 0.1;
+            for (let k = 0; k < gradientSq.length; k++) {
+                gradientSq[k] += intensityWeight * (bandField[k] * bandField[k]);
+            }
+
             // 获取该频段的特征尺度 sigma
             const bandSigma = this.generator.sizeLevels[sizeLevel].sigma;
 
@@ -350,6 +356,10 @@ class SoftAttributionPerturbation {
         const gaussians = this.generator.getAllGaussians().filter(g => g.sizeLevel === sizeLevel);
         const field = new Float32Array(width * height);
 
+        // Get weight and exponent to match visual rendering
+        const weight = this.generator.bandWeights ? (this.generator.bandWeights[sizeLevel] || 1.0) : 1.0;
+        const exponent = this.generator.exponent !== undefined ? this.generator.exponent : 1.0;
+
         for (const gauss of gaussians) {
             if (useOriginal) {
                 // 使用原始参数渲染
@@ -369,7 +379,13 @@ class SoftAttributionPerturbation {
 
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
-                        field[y * width + x] += tempGauss.eval(x, y);
+                        let val = tempGauss.eval(x, y);
+                        // Apply weight
+                        val *= weight;
+                        // Apply exponent
+                        if (exponent !== 1.0) val = Math.pow(val, exponent);
+
+                        field[y * width + x] += val;
                     }
                 }
             } else {
@@ -382,7 +398,13 @@ class SoftAttributionPerturbation {
 
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
-                        field[y * width + x] += gauss.eval(x, y);
+                        let val = gauss.eval(x, y);
+                        // Apply weight
+                        val *= weight;
+                        // Apply exponent
+                        if (exponent !== 1.0) val = Math.pow(val, exponent);
+
+                        field[y * width + x] += val;
                     }
                 }
             }

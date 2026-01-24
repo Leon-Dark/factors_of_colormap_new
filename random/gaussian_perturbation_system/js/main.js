@@ -15,8 +15,8 @@ class GaussianPerturbationApp {
 
         // 配置
         this.config = {
-            canvasWidth: 260,
-            canvasHeight: 260
+            canvasWidth: 200,
+            canvasHeight: 200
         };
 
         // UI元素
@@ -115,6 +115,11 @@ class GaussianPerturbationApp {
 
         saUI.sigmaM.value = saParams.sigma_m_ratio; // Note: UI uses ratio now
         saUI.sigmaMValue.textContent = saParams.sigma_m_ratio;
+
+        if (saUI.sigmaDelta) {
+            saUI.sigmaDelta.value = saParams.sigma_Delta_ratio;
+            saUI.sigmaDeltaValue.textContent = saParams.sigma_Delta_ratio;
+        }
 
         saUI.tauLow.value = saParams.tau_low;
         saUI.tauLowValue.textContent = saParams.tau_low;
@@ -233,6 +238,8 @@ class GaussianPerturbationApp {
             tauHighValue: document.getElementById('tau-high-value'),
             sigmaM: document.getElementById('sigma-m'),
             sigmaMValue: document.getElementById('sigma-m-value'),
+            sigmaDelta: document.getElementById('sigma-delta'),
+            sigmaDeltaValue: document.getElementById('sigma-delta-value'),
             lambdaLow: document.getElementById('lambda-low'),
             lambdaLowValue: document.getElementById('lambda-low-value'),
             lambdaMid: document.getElementById('lambda-mid'),
@@ -445,6 +452,18 @@ class GaussianPerturbationApp {
 
         saParams.sigmaM.addEventListener('input', (e) => {
             saParams.sigmaMValue.textContent = e.target.value;
+            this.updateSoftAttributionParams();
+        });
+
+        if (saParams.sigmaDelta) {
+            saParams.sigmaDelta.addEventListener('input', (e) => {
+                saParams.sigmaDeltaValue.textContent = e.target.value;
+                this.updateSoftAttributionParams();
+            });
+        }
+
+        saParams.sigmaDelta.addEventListener('input', (e) => {
+            saParams.sigmaDeltaValue.textContent = e.target.value;
             this.updateSoftAttributionParams();
         });
 
@@ -811,6 +830,7 @@ class GaussianPerturbationApp {
             tau_low: parseFloat(this.ui.softAttribution.tauLow.value),
             tau_high: parseFloat(this.ui.softAttribution.tauHigh.value),
             sigma_m_ratio: parseFloat(this.ui.softAttribution.sigmaM.value),
+            sigma_Delta_ratio: parseFloat(this.ui.softAttribution.sigmaDelta.value),
             lambda: {
                 low: parseFloat(this.ui.softAttribution.lambdaLow.value),
                 mid: parseFloat(this.ui.softAttribution.lambdaMid.value),

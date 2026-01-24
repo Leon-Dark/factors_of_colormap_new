@@ -125,12 +125,20 @@ function convolve1D(field, width, height, kernel, direction) {
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 let sum = 0;
+                let weightSum = 0; // Normalize for zero-padding if strict match is needed, 
+                // OR implement clamp-to-edge (repeat edge pixel).
+                // Let's use Clamp-to-Edge for better visual continuity.
+
                 for (let k = 0; k < kernel.length; k++) {
-                    const sx = x + k - halfKernel;
-                    if (sx >= 0 && sx < width) {
-                        sum += field[y * width + sx] * kernel[k];
-                    }
+                    const offset = k - halfKernel;
+                    // Clamp index to [0, width-1]
+                    const sx = Math.min(Math.max(x + offset, 0), width - 1);
+                    sum += field[y * width + sx] * kernel[k];
+                    weightSum += kernel[k];
                 }
+
+                // If kernel is normalized, weightSum should be ~1.0
+                // For clamp-to-edge, we just use the sum directly.
                 result[y * width + x] = sum;
             }
         }
@@ -139,10 +147,10 @@ function convolve1D(field, width, height, kernel, direction) {
             for (let x = 0; x < width; x++) {
                 let sum = 0;
                 for (let k = 0; k < kernel.length; k++) {
-                    const sy = y + k - halfKernel;
-                    if (sy >= 0 && sy < height) {
-                        sum += field[sy * width + x] * kernel[k];
-                    }
+                    const offset = k - halfKernel;
+                    // Clamp index to [0, height-1]
+                    const sy = Math.min(Math.max(y + offset, 0), height - 1);
+                    sum += field[sy * width + x] * kernel[k];
                 }
                 result[y * width + x] = sum;
             }
@@ -245,10 +253,10 @@ function calculateSSIM(img1, img2, width, height) {
     for (let i = 0; i < img1.length; i++) {
         maxVal = Math.max(maxVal, img1[i], img2[i]);
     }
-    
+
     // 如果数据范围为0，说明图像完全相同
     if (maxVal === 0) return 1.0;
-    
+
     // 使用动态范围计算常数
     const L = maxVal;
     const k1 = 0.01;
