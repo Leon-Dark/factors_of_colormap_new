@@ -47,21 +47,32 @@ class VisualizationSystem {
             : true;
         const data = generator.renderTo1DArray(this.width, this.height, useOriginal, useGradientNorm);
 
-        // 归一化
-        let max = 0;
+        // 归一化 (Min-Max Normalization)
+        let max = -Infinity;
+        let min = Infinity;
         for (let i = 0; i < data.length; i++) {
             max = Math.max(max, data[i]);
+            min = Math.min(min, data[i]);
         }
 
-        if (max === 0) {
-            console.warn('All Gaussian values are zero');
-            this.clearCanvas();
+        const range = max - min;
+
+        // 如果全为0或range极小，避免除零
+        if (Math.abs(range) < 1e-6) {
+            if (max === 0) { // All zeros
+                console.warn('All Gaussian values are zero');
+                this.clearCanvas();
+                return;
+            }
+            // constant non-zero field, normalize to 0.5? or 1.0? 
+            // Let's just fill with 0.5 (mid-grey) if variance represents structure
+            this.clearCanvas(); // Or handle as constant color
             return;
         }
 
         const normalizedData = new Float32Array(data.length);
         for (let i = 0; i < data.length; i++) {
-            normalizedData[i] = data[i] / max;
+            normalizedData[i] = (data[i] - min) / range;
         }
 
         // 渲染到canvas
@@ -546,20 +557,24 @@ class MultiViewVisualization {
         const width = canvas.width;
         const height = canvas.height;
 
-        // 归一化数据
-        let max = 0;
+        // 归一化数据 (Min-Max)
+        let max = -Infinity;
+        let min = Infinity;
         for (let i = 0; i < data.length; i++) {
             max = Math.max(max, data[i]);
+            min = Math.min(min, data[i]);
         }
 
-        if (max === 0) {
-            console.warn('All values are zero');
+        const range = max - min;
+
+        if (Math.abs(range) < 1e-6) {
+            console.warn('All values are constant or zero');
             return;
         }
 
         const normalizedData = new Float32Array(data.length);
         for (let i = 0; i < data.length; i++) {
-            normalizedData[i] = data[i] / max;
+            normalizedData[i] = (data[i] - min) / range;
         }
 
         // 渲染到canvas
