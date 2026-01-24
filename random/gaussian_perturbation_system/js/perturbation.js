@@ -180,7 +180,7 @@ class PerturbationSystem {
                 const log_a = log_a0 + delta.amplitudeDir * magnitude * this.coefficients.amplitude;
                 gauss.scaler = Math.exp(log_a);
                 gauss.scaler = Math.max(0.01, gauss.scaler); // Safety floor
-                gauss.scaler = Math.min(4.0, gauss.scaler);
+                //  gauss.scaler = Math.min(4.0, gauss.scaler);
             }
 
             gauss.isPerturbed = true;
