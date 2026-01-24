@@ -15,8 +15,8 @@ class GaussianPerturbationApp {
 
         // 配置
         this.config = {
-            canvasWidth: 200,
-            canvasHeight: 200
+            canvasWidth: 260,
+            canvasHeight: 260
         };
 
         // UI元素
