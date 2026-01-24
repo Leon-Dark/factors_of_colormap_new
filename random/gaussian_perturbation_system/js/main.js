@@ -59,7 +59,77 @@ class GaussianPerturbationApp {
         // 初始化总数量显示
         this.updateTotalCount();
 
+        // Sync UI with JS defaults (Single Source of Truth)
+        this.syncUIToModel();
+
         console.log('System initialized successfully - Random placement mode');
+    }
+
+    /**
+     * Sync UI elements to match the default values defined in JS classes
+     */
+    syncUIToModel() {
+        console.log('Syncing UI to JS model defaults...');
+
+        // 1. Sync Generator defaults (Size Levels & Weights)
+        for (const [level, config] of Object.entries(this.generator.sizeLevels)) {
+            const uiLevel = level === 'small' ? 'high' : level === 'medium' ? 'mid' : 'low';
+            if (this.ui.levels[level]) {
+                // Count
+                this.ui.levels[level].countSlider.value = config.count;
+                this.ui.levels[level].countValue.value = config.count;
+                // Sigma
+                this.ui.levels[level].sigmaSlider.value = config.sigma;
+                this.ui.levels[level].sigmaValue.value = config.sigma;
+            }
+
+            // Weights
+            if (this.ui.weights[uiLevel]) {
+                const weight = this.generator.bandWeights[level];
+                this.ui.weights[uiLevel].slider.value = weight;
+                this.ui.weights[uiLevel].value.value = weight;
+            }
+        }
+        this.updateTotalCount();
+
+        // 2. Sync Perturbation Coefficients
+        const coeffs = this.perturbation.coefficients;
+        this.ui.perturb.coefficients.position.value = coeffs.position;
+        this.ui.perturb.coefficients.positionValue.textContent = coeffs.position.toFixed(1);
+
+        this.ui.perturb.coefficients.stretch.value = coeffs.stretch;
+        this.ui.perturb.coefficients.stretchValue.textContent = coeffs.stretch.toFixed(1);
+
+        this.ui.perturb.coefficients.rotation.value = coeffs.rotation;
+        this.ui.perturb.coefficients.rotationValue.textContent = coeffs.rotation.toFixed(1);
+
+        this.ui.perturb.coefficients.amplitude.value = coeffs.amplitude;
+        this.ui.perturb.coefficients.amplitudeValue.textContent = coeffs.amplitude.toFixed(1);
+
+        // 3. Sync Soft Attribution Params
+        const saParams = this.softAttribution.params;
+        const saUI = this.ui.softAttribution;
+
+        saUI.sigmaE.value = saParams.sigma_E_ratio; // Note: UI uses ratio now
+        saUI.sigmaEValue.textContent = saParams.sigma_E_ratio;
+
+        saUI.sigmaM.value = saParams.sigma_m_ratio; // Note: UI uses ratio now
+        saUI.sigmaMValue.textContent = saParams.sigma_m_ratio;
+
+        saUI.tauLow.value = saParams.tau_low;
+        saUI.tauLowValue.textContent = saParams.tau_low;
+
+        saUI.tauHigh.value = saParams.tau_high;
+        saUI.tauHighValue.textContent = saParams.tau_high;
+
+        saUI.lambdaLow.value = saParams.lambda.low;
+        saUI.lambdaLowValue.textContent = saParams.lambda.low;
+
+        saUI.lambdaMid.value = saParams.lambda.mid;
+        saUI.lambdaMidValue.textContent = saParams.lambda.mid;
+
+        saUI.lambdaHigh.value = saParams.lambda.high;
+        saUI.lambdaHighValue.textContent = saParams.lambda.high;
     }
 
     /**
@@ -737,10 +807,10 @@ class GaussianPerturbationApp {
         if (!this.state.useSoftAttribution) return;
 
         const params = {
-            sigma_E: parseFloat(this.ui.softAttribution.sigmaE.value),
+            sigma_E_ratio: parseFloat(this.ui.softAttribution.sigmaE.value),
             tau_low: parseFloat(this.ui.softAttribution.tauLow.value),
             tau_high: parseFloat(this.ui.softAttribution.tauHigh.value),
-            sigma_m: parseFloat(this.ui.softAttribution.sigmaM.value),
+            sigma_m_ratio: parseFloat(this.ui.softAttribution.sigmaM.value),
             lambda: {
                 low: parseFloat(this.ui.softAttribution.lambdaLow.value),
                 mid: parseFloat(this.ui.softAttribution.lambdaMid.value),

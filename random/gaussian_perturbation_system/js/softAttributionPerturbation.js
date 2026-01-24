@@ -88,7 +88,9 @@ class SoftAttributionPerturbation {
 
         // 对每个频段分别计算
         for (const [sizeLevel, freqBand] of Object.entries(this.frequencyMap)) {
-            const gaussians = this.generator.getGaussiansByLevel(sizeLevel);
+            // FIXED: Use static sizeLevel property instead of dynamic classification
+            // This prevents Gaussians from switching bands when compressed/stretched
+            const gaussians = this.generator.getAllGaussians().filter(g => g.sizeLevel === sizeLevel);
 
             if (gaussians.length === 0) {
                 console.warn(`No gaussians found for level: ${sizeLevel}`);
@@ -344,7 +346,8 @@ class SoftAttributionPerturbation {
      * @returns {Float32Array} 频段场
      */
     renderBandField(sizeLevel, width, height, useOriginal = false) {
-        const gaussians = this.generator.getGaussiansByLevel(sizeLevel);
+        // FIXED: Use static sizeLevel property
+        const gaussians = this.generator.getAllGaussians().filter(g => g.sizeLevel === sizeLevel);
         const field = new Float32Array(width * height);
 
         for (const gauss of gaussians) {

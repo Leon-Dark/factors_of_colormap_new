@@ -275,15 +275,14 @@
 
                     <div id="soft-attribution-params">
                         <div class="control-group">
-                            <label for="sigma-e" title="Gaussian blur sigma for smoothing gradient energy fields">
-                                能量平滑 σ_E / Energy Smoothing:
+                            <label for="sigma-e" title="Ratio relative to band sigma (sigma_E = ratio * sigma_band)">
+                                能量平滑比例 / Energy Smooth Ratio:
                             </label>
-                            <input type="range" id="sigma-e" min="1" max="10" value="4" step="0.5"
-                                title="Controls spatial smoothing of gradient energy. Higher = more global energy estimation">
-                            <span id="sigma-e-value" style="font-weight: bold;">4.0</span>
+                            <input type="range" id="sigma-e" min="0.1" max="2.0" value="0.4" step="0.1"
+                                title="Controls specificness of energy. Lower=local, Higher=global">
+                            <span id="sigma-e-value" style="font-weight: bold;">0.4</span>
                             <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
-                                Smooths E_k(x) = GaussianBlur(||∇B_k||², σ_E). Larger values → more global energy
-                                estimation
+                                E_k(x) = GaussianBlur(..., ratio * σ_k). Default: 0.4
                             </p>
                         </div>
 
@@ -311,14 +310,14 @@
                         </div>
 
                         <div class="control-group">
-                            <label for="sigma-m" title="Gaussian blur sigma for feathering gating masks">
-                                门控羽化 σ_m / Mask Feathering:
+                            <label for="sigma-m" title="Ratio relative to band sigma for mask feathering">
+                                门控羽化比例 / Mask Feather Ratio:
                             </label>
-                            <input type="range" id="sigma-m" min="2" max="20" value="8" step="1"
-                                title="Controls edge smoothness of gating masks. Higher = softer transitions">
-                            <span id="sigma-m-value" style="font-weight: bold;">8</span>
+                            <input type="range" id="sigma-m" min="0.1" max="2.0" value="0.6" step="0.1"
+                                title="Controls edge smoothness of gating masks.">
+                            <span id="sigma-m-value" style="font-weight: bold;">0.6</span>
                             <p style="font-size: 10px; color: #999; margin: 2px 0 0 0; font-style: italic;">
-                                Feathers mask boundaries to avoid introducing spurious high frequencies
+                                Feather sigma = ratio * σ_k. Default: 0.6
                             </p>
                         </div>
 
