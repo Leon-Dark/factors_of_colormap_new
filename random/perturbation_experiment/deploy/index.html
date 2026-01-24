@@ -57,17 +57,37 @@
 
         <!-- End Screen -->
         <div id="end-screen" class="screen">
-            <h1>Experiment Complete</h1>
-            <p>Thank you for your participation!</p>
+            <h1 id="end-title">Experiment Complete</h1>
+            <p id="end-message">Thank you for your participation!</p>
 
-            <div class="completion-code-container"
-                style="margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px;">
-                <p>Your completion code is:</p>
-                <h2 id="completion-code" style="font-family: monospace; letter-spacing: 2px; color: #333;">Generating...
-                </h2>
+            <!-- Success State: Show completion code -->
+            <div id="success-container" style="display: none;">
+                <div class="completion-code-container"
+                    style="margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px;">
+                    <p>Your completion code is:</p>
+                    <h2 id="completion-code" style="font-family: monospace; letter-spacing: 2px; color: #333;">Generating...
+                    </h2>
+                </div>
+                <div id="upload-status"></div>
             </div>
 
-            <div id="upload-status"></div>
+            <!-- Failure State: Request retry -->
+            <div id="failure-container" style="display: none;">
+                <div style="margin: 20px 0; padding: 20px; background: #ffe6e6; border-radius: 8px; border: 2px solid #ff4444;">
+                    <h3 style="color: #cc0000; margin-top: 0;">⚠️ Attention Check Failed</h3>
+                    <p style="color: #333; line-height: 1.6;">
+                        We detected that you may not have been fully engaged during the experiment. 
+                        Some catch trials were answered incorrectly.
+                    </p>
+                    <p style="color: #333; line-height: 1.6;">
+                        <strong>Please restart the experiment and pay close attention to all trials.</strong>
+                    </p>
+                    <p id="engagement-details" style="color: #666; font-size: 14px; margin-top: 10px;"></p>
+                </div>
+                <button id="btn-restart" class="btn-primary" style="background-color: #ff9800; margin-top: 20px;">
+                    Restart Experiment
+                </button>
+            </div>
         </div>
     </div>
 

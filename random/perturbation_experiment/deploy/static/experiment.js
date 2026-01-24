@@ -23,7 +23,8 @@ class ExperimentController {
                 'medium': { sigma: 25, count: 3, color: '#4daf4a' },
                 'large': { sigma: 50, count: 4, color: '#ff7f00' }
             },
-            preloadBufferSize: 6 // Maintain a buffer of 6 generated trials
+            preloadBufferSize: 15, // Maintain a buffer of 15 trials ahead (continuous preload)
+            initialPreloadCount: 5 // Initial burst: only 5 trials (fast start)
         };
 
         // --- State ---
@@ -38,14 +39,26 @@ class ExperimentController {
         this.preloadedTrials = new Map(); // Index -> Promise
         this.preloadPointer = 0;
         this.isPreloading = false;
+        this.concurrentLoadLimit = 3; // Max concurrent image loads
+        this.activeLoads = 0;
 
         // --- Components ---
-        // Image Library System (Preloaded)
-        this.imageLibrary = [];
-        this.imageLibraryLoaded = false;
+        // Image naming configuration (based on generation rules)
+        this.imageNaming = {
+            totalReps: 20,
+            ssimPerFreq: 20,
+            filesPerRep: 60, // 20 SSIM × 3 frequencies
+            basePath: '/perturbation_images/images/'
+        };
         
-        // Load image library metadata on initialization
-        this.loadImageLibrary();
+        // Real-time Generation System (for engagement checks)
+        this.generator = new GaussianGenerator(this.config.width, this.config.height);
+        this.perturbation = new PerturbationSystem(this.generator);
+        this.softAttribution = new SoftAttributionPerturbation(this.generator);
+        
+        // Initialize Web Worker for SSIM optimization
+        this.ssimWorker = new Worker('static/ssim-worker.js');
+        this.workerBusy = false;
 
         // --- DOM Elements ---
         this.screens = {
@@ -78,7 +91,7 @@ class ExperimentController {
 
     bindEvents() {
         // Start Button
-        this.buttons.start.addEventListener('click', async () => {
+        this.buttons.start.addEventListener('click', () => {
             const pid = this.inputs.participantId.value.trim();
             if (!pid) {
                 alert('Please enter a Participant ID.');
@@ -86,15 +99,7 @@ class ExperimentController {
             }
             this.participantId = pid;
             
-            // Ensure image library is loaded
-            if (!this.imageLibraryLoaded) {
-                this.buttons.start.disabled = true;
-                this.buttons.start.textContent = 'Loading Image Library...';
-                await this.loadImageLibrary();
-                this.buttons.start.textContent = 'Start Experiment';
-                this.buttons.start.disabled = false;
-            }
-            
+            // Don't wait for library - will load on-demand if needed
             this.startExperiment();
         });
 
@@ -115,23 +120,56 @@ class ExperimentController {
 
     // --- Experiment Flow ---
 
-    startExperiment() {
+    async startExperiment() {
         this.generateTrials();
         this.shuffleArray(this.trials);
         this.insertEngagementChecks();
-
-
 
         // UI Update
         this.display.trialTotal.textContent = this.trials.length;
         this.switchScreen('experiment');
 
-        // Start first trial
-        // Start first trial
+        // Start first trial immediately (priority)
         this.loadTrial(0);
 
-        // Start preloading immediately (loadTrial(0) calls it, but ensures it starts)
-        // loadTrial calls queuePreload, so we are good.
+        // Delay background preload slightly to let first trial load smoothly
+        setTimeout(() => {
+            this.initialPreloadBackground();
+        }, 1000); // Start after 1 second
+    }
+
+    /**
+     * Pre-generate all engagement check trials in the background (async, non-blocking)
+     */
+    async preGenerateEngagementChecksAsync() {
+        const engagementTrials = this.trials
+            .map((trial, index) => ({ trial, index }))
+            .filter(item => item.trial.isEngagementCheck);
+
+        console.log(`🔄 Background: Starting to pre-generate ${engagementTrials.length} engagement checks...`);
+
+        for (const { trial, index } of engagementTrials) {
+            // Only generate if not already in cache
+            if (!this.preloadedTrials.has(index)) {
+                const startTime = performance.now();
+                
+                // Start generation and store the promise immediately (don't await yet)
+                const generationPromise = this.generateTrialDataRealtime(trial);
+                this.preloadedTrials.set(index, generationPromise);
+                
+                // Wait for this one to complete before starting the next
+                // This prevents overwhelming the CPU but doesn't block the main thread
+                try {
+                    await generationPromise;
+                    const duration = performance.now() - startTime;
+                    console.log(`  ✓ Engagement check ${trial.id} (trial #${index + 1}) generated in ${duration.toFixed(0)}ms`);
+                } catch (error) {
+                    console.error(`  ✗ Failed to generate engagement check ${trial.id}:`, error);
+                }
+            }
+        }
+
+        console.log('✓ All engagement checks pre-generated successfully');
     }
 
     generateTrials() {
@@ -251,6 +289,60 @@ class ExperimentController {
     }
 
     /**
+     * Minimal blocking preload: only first 3 trials to start quickly
+     */
+    async initialPreloadMinimal() {
+        const count = Math.min(1, this.trials.length);
+        console.log(`Initial preload: Loading first ${count} trials (blocking)...`);
+        
+        const promises = [];
+        for (let i = 0; i < count; i++) {
+            if (!this.preloadedTrials.has(i)) {
+                const promise = this.generateTrialData(this.trials[i]);
+                this.preloadedTrials.set(i, promise);
+                promises.push(promise);
+            }
+        }
+        
+        // Wait for first 3 to complete
+        await Promise.all(promises);
+        this.preloadPointer = count;
+        
+        console.log(`Initial preload complete: ${count} trials ready, starting experiment`);
+    }
+
+    /**
+     * Background preload: controlled concurrency to avoid overwhelming server
+     */
+    async initialPreloadBackground() {
+        const count = Math.min(this.config.initialPreloadCount, this.trials.length);
+        console.log(`Background preload: Loading ${count} trials (controlled concurrency)...`);
+        
+        // Load in controlled batches to avoid server overload
+        for (let i = 0; i < count; i++) {
+            // Wait if too many concurrent loads
+            while (this.activeLoads >= this.concurrentLoadLimit) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            if (!this.preloadedTrials.has(i)) {
+                this.activeLoads++;
+                const promise = this.generateTrialData(this.trials[i]);
+                this.preloadedTrials.set(i, promise);
+                
+                // Decrement counter when done
+                promise.finally(() => {
+                    this.activeLoads--;
+                }).catch(err => {
+                    console.error(`Preload trial ${i + 1} failed:`, err);
+                });
+            }
+        }
+        
+        this.preloadPointer = count;
+    }
+
+    /**
      * Manages the background generation of future trials
      */
     async queuePreload() {
@@ -293,58 +385,84 @@ class ExperimentController {
     }
 
     /**
-     * Load image library metadata from the perturbation_images folder
+     * Calculate image file paths based on naming rules (no metadata loading needed)
+     * Naming: {ID}_{frequency}_ssim_{ssimValue}_rep{repetition}_{type}.png
+     * Generation order: rep -> frequency (low, medium, high) -> ssim (20 values)
      */
-    async loadImageLibrary() {
-        try {
-            // Fetch the list of available images by querying the server
-            const response = await fetch('/api/list_images');
-            if (!response.ok) {
-                throw new Error('Failed to load image library');
-            }
-            
-            const data = await response.json();
-            this.imageLibrary = data.images || [];
-            this.imageLibraryLoaded = true;
-            
-            console.log(`Image library loaded: ${this.imageLibrary.length} image pairs available`);
-        } catch (error) {
-            console.error('Error loading image library:', error);
-            alert('Failed to load image library. Please refresh the page.');
-        }
-    }
-
-    /**
-     * Select appropriate image from library based on trial configuration
-     */
-    selectImageForTrial(trial) {
-        // Filter images matching frequency and close to target SSIM
-        const candidates = this.imageLibrary.filter(img => {
-            return img.frequency === trial.frequencyId &&
-                   Math.abs(img.targetValue - trial.targetSSIM) < 0.0001; // Tolerance of 0.0001
-        });
-
-        if (candidates.length === 0) {
-            console.warn(`No matching images found for trial ${trial.id} (${trial.frequencyId}, SSIM ${trial.targetSSIM})`);
-            // Fallback: randomly select from all images with same frequency
-            const fallback = this.imageLibrary.filter(img => img.frequency === trial.frequencyId);
-            
-            if (fallback.length > 0) {
-                const randomIndex = Math.floor(Math.random() * fallback.length);
-                return fallback[randomIndex];
-            }
+    calculateImagePath(frequencyId, targetSSIM, randomRep = null) {
+        // Randomly select a repetition if not specified
+        const rep = randomRep || Math.floor(Math.random() * this.imageNaming.totalReps) + 1;
+        
+        // Calculate frequency offset within each rep
+        const freqOffset = {
+            'low': 0,
+            'medium': this.imageNaming.ssimPerFreq,
+            'high': this.imageNaming.ssimPerFreq * 2
+        }[frequencyId];
+        
+        // Find SSIM index in the list (0-19)
+        const ssimIndex = this.config.ssimTargets.findIndex(s => 
+            Math.abs(s - targetSSIM) < 0.00001
+        );
+        
+        if (ssimIndex === -1) {
+            console.warn(`SSIM ${targetSSIM} not found in targets`);
             return null;
         }
-
-        // Randomly select from candidates
-        const selected = candidates[Math.floor(Math.random() * candidates.length)];
-        return selected;
+        
+        // Calculate global file ID
+        const repBaseId = (rep - 1) * this.imageNaming.filesPerRep;
+        const fileId = repBaseId + freqOffset + ssimIndex + 1;
+        
+        // Format file name
+        const idStr = fileId.toString().padStart(4, '0');
+        const ssimStr = targetSSIM.toFixed(5);
+        const prefix = `${idStr}_${frequencyId}_ssim_${ssimStr}_rep${rep}`;
+        
+        return {
+            prefix: prefix,
+            originalPath: `${this.imageNaming.basePath}${prefix}_original.png`,
+            perturbedPath: `${this.imageNaming.basePath}${prefix}_perturbed.png`,
+            repetition: rep
+        };
     }
 
     /**
-     * Load trial data from pregenerated images
+     * Select image path based on trial configuration (rule-based, no metadata needed)
+     */
+    selectImageForTrial(trial) {
+        // Directly calculate the image path based on naming rules
+        const imagePaths = this.calculateImagePath(trial.frequencyId, trial.targetSSIM);
+        
+        if (!imagePaths) {
+            console.error(`Failed to calculate image path for trial ${trial.id}`);
+            return null;
+        }
+        
+        console.log(`Trial ${trial.id} [${trial.frequencyId}]: SSIM = ${trial.targetSSIM.toFixed(5)}, Rep = ${imagePaths.repetition}, File = ${imagePaths.prefix}`);
+        
+        return imagePaths;
+    }
+
+    /**
+     * Load trial data - use real-time generation for engagement checks, 
+     * pregenerated images for normal trials
      */
     async generateTrialData(trial) {
+        // Check if this is an engagement check trial
+        if (trial.isEngagementCheck) {
+            // Real-time generation for engagement checks
+            return await this.generateTrialDataRealtime(trial);
+        } else {
+            // Use pregenerated images for normal trials
+            return await this.generateTrialDataFromLibrary(trial);
+        }
+    }
+
+    /**
+     * Load trial data from pregenerated images (normal trials)
+     */
+    async generateTrialDataFromLibrary(trial) {
         // 1. Select appropriate image from library
         const imageInfo = this.selectImageForTrial(trial);
         
@@ -356,13 +474,10 @@ class ExperimentController {
         const originalImg = await this.loadImage(imageInfo.originalPath);
         const perturbedImg = await this.loadImage(imageInfo.perturbedPath);
 
-        // Store actual values from metadata
-        trial.actualMagnitude = imageInfo.magnitude;
-        trial.actualSSIM = imageInfo.ssim;
-        trial.actualKL = imageInfo.kl;
-
-        // Log selection
-        console.log(`Trial ${trial.id} [${trial.frequencyId}]: Target SSIM = ${trial.targetSSIM.toFixed(5)}, Selected SSIM = ${trial.actualSSIM.toFixed(5)}, File = ${imageInfo.prefix}`);
+        // Store trial info (actual SSIM/magnitude unknown without loading metadata, use target)
+        trial.actualMagnitude = null; // Unknown without metadata
+        trial.actualSSIM = trial.targetSSIM; // Assume target is accurate
+        trial.actualKL = null; // Unknown without metadata
 
         // 3. Randomly choose target position
         const targetPos = Math.floor(Math.random() * 4);
@@ -371,42 +486,184 @@ class ExperimentController {
             originalImg: originalImg,
             perturbedImg: perturbedImg,
             targetPos: targetPos,
-            trial: trial
+            trial: trial,
+            isRealtime: false
         };
     }
 
     /**
-     * Load an image and return as HTMLImageElement
+     * Generate trial data in real-time (for engagement checks)
      */
-    loadImage(path) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
-            img.src = path;
-        });
+    async generateTrialDataRealtime(trial) {
+        // 1. Setup Generator
+        this.generator.updateDimensions(this.config.width, this.config.height);
+        this.generator.sizeLevels = JSON.parse(JSON.stringify(this.config.sizeLevels));
+
+        // 2. Generate Random Distribution (The "Base")
+        this.generator.generateAll();
+
+        // 3. Render "Original" (Unperturbed)
+        const originalData = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true);
+
+        // 4. Find Perturbation Magnitude that matches SSIM Target
+        const optimizationResult = await this.findMagnitudeForSSIM(trial.targetSSIM, trial.targetLevel, originalData);
+
+        // Store optimization results in the trial object for recording later
+        trial.actualMagnitude = optimizationResult.magnitude;
+        trial.actualSSIM = optimizationResult.ssim;
+
+        // Log SSIM values
+        console.log(`Trial ${trial.id} [${trial.frequencyId}] (ENGAGEMENT CHECK): Target SSIM = ${trial.targetSSIM.toFixed(5)}, Actual SSIM = ${trial.actualSSIM.toFixed(5)}, Diff = ${Math.abs(trial.targetSSIM - trial.actualSSIM).toFixed(6)}`);
+
+        // 5. Randomly choose target position
+        const targetPos = Math.floor(Math.random() * 4);
+
+        return {
+            originalData: originalData,
+            perturbedData: optimizationResult.data,
+            targetPos: targetPos,
+            trial: trial,
+            isRealtime: true
+        };
     }
 
     /**
-     * Puts the loaded images onto the canvas
+     * Load an image and return as HTMLImageElement (with retry)
+     */
+    async loadImage(path, retries = 3) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                return await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
+                    img.src = path + (attempt > 0 ? `?retry=${attempt}` : ''); // Cache busting on retry
+                });
+            } catch (err) {
+                if (attempt === retries) {
+                    console.error(`Image load failed after ${retries + 1} attempts: ${path}`);
+                    throw err;
+                }
+                // Wait before retry (exponential backoff)
+                await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+                console.log(`Retrying image load (attempt ${attempt + 2}/${retries + 1}): ${path}`);
+            }
+        }
+    }
+
+    /**
+     * Puts the loaded images or generated data onto the canvas
      */
     renderTrialDataToScreen(trialData) {
         this.currentTargetPos = trialData.targetPos;
-        const originalImg = trialData.originalImg;
-        const perturbedImg = trialData.perturbedImg;
 
         // Render to Canvases
         for (let i = 0; i < 4; i++) {
             const canvas = this.display.canvases[i];
             const ctx = canvas.getContext('2d');
-            const img = (i === this.currentTargetPos) ? perturbedImg : originalImg;
 
-            // Draw image to canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            if (trialData.isRealtime) {
+                // Real-time generated data (Float32Array)
+                const data = (i === this.currentTargetPos) ? trialData.perturbedData : trialData.originalData;
+                this.renderDataToCanvas(ctx, data, this.config.width, this.config.height);
+            } else {
+                // Preloaded images (HTMLImageElement)
+                const img = (i === this.currentTargetPos) ? trialData.perturbedImg : trialData.originalImg;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            }
         }
     }
 
+    /**
+     * Render Float32Array data to canvas (for real-time generation)
+     */
+    renderDataToCanvas(ctx, data, width, height) {
+        const imgData = ctx.createImageData(width, height);
+
+        // Auto-scale (min-max normalization) for display
+        let min = Infinity, max = -Infinity;
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] < min) min = data[i];
+            if (data[i] > max) max = data[i];
+        }
+
+        const range = max - min || 1;
+
+        for (let i = 0; i < data.length; i++) {
+            const val = (data[i] - min) / range;
+            const pixelIndex = i * 4;
+            const color = Math.floor(val * 255);
+            imgData.data[pixelIndex] = color;
+            imgData.data[pixelIndex + 1] = color;
+            imgData.data[pixelIndex + 2] = color;
+            imgData.data[pixelIndex + 3] = 255;
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    /**
+     * Finds the magnitude that produces a result closest to the target SSIM.
+     * Uses Web Worker for heavy computation to keep UI responsive.
+     */
+    async findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal) {
+        const coefficients = {
+            position: 0,       // Auto-controlled by tanh saturation (in perturbation.js)
+            stretch: 0.0,      // Disabled
+            rotation: 1.0,     // Free to scale
+            amplitude: 1.0     // Free to scale
+        };
+
+        // Export generator state for worker
+        const generatorState = this.generator.exportConfig();
+
+        // Send optimization task to worker
+        return new Promise((resolve, reject) => {
+            const messageHandler = (e) => {
+                const { type, result, error } = e.data;
+                
+                if (type === 'SUCCESS') {
+                    // Convert array back to Float32Array
+                    const perturbedData = new Float32Array(result.data);
+                    
+                    this.ssimWorker.removeEventListener('message', messageHandler);
+                    this.workerBusy = false;
+                    
+                    resolve({
+                        data: perturbedData,
+                        magnitude: result.magnitude,
+                        ssim: result.ssim
+                    });
+                } else if (type === 'ERROR') {
+                    console.error('Worker error:', error);
+                    this.ssimWorker.removeEventListener('message', messageHandler);
+                    this.workerBusy = false;
+                    reject(new Error(error));
+                }
+            };
+
+            this.ssimWorker.addEventListener('message', messageHandler);
+            this.workerBusy = true;
+
+            // Send task to worker
+            this.ssimWorker.postMessage({
+                type: 'OPTIMIZE_SSIM',
+                data: {
+                    targetSSIM,
+                    freqTarget,
+                    generatorState,
+                    width: this.config.width,
+                    height: this.config.height,
+                    sizeLevels: this.config.sizeLevels,
+                    coefficients,
+                    tolerance: 0.0001,
+                    maxRetries: 6,
+                    maxIterPerTry: 60
+                }
+            });
+        });
+    }
 
     handleSelection(selectedIndex) {
         if (!this.isTrialActive) return;
@@ -440,14 +697,42 @@ class ExperimentController {
     endExperiment() {
         this.switchScreen('end');
 
-        // Generate Completion Code
-        const code = 'CMP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-        document.getElementById('completion-code').textContent = code;
+        // Check engagement check performance
+        const engagementResults = this.results.filter(r => {
+            const trial = this.trials.find(t => t.id === r.trialId);
+            return trial && trial.isEngagementCheck;
+        });
 
-        // Auto-upload
+        const failedChecks = engagementResults.filter(r => r.isCorrect === 0);
+        const passedEngagement = failedChecks.length === 0;
 
-        // Auto-upload
-        this.uploadData();
+        if (passedEngagement) {
+            // Success: Show completion code
+            document.getElementById('success-container').style.display = 'block';
+            document.getElementById('failure-container').style.display = 'none';
+            
+            const code = 'CMP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+            document.getElementById('completion-code').textContent = code;
+            
+            this.uploadData();
+        } else {
+            // Failure: Show retry message
+            document.getElementById('success-container').style.display = 'none';
+            document.getElementById('failure-container').style.display = 'block';
+            document.getElementById('end-title').textContent = 'Experiment Incomplete';
+            document.getElementById('end-message').textContent = '';
+            
+            const details = `Failed ${failedChecks.length} out of ${engagementResults.length} attention checks.`;
+            document.getElementById('engagement-details').textContent = details;
+            
+            // Bind restart button
+            document.getElementById('btn-restart').addEventListener('click', () => {
+                location.reload();
+            });
+            
+            // Do not upload data for failed attempts
+            console.log('Engagement check failed. Data will not be uploaded.');
+        }
     }
 
     // --- Helpers ---

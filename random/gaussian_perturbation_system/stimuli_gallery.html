@@ -209,7 +209,6 @@
                         <select id="generation-mode" style="padding: 5px;">
                             <option value="ssim">Target SSIM</option>
                             <option value="magnitude">Fixed Magnitudes (Old)</option>
-                            <option value="kl">Target KL Divergence</option>
                         </select>
                     </div>
                     <div>
@@ -242,22 +241,6 @@
                         (e.g. 0.95, 0.90, ... 0.70)</p>
                 </div>
 
-                <div id="input-group-kl" style="display: none; margin-bottom: 15px;">
-                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Target KL Divergence
-                        Range:</label>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="number" id="kl-start" value="0.01" step="0.00001" placeholder="Start"
-                            style="width: 100px; padding: 5px;">
-                        <span>to</span>
-                        <input type="number" id="kl-end" value="0.10" step="0.00001" placeholder="End"
-                            style="width: 100px; padding: 5px;">
-                        <span>step</span>
-                        <input type="number" id="kl-step" value="0.02" step="0.00001" placeholder="Step"
-                            style="width: 100px; padding: 5px;">
-                    </div>
-                    <p style="font-size: 11px; color: #999; margin: 5px 0;">Sequence will be generated automatically
-                        (e.g. 0.01, 0.03, ... 0.10)</p>
-                </div>
             </div>
 
             <!-- New: Mixing Parameters -->
@@ -347,22 +330,7 @@
                 </p>
             </div>
             <button id="btn-start" class="btn-generate">Generate All Stimuli</button>
-            <button id="btn-download" class="btn-download" disabled>Download All Data</button>
             <div id="loading" class="loading-text">Generating... Please wait</div>
-            <div id="download-options" class="download-options">
-                <label>
-                    <input type="radio" name="download-type" value="images" checked> 
-                    Download as Images (PNG in ZIP)
-                </label>
-                <label>
-                    <input type="radio" name="download-type" value="json"> 
-                    Download as JSON Data
-                </label>
-                <label>
-                    <input type="radio" name="download-type" value="both"> 
-                    Download Both
-                </label>
-            </div>
         </div>
 
         <div id="gallery-content">
@@ -371,7 +339,6 @@
     </div>
 
     <!-- 依赖库 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script
         src="../../rainbows good or bad for/supplementary materials/experiment interface/jnd/lib/d3.min.js"></script>
     <script src="../../rainbows good or bad for/supplementary materials/experiment interface/src/scalar.js"></script>

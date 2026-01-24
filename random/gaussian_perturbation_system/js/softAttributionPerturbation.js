@@ -26,6 +26,8 @@ class SoftAttributionPerturbation {
             tau_low: 0.3,        // smoothstep下边界
             tau_high: 0.7,       // smoothstep上边界
 
+            perturbationMode: 'cascading',  // 'strict': 严格分离, 'cascading': 优先级覆盖
+
             lambda: {            // 频段扰动强度
                 low: 1.0,
                 mid: 1.0,
@@ -76,7 +78,7 @@ class SoftAttributionPerturbation {
      * @returns {Object} 三个频段的能量场 {low, mid, high}
      */
     computeGradientEnergyFields(width, height) {
-        console.log('Computing gradient energy fields...');
+
 
         const energyFields = {
             low: new Float32Array(width * height),
@@ -142,7 +144,6 @@ class SoftAttributionPerturbation {
      * @returns {Object} 归一化权重 {low, mid, high}
      */
     computeAttributionWeights(energyFields, width, height) {
-        console.log('Computing attribution weights...');
 
         const weights = {
             low: new Float32Array(width * height),
@@ -176,7 +177,6 @@ class SoftAttributionPerturbation {
      * @returns {Object} 门控mask {low, mid, high}
      */
     generateGatingMasks(attributionWeights, width, height) {
-        console.log('Generating gating masks...');
 
         const masks = {
             low: new Float32Array(width * height),
@@ -226,18 +226,18 @@ class SoftAttributionPerturbation {
      * @returns {Float32Array} 扰动后的总场
      */
     applyGatedPerturbation(originalField, originalBands, perturbedBands, masks, width, height) {
-        console.log('Applying gated perturbation...');
-        console.log('=== 关键：这里才是真正的软归因门控！===');
-        console.log(`  Delta Blur: sigma_Delta = ${this.params.sigma_Delta}`);
+        const mode = this.params.perturbationMode;
 
         const result = new Float32Array(originalField);
+
+        // 根据模式计算有效mask
+        const effectiveMasks = this.computeEffectiveMasks(masks, width, height, mode);
 
         // 对每个频段计算并注入扰动
         for (const band of ['low', 'mid', 'high']) {
             const lambda = this.params.lambda[band];
 
             if (lambda === 0) {
-                console.log(`  ${band} band: DISABLED (λ=${lambda})`);
                 continue;
             }
 
@@ -259,7 +259,7 @@ class SoftAttributionPerturbation {
                 deltaField = gaussianBlur2D(deltaField, width, height, adaptiveSigmaDelta);
             }
 
-            // ★ Step C: 应用门控 Mask
+            // ★ Step C: 应用门控 Mask（使用有效mask）
             let totalDelta = 0;
             let gatedDelta = 0;
             let effectivePixels = 0;
@@ -269,20 +269,70 @@ class SoftAttributionPerturbation {
                 const delta = deltaField[i];
                 totalDelta += Math.abs(delta);
 
-                // 门控注入：mask决定了扰动在该像素的作用强度
-                const gated = lambda * masks[band][i] * delta;
+                // 门控注入：使用有效mask决定扰动在该像素的作用强度
+                const gated = lambda * effectiveMasks[band][i] * delta;
                 result[i] += gated;
 
                 gatedDelta += Math.abs(gated);
-                if (masks[band][i] > 0.5) effectivePixels++;
+                if (effectiveMasks[band][i] > 0.5) effectivePixels++;
             }
 
             const suppressionRatio = (totalDelta > 0) ? (gatedDelta / totalDelta) : 0;
-            console.log(`  ${band} band: λ=${lambda}, 扰动抑制率=${(1 - suppressionRatio) * 100}%, 有效像素=${effectivePixels}`);
+
         }
 
-        console.log('=== 软归因门控完成：扰动只在主导区域生效 ===');
+
         return result;
+    }
+
+    /**
+     * 计算有效mask（根据模式）
+     * @param {Object} masks - 原始门控mask {low, mid, high}
+     * @param {number} width - 场宽度
+     * @param {number} height - 场高度
+     * @param {string} mode - 模式 ('strict' 或 'cascading')
+     * @returns {Object} 有效mask {low, mid, high}
+     */
+    computeEffectiveMasks(masks, width, height, mode) {
+        const size = width * height;
+        const effectiveMasks = {
+            low: new Float32Array(size),
+            mid: new Float32Array(size),
+            high: new Float32Array(size)
+        };
+
+        if (mode === 'strict') {
+            // 严格分离模式：每个频段只在自己的主导区域应用
+
+            effectiveMasks.low = new Float32Array(masks.low);
+            effectiveMasks.mid = new Float32Array(masks.mid);
+            effectiveMasks.high = new Float32Array(masks.high);
+        } else if (mode === 'cascading') {
+            // 优先级覆盖模式：
+            // 高频可以应用在所有区域
+            // 中频可以应用在中频+低频区域
+            // 低频只能应用在低频区域
+
+
+            for (let i = 0; i < size; i++) {
+                // 高频扰动：应用在所有区域
+                effectiveMasks.high[i] = 1.0;
+
+                // 中频扰动：应用在中频和低频区域
+                // 使用 (masks.mid + masks.low) 的组合，归一化到 [0,1]
+                effectiveMasks.mid[i] = Math.min(1.0, masks.mid[i] + masks.low[i]);
+
+                // 低频扰动：只应用在低频区域
+                effectiveMasks.low[i] = masks.low[i];
+            }
+        } else {
+            console.warn(`Unknown perturbation mode: ${mode}, falling back to strict`);
+            effectiveMasks.low = new Float32Array(masks.low);
+            effectiveMasks.mid = new Float32Array(masks.mid);
+            effectiveMasks.high = new Float32Array(masks.high);
+        }
+
+        return effectiveMasks;
     }
 
     /**
@@ -298,19 +348,21 @@ class SoftAttributionPerturbation {
         const field = new Float32Array(width * height);
 
         for (const gauss of gaussians) {
-            const bbox = gauss.getBoundingBox(3);
-            const startX = Math.max(0, Math.floor(bbox.minX));
-            const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
-            const startY = Math.max(0, Math.floor(bbox.minY));
-            const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
-
             if (useOriginal) {
-                // 使用原始参数
+                // 使用原始参数渲染
                 const tempGauss = new biGauss(
                     gauss.originalMX, gauss.originalMY,
                     gauss.originalSX, gauss.originalSY,
                     gauss.originalRho, gauss.originalScaler
                 );
+
+                // 使用原始位置计算 bounding box
+                const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);
+                const range = maxSigma * 3;
+                const startX = Math.max(0, Math.floor(gauss.originalMX - range));
+                const endX = Math.min(width - 1, Math.ceil(gauss.originalMX + range));
+                const startY = Math.max(0, Math.floor(gauss.originalMY - range));
+                const endY = Math.min(height - 1, Math.ceil(gauss.originalMY + range));
 
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
@@ -318,7 +370,13 @@ class SoftAttributionPerturbation {
                     }
                 }
             } else {
-                // 使用当前参数
+                // 使用扰动后的当前参数渲染
+                const bbox = gauss.getBoundingBox(3);
+                const startX = Math.max(0, Math.floor(bbox.minX));
+                const endX = Math.min(width - 1, Math.ceil(bbox.maxX));
+                const startY = Math.max(0, Math.floor(bbox.minY));
+                const endY = Math.min(height - 1, Math.ceil(bbox.maxY));
+
                 for (let y = startY; y <= endY; y++) {
                     for (let x = startX; x <= endX; x++) {
                         field[y * width + x] += gauss.eval(x, y);
@@ -337,7 +395,7 @@ class SoftAttributionPerturbation {
      * @returns {Object} 包含所有中间结果和最终结果
      */
     performGatedPerturbation(width, height) {
-        console.log('=== Starting Soft Attribution Gated Perturbation ===');
+
 
         // 渲染原始总场
         const originalTotal = this.generator.renderTo1DArray(width, height, true, false);
@@ -375,7 +433,7 @@ class SoftAttributionPerturbation {
             height
         );
 
-        console.log('=== Gated Perturbation Complete ===');
+
 
         return {
             originalTotal,

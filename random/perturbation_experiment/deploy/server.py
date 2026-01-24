@@ -53,6 +53,10 @@ def save_data():
 def view_data_page():
     return send_from_directory('.', 'view_data.html')
 
+@app.route('/images')
+def image_viewer_page():
+    return send_from_directory('.', 'image_viewer.html')
+
 @app.route('/api/list_data')
 def list_data():
     if not os.path.exists(DATA_DIR):
@@ -68,6 +72,7 @@ def get_data_file(filename):
 def list_images():
     """
     Scan perturbation_images directory and return metadata for all image pairs
+    Supports new naming convention with _rep{n} suffix and images/ subdirectory
     """
     try:
         if not os.path.exists(IMAGES_DIR):
@@ -75,42 +80,64 @@ def list_images():
         
         images = []
         
-        # Scan for all metadata files
-        for filename in os.listdir(IMAGES_DIR):
-            if filename.endswith('_metadata.json'):
-                metadata_path = os.path.join(IMAGES_DIR, filename)
+        # Check for images in subdirectories (new structure)
+        images_subdir = os.path.join(IMAGES_DIR, 'images')
+        search_dirs = [images_subdir] if os.path.exists(images_subdir) else []
+        
+        # Also check root directory for backward compatibility
+        search_dirs.append(IMAGES_DIR)
+        
+        for search_dir in search_dirs:
+            if not os.path.exists(search_dir):
+                continue
                 
-                # Extract prefix from filename (e.g., "1_low_ssim_0.99500_metadata.json" -> "1_low_ssim_0.99500")
-                prefix = filename.replace('_metadata.json', '')
-                
-                # Read metadata
-                try:
-                    with open(metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
+            # Scan for all metadata files
+            for filename in os.listdir(search_dir):
+                if filename.endswith('_metadata.json'):
+                    metadata_path = os.path.join(search_dir, filename)
                     
-                    # Construct image paths
-                    original_path = f'/perturbation_images/{prefix}_original.png'
-                    perturbed_path = f'/perturbation_images/{prefix}_perturbed.png'
+                    # Extract prefix from filename
+                    # New format: "0001_low_ssim_0.99500_rep1_metadata.json" -> "0001_low_ssim_0.99500_rep1"
+                    prefix = filename.replace('_metadata.json', '')
                     
-                    # Check if image files exist
-                    if (os.path.exists(os.path.join(IMAGES_DIR, f'{prefix}_original.png')) and
-                        os.path.exists(os.path.join(IMAGES_DIR, f'{prefix}_perturbed.png'))):
+                    # Read metadata
+                    try:
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
                         
-                        images.append({
-                            'prefix': prefix,
-                            'frequency': metadata.get('frequency'),
-                            'frequencyName': metadata.get('frequencyName'),
-                            'targetValue': metadata.get('targetValue'),
-                            'mode': metadata.get('mode'),
-                            'magnitude': metadata.get('magnitude'),
-                            'ssim': metadata.get('ssim'),
-                            'kl': metadata.get('kl'),
-                            'originalPath': original_path,
-                            'perturbedPath': perturbed_path
-                        })
-                except Exception as e:
-                    print(f"Error reading metadata {filename}: {str(e)}")
-                    continue
+                        # Determine relative path based on search directory
+                        if search_dir == images_subdir:
+                            # Images in subdirectory
+                            rel_prefix = f'images/{prefix}'
+                        else:
+                            # Images in root directory
+                            rel_prefix = prefix
+                        
+                        # Construct image paths
+                        original_path = f'/perturbation_images/{rel_prefix}_original.png'
+                        perturbed_path = f'/perturbation_images/{rel_prefix}_perturbed.png'
+                        
+                        # Check if image files exist
+                        original_file = os.path.join(search_dir, f'{prefix}_original.png')
+                        perturbed_file = os.path.join(search_dir, f'{prefix}_perturbed.png')
+                        
+                        if os.path.exists(original_file) and os.path.exists(perturbed_file):
+                            images.append({
+                                'prefix': prefix,
+                                'frequency': metadata.get('frequency'),
+                                'frequencyName': metadata.get('frequencyName'),
+                                'targetValue': metadata.get('targetValue'),
+                                'repetition': metadata.get('repetition', 1),
+                                'mode': metadata.get('mode'),
+                                'magnitude': metadata.get('magnitude'),
+                                'ssim': metadata.get('ssim'),
+                                'kl': metadata.get('kl'),
+                                'originalPath': original_path,
+                                'perturbedPath': perturbed_path
+                            })
+                    except Exception as e:
+                        print(f"Error reading metadata {filename}: {str(e)}")
+                        continue
         
         print(f"Loaded {len(images)} image pairs from library")
         return jsonify({'images': images, 'count': len(images)})

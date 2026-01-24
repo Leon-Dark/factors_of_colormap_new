@@ -12,9 +12,7 @@ class StimuliGallery {
 
         this.container = document.getElementById('gallery-content');
         this.btnStart = document.getElementById('btn-start');
-        this.btnDownload = document.getElementById('btn-download');
         this.loadingText = document.getElementById('loading');
-        this.downloadOptions = document.getElementById('download-options');
 
         // 只用于生成的临时生成器
         this.generator = new GaussianGenerator(this.config.width, this.config.height);
@@ -22,27 +20,23 @@ class StimuliGallery {
         this.softAttribution = new SoftAttributionPerturbation(this.generator);
 
         this.coefficients = {
-            position: 0,       // Position uses tanh saturation (auto-controlled)
+            position: 1,     // Enhanced position perturbation
             stretch: 0.0,      // Removed as planned
-            rotation: 1.0,     // Free to scale
-            amplitude: 1.0     // Free to scale
+            rotation: 1,     // Slightly reduced rotation
+            amplitude: 1     // Reduced amplitude 
         };
-
-        this.generatedData = [];
 
         this.bindEvents();
     }
 
     bindEvents() {
         this.btnStart.addEventListener('click', () => this.generateGallery());
-        this.btnDownload.addEventListener('click', () => this.downloadAllData());
 
         // Mode Switch
         const modeSelect = document.getElementById('generation-mode');
         const groups = {
             'magnitude': document.getElementById('input-group-magnitude'),
-            'ssim': document.getElementById('input-group-ssim'),
-            'kl': document.getElementById('input-group-kl')
+            'ssim': document.getElementById('input-group-ssim')
         };
 
         if (modeSelect) {
@@ -104,11 +98,8 @@ class StimuliGallery {
 
     async generateGallery() {
         this.btnStart.disabled = true;
-        this.btnDownload.disabled = true;
-        this.downloadOptions.style.display = 'none';
         this.loadingText.style.display = 'block';
         this.container.innerHTML = '';
-        this.generatedData = [];
 
         // 使用setTimeout让UI有机会更新
         setTimeout(async () => {
@@ -125,12 +116,11 @@ class StimuliGallery {
             if (mode === 'magnitude') {
                 const input = document.getElementById('magnitudes-input').value;
                 targets = input.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-            } else {
-                // Range generation for SSIM and KL
-                const idPrefix = mode === 'ssim' ? 'ssim' : 'kl';
-                const start = parseFloat(document.getElementById(`${idPrefix}-start`).value);
-                const end = parseFloat(document.getElementById(`${idPrefix}-end`).value);
-                step = Math.abs(parseFloat(document.getElementById(`${idPrefix}-step`).value));
+            } else if (mode === 'ssim') {
+                // Range generation for SSIM
+                const start = parseFloat(document.getElementById('ssim-start').value);
+                const end = parseFloat(document.getElementById('ssim-end').value);
+                step = Math.abs(parseFloat(document.getElementById('ssim-step').value));
 
                 if (!isNaN(start) && !isNaN(end) && !isNaN(step) && step > 0) {
                     // Determine direction
@@ -182,8 +172,6 @@ class StimuliGallery {
 
             this.btnStart.disabled = false;
             this.loadingText.style.display = 'none';
-            this.btnDownload.disabled = false;
-            this.downloadOptions.style.display = 'block';
         }, 100);
     }
 
@@ -304,11 +292,8 @@ class StimuliGallery {
                         const tempPerturbed = saResult.perturbedTotal;
 
                         let currentMetric = 0;
-                        if (mode === 'ssim') {
-                            currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
-                        } else {
-                            currentMetric = calculateKLDivergence(dataOriginal, tempPerturbed);
-                        }
+                        // Only SSIM mode is supported for optimization
+                        currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
 
                         const diff = Math.abs(currentMetric - targetVal);
 
@@ -322,13 +307,8 @@ class StimuliGallery {
                                 bestOverallData = tempPerturbed;
                                 bestOverallMetric = currentMetric;
 
-                                if (mode === 'ssim') {
-                                    bestOverallSSIM = currentMetric;
-                                    bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
-                                } else {
-                                    bestOverallKL = currentMetric;
-                                    bestOverallSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
-                                }
+                                bestOverallSSIM = currentMetric;
+                                bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
                             }
 
                             // 达到精度要求
@@ -338,14 +318,9 @@ class StimuliGallery {
                             }
                         }
 
-                        // Bisect
-                        if (mode === 'ssim') {
-                            if (currentMetric > targetVal) min = mid;
-                            else max = mid;
-                        } else {
-                            if (currentMetric < targetVal) min = mid;
-                            else max = mid;
-                        }
+                        // Bisect for SSIM: lower SSIM means more different
+                        if (currentMetric > targetVal) min = mid;
+                        else max = mid;
                     }
 
                     if (!foundGoodResult && retry < maxRetries - 1) {
@@ -359,6 +334,20 @@ class StimuliGallery {
                 achievedMetric = bestOverallMetric;
                 achievedSSIM = bestOverallSSIM;
                 achievedKL = bestOverallKL;
+
+                // 计算并记录扰动幅度
+                const perturbedGaussians = this.generator.gaussians.filter(g => g.isPerturbed);
+                const perturbStats = this.perturbation.computePerturbationMagnitudes(perturbedGaussians);
+                
+                console.log(`=== Perturbation Stats for ${freq.name} (Mag: ${chosenMagnitude.toFixed(3)}) ===`);
+                console.log(`  Position: avg=${perturbStats.summary.avgPositionShift.toFixed(2)}px, max=${perturbStats.summary.maxPositionShift.toFixed(2)}px`);
+                console.log(`  Rotation: avg=${perturbStats.summary.avgRotation.toFixed(4)}, max=${perturbStats.summary.maxRotation.toFixed(4)}`);
+                console.log(`  Amplitude: avg=${perturbStats.summary.avgAmplitudeRatio.toFixed(3)}x, range=[${perturbStats.summary.minAmplitudeRatio.toFixed(3)}, ${perturbStats.summary.maxAmplitudeRatio.toFixed(3)}]`);
+                
+                // 详细信息
+                perturbStats.gaussians.forEach(g => {
+                    console.log(`    ${g.sizeLevel} #${g.id.substr(0,4)}: pos=${g.positionShift.toFixed(2)}px, amp=${g.amplitudeRatio.toFixed(3)}x`);
+                });
 
                 if (!foundGoodResult) {
                     console.warn(`Warning: Could not achieve tolerance ${tolerance} for target ${targetVal} after ${maxRetries} retries. Best diff: ${bestOverallDiff.toFixed(6)}`);
@@ -414,131 +403,12 @@ class StimuliGallery {
 
             container.appendChild(card);
 
-            // Store data for download
-            this.generatedData.push({
-                frequency: freq.id,
-                frequencyName: freq.name,
-                targetValue: targetVal,
-                repetition: repetition,
-                mode: mode,
-                magnitude: chosenMagnitude,
-                ssim: achievedSSIM,
-                kl: achievedKL,
-                canvasOriginal: canvasOriginal,
-                canvasPerturbed: canvasPerturbed,
-                dataOriginal: dataOriginal,
-                dataPerturbed: dataPerturbed
-            });
-
             // 稍微延迟一下以免阻塞主线程
             setTimeout(resolve, 0);
         });
     }
 
-    async downloadAllData() {
-        if (this.generatedData.length === 0) {
-            alert('No data to download. Please generate stimuli first.');
-            return;
-        }
-
-        const downloadType = document.querySelector('input[name="download-type"]:checked').value;
-
-        if (downloadType === 'json' || downloadType === 'both') {
-            await this.downloadJSON();
-        }
-
-        if (downloadType === 'images' || downloadType === 'both') {
-            await this.downloadImages();
-        }
-    }
-
-    async downloadJSON() {
-        const exportData = this.generatedData.map(item => ({
-            frequency: item.frequency,
-            frequencyName: item.frequencyName,
-            targetValue: item.targetValue,
-            repetition: item.repetition,
-            mode: item.mode,
-            magnitude: item.magnitude,
-            ssim: item.ssim,
-            kl: item.kl,
-            dataOriginal: Array.from(item.dataOriginal),
-            dataPerturbed: Array.from(item.dataPerturbed),
-            config: {
-                width: this.config.width,
-                height: this.config.height
-            }
-        }));
-
-        const jsonStr = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `perturbation_data_${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    async downloadImages() {
-        if (typeof JSZip === 'undefined') {
-            alert('JSZip library not loaded. Cannot download images.');
-            return;
-        }
-
-        const zip = new JSZip();
-        const imgFolder = zip.folder('perturbation_images');
-
-        for (let i = 0; i < this.generatedData.length; i++) {
-            const item = this.generatedData[i];
-            const prefix = `${i + 1}_${item.frequency}_${item.mode}_${item.targetValue.toFixed(5)}`;
-
-            const originalBlob = await this.canvasToBlob(item.canvasOriginal);
-            const perturbedBlob = await this.canvasToBlob(item.canvasPerturbed);
-
-            imgFolder.file(`${prefix}_original.png`, originalBlob);
-            imgFolder.file(`${prefix}_perturbed.png`, perturbedBlob);
-            const metadata = {
-                frequency: item.frequency,
-                frequencyName: item.frequencyName,
-                targetValue: item.targetValue,
-                mode: item.mode,
-                magnitude: item.magnitude,
-                ssim: item.ssim,
-                kl: item.kl
-            };
-            imgFolder.file(`${prefix}_metadata.json`, JSON.stringify(metadata, null, 2));
-        }
-
-        const content = await zip.generateAsync({ type: 'blob' });
-        const url = URL.createObjectURL(content);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `perturbation_images_${new Date().toISOString().slice(0, 10)}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    canvasToBlob(canvas) {
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/png');
-        });
-    }
-
     async refreshStimulusCard(card, freq, targetVal, repetition, mode) {
-        // Find and remove old data from generatedData
-        const dataIndex = this.generatedData.findIndex(item => 
-            item.frequency === freq.id && 
-            item.targetValue === targetVal && 
-            item.repetition === repetition
-        );
-
         // Find the canvas pair and title
         const title = card.querySelector('h4');
         const canvasPair = card.querySelector('.canvas-pair');
@@ -581,7 +451,7 @@ class StimuliGallery {
             achievedSSIM = calculateSSIM(dataOriginal, dataPerturbed, this.config.width, this.config.height);
             achievedKL = calculateKLDivergence(dataOriginal, dataPerturbed);
         } else {
-            // Run optimization for SSIM/KL
+            // Run optimization for SSIM
             const tolerance = 0.0001;
             const maxRetries = 6;
             const maxIterPerTry = 60;
@@ -609,11 +479,8 @@ class StimuliGallery {
                     const tempPerturbed = saResult.perturbedTotal;
 
                     let currentMetric = 0;
-                    if (mode === 'ssim') {
-                        currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
-                    } else {
-                        currentMetric = calculateKLDivergence(dataOriginal, tempPerturbed);
-                    }
+                    // Only SSIM mode is supported for optimization
+                    currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
 
                     const diff = Math.abs(currentMetric - targetVal);
                     if (diff < bestDiff) {
@@ -623,13 +490,8 @@ class StimuliGallery {
                             bestOverallMagnitude = mid;
                             bestOverallData = tempPerturbed;
                             bestOverallMetric = currentMetric;
-                            if (mode === 'ssim') {
-                                bestOverallSSIM = currentMetric;
-                                bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
-                            } else {
-                                bestOverallKL = currentMetric;
-                                bestOverallSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
-                            }
+                            bestOverallSSIM = currentMetric;
+                            bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
                         }
                         if (diff < tolerance) {
                             foundGoodResult = true;
@@ -637,13 +499,9 @@ class StimuliGallery {
                         }
                     }
 
-                    if (mode === 'ssim') {
-                        if (currentMetric > targetVal) min = mid;
-                        else max = mid;
-                    } else {
-                        if (currentMetric < targetVal) min = mid;
-                        else max = mid;
-                    }
+                    // SSIM: lower is more different, so adjust search accordingly
+                    if (currentMetric > targetVal) min = mid;
+                    else max = mid;
                 }
             }
 
@@ -667,24 +525,6 @@ class StimuliGallery {
         const canvasPerturbed = canvases[1];
         this.renderToCanvas(canvasOriginal, dataOriginal);
         this.renderToCanvas(canvasPerturbed, dataPerturbed);
-
-        // Update stored data
-        if (dataIndex >= 0) {
-            this.generatedData[dataIndex] = {
-                frequency: freq.id,
-                frequencyName: freq.name,
-                targetValue: targetVal,
-                repetition: repetition,
-                mode: mode,
-                magnitude: chosenMagnitude,
-                ssim: achievedSSIM,
-                kl: achievedKL,
-                canvasOriginal: canvasOriginal,
-                canvasPerturbed: canvasPerturbed,
-                dataOriginal: dataOriginal,
-                dataPerturbed: dataPerturbed
-            };
-        }
     }
 
     renderToCanvas(canvas, data) {
