@@ -18,24 +18,22 @@ function stableAtanh(x) {
 }
 
 /**
- * Calculate maximum safe position shift using canvas boundaries
+ * Calculate directional position limits using canvas boundaries
  * @param {biGauss} gauss - Gaussian object
  * @param {number} canvasWidth - Canvas width
  * @param {number} canvasHeight - Canvas height
- * @param {number} marginMultiplier - Margin as multiple of sigma (default: 2.0, reduced from 3.0 for larger movement)
- * @returns {object} - {maxDx, maxDy}
+ * @param {number} marginMultiplier - Margin as multiple of sigma
+ * @returns {object} - {left, right, up, down} max shift in each direction
  */
-function calculateMaxPositionShift(gauss, canvasWidth, canvasHeight, marginMultiplier = 0.0) {
+function calculateDirectionalConstraints(gauss, canvasWidth, canvasHeight, marginMultiplier = 0.0) {
     // Use smaller margin for large gaussians to allow more movement
     const margin = Math.max(marginMultiplier * Math.max(gauss.sX, gauss.sY), 3);
 
-    const maxDx = Math.min(gauss.mX - margin, canvasWidth - margin - gauss.mX);
-    const maxDy = Math.min(gauss.mY - margin, canvasHeight - margin - gauss.mY);
-
-    // Return 0 if already too close to boundary
     return {
-        maxDx: Math.max(0, maxDx),
-        maxDy: Math.max(0, maxDy)
+        left: Math.max(0, gauss.mX - margin),              // Max move left (negative dx)
+        right: Math.max(0, canvasWidth - margin - gauss.mX), // Max move right (positive dx)
+        up: Math.max(0, gauss.mY - margin),                // Max move up (negative dy)
+        down: Math.max(0, canvasHeight - margin - gauss.mY)  // Max move down (positive dy)
     };
 }
 
@@ -147,11 +145,15 @@ class PerturbationSystem {
                 // Use tanh saturation to prevent out-of-bounds
                 const canvasW = this.generator.width;
                 const canvasH = this.generator.height;
-                const bounds = calculateMaxPositionShift(gauss, canvasW, canvasH);
+                const bounds = calculateDirectionalConstraints(gauss, canvasW, canvasH);
 
-                // Unified position perturbation for all frequencies
-                const scaleX = bounds.maxDx * Math.tanh(magnitude * this.coefficients.position);
-                const scaleY = bounds.maxDy * Math.tanh(magnitude * this.coefficients.position);
+                // Asymmetric position perturbation
+                // Select bound based on direction sign
+                const limitX = delta.positionDirX < 0 ? bounds.left : bounds.right;
+                const limitY = delta.positionDirY < 0 ? bounds.up : bounds.down;
+
+                const scaleX = limitX * Math.tanh(magnitude * this.coefficients.position);
+                const scaleY = limitY * Math.tanh(magnitude * this.coefficients.position);
 
                 gauss.mX += delta.positionDirX * scaleX;
                 gauss.mY += delta.positionDirY * scaleY;
@@ -305,14 +307,20 @@ class PerturbationSystem {
                         // 扰动位置（中心点）with tanh saturation
                         const canvasW = this.generator.width;
                         const canvasH = this.generator.height;
-                        const bounds = calculateMaxPositionShift(gauss, canvasW, canvasH);
+                        const bounds = calculateDirectionalConstraints(gauss, canvasW, canvasH);
 
-                        // Unified position perturbation for all frequencies
-                        const scaleX = bounds.maxDx * Math.tanh(magnitude * this.coefficients.position);
-                        const scaleY = bounds.maxDy * Math.tanh(magnitude * this.coefficients.position);
+                        const dirX = Math.random() * 2 - 1;
+                        const dirY = Math.random() * 2 - 1;
 
-                        gauss.mX += (Math.random() * 2 - 1) * scaleX;
-                        gauss.mY += (Math.random() * 2 - 1) * scaleY;
+                        // Asymmetric limit selection
+                        const limitX = dirX < 0 ? bounds.left : bounds.right;
+                        const limitY = dirY < 0 ? bounds.up : bounds.down;
+
+                        const scaleX = limitX * Math.tanh(magnitude * this.coefficients.position);
+                        const scaleY = limitY * Math.tanh(magnitude * this.coefficients.position);
+
+                        gauss.mX += dirX * scaleX;
+                        gauss.mY += dirY * scaleY;
                         break;
 
                     case 'stretch':
