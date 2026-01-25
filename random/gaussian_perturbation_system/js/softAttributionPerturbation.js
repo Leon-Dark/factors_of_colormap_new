@@ -21,7 +21,7 @@ class SoftAttributionPerturbation {
             // Ratios relative to the band's characteristic sigma
             sigma_E_ratio: 0.4,      // Energy smooth ratio (e.g. 0.5 * sigma)
             sigma_m_ratio: 0.6,      // Mask feathering ratio 
-            sigma_Delta_ratio: 0.2,  // Delta low-pass ratio (Critical for cleaning dipoles)
+            sigma_Delta_ratio: 0,  // Delta low-pass ratio (Critical for cleaning dipoles)
 
             tau_low: 0.3,        // smoothstep下边界
             tau_high: 0.7,       // smoothstep上边界
