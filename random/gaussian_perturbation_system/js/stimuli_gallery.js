@@ -22,7 +22,7 @@ class StimuliGallery {
         this.coefficients = {
             position: 1,     // Enhanced position perturbation
             rotation: 1,     // Slightly reduced rotation
-            amplitude: 1     // Reduced amplitude 
+            amplitude: 0     // Reduced amplitude 
         };
 
         this.bindEvents();
@@ -233,6 +233,26 @@ class StimuliGallery {
             // 2. 渲染原始图像
             const dataOriginal = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true); // 使用梯度归一化? 暂时保留默认
 
+            // Helper: Normalize array to 0-1 range
+            const normalize = (data) => {
+                let max = 0;
+                let min = Infinity;
+                for (let i = 0; i < data.length; i++) {
+                    max = Math.max(max, data[i]);
+                    min = Math.min(min, data[i]);
+                }
+                const range = max - min;
+                const normalized = new Float32Array(data.length);
+
+                // If range is effectively zero, return all zeros (or handle as 0.5)
+                if (Math.abs(range) < 1e-9) return normalized;
+
+                for (let i = 0; i < data.length; i++) {
+                    normalized[i] = (data[i] - min) / range;
+                }
+                return normalized;
+            };
+
             // 3. 寻找最佳 Magnitude (Optimization Loop)
             let chosenMagnitude = targetVal;
             let achievedMetric = 0;
@@ -250,8 +270,12 @@ class StimuliGallery {
                 const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
                 dataPerturbed = saResult.perturbedTotal;
 
-                achievedSSIM = calculateSSIM(dataOriginal, dataPerturbed, this.config.width, this.config.height);
-                achievedKL = calculateKLDivergence(dataOriginal, dataPerturbed);
+                // Normalize BOTH arrays before metric calculation to match visualization.js logic
+                const normOriginal = normalize(dataOriginal);
+                const normPerturbed = normalize(dataPerturbed);
+
+                achievedSSIM = calculateSSIM(normOriginal, normPerturbed, this.config.width, this.config.height);
+                achievedKL = calculateKLDivergence(normOriginal, normPerturbed);
 
             } else {
                 // Optimization Search (Stable Algorithm with Retry)
@@ -289,9 +313,13 @@ class StimuliGallery {
                         const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
                         const tempPerturbed = saResult.perturbedTotal;
 
+                        // Normalize for metric calculation
+                        const normOriginal = normalize(dataOriginal);
+                        const normPerturbed = normalize(tempPerturbed);
+
                         let currentMetric = 0;
                         // Only SSIM mode is supported for optimization
-                        currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                        currentMetric = calculateSSIM(normOriginal, normPerturbed, this.config.width, this.config.height);
 
                         const diff = Math.abs(currentMetric - targetVal);
 
@@ -302,11 +330,11 @@ class StimuliGallery {
                             if (diff < bestOverallDiff) {
                                 bestOverallDiff = diff;
                                 bestOverallMagnitude = mid;
-                                bestOverallData = tempPerturbed;
+                                bestOverallData = tempPerturbed; // Store raw data for display
                                 bestOverallMetric = currentMetric;
 
                                 bestOverallSSIM = currentMetric;
-                                bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
+                                bestOverallKL = calculateKLDivergence(normOriginal, normPerturbed);
                             }
 
                             // 达到精度要求
@@ -440,14 +468,29 @@ class StimuliGallery {
         let achievedSSIM = 0;
         let dataPerturbed = null;
 
+        // Helper locally defined or make it a method? Let's just inline straightforward normalization
+        const normalize = (data) => {
+            let max = 0, min = Infinity;
+            for (let v of data) { max = Math.max(max, v); min = Math.min(min, v); }
+            const range = max - min;
+            const res = new Float32Array(data.length);
+            if (Math.abs(range) < 1e-9) return res;
+            for (let i = 0; i < data.length; i++) res[i] = (data[i] - min) / range;
+            return res;
+        };
+
         if (mode === 'magnitude') {
             this.perturbation.resetToOriginal();
             this.perturbation.setCoefficients(this.coefficients);
             this.perturbation.applyGlobalPerturbation(targetVal, 1.0, freq.target, 'all');
             const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
             dataPerturbed = saResult.perturbedTotal;
-            achievedSSIM = calculateSSIM(dataOriginal, dataPerturbed, this.config.width, this.config.height);
-            achievedKL = calculateKLDivergence(dataOriginal, dataPerturbed);
+
+            const normOriginal = normalize(dataOriginal);
+            const normPerturbed = normalize(dataPerturbed);
+
+            achievedSSIM = calculateSSIM(normOriginal, normPerturbed, this.config.width, this.config.height);
+            achievedKL = calculateKLDivergence(normOriginal, normPerturbed);
         } else {
             // Run optimization for SSIM
             const tolerance = 0.0001;
@@ -476,9 +519,12 @@ class StimuliGallery {
                     const saResult = this.softAttribution.performGatedPerturbation(this.config.width, this.config.height);
                     const tempPerturbed = saResult.perturbedTotal;
 
+                    const normOriginal = normalize(dataOriginal);
+                    const normPerturbed = normalize(tempPerturbed);
+
                     let currentMetric = 0;
                     // Only SSIM mode is supported for optimization
-                    currentMetric = calculateSSIM(dataOriginal, tempPerturbed, this.config.width, this.config.height);
+                    currentMetric = calculateSSIM(normOriginal, normPerturbed, this.config.width, this.config.height);
 
                     const diff = Math.abs(currentMetric - targetVal);
                     if (diff < bestDiff) {
@@ -489,7 +535,7 @@ class StimuliGallery {
                             bestOverallData = tempPerturbed;
                             bestOverallMetric = currentMetric;
                             bestOverallSSIM = currentMetric;
-                            bestOverallKL = calculateKLDivergence(dataOriginal, tempPerturbed);
+                            bestOverallKL = calculateKLDivergence(normOriginal, normPerturbed);
                         }
                         if (diff < tolerance) {
                             foundGoodResult = true;
