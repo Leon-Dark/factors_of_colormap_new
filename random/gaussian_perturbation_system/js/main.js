@@ -97,9 +97,6 @@ class GaussianPerturbationApp {
         this.ui.perturb.coefficients.position.value = coeffs.position;
         this.ui.perturb.coefficients.positionValue.textContent = coeffs.position.toFixed(1);
 
-        this.ui.perturb.coefficients.stretch.value = coeffs.stretch;
-        this.ui.perturb.coefficients.stretchValue.textContent = coeffs.stretch.toFixed(1);
-
         this.ui.perturb.coefficients.rotation.value = coeffs.rotation;
         this.ui.perturb.coefficients.rotationValue.textContent = coeffs.rotation.toFixed(1);
 
@@ -173,7 +170,6 @@ class GaussianPerturbationApp {
             },
             typeCheckboxes: {
                 position: document.getElementById('type-position'),
-                stretch: document.getElementById('type-stretch'),
                 rotation: document.getElementById('type-rotation'),
                 amplitude: document.getElementById('type-amplitude')
             },
@@ -185,8 +181,6 @@ class GaussianPerturbationApp {
             coefficients: {
                 position: document.getElementById('coeff-position'),
                 positionValue: document.getElementById('coeff-position-value'),
-                stretch: document.getElementById('coeff-stretch'),
-                stretchValue: document.getElementById('coeff-stretch-value'),
                 rotation: document.getElementById('coeff-rotation'),
                 rotationValue: document.getElementById('coeff-rotation-value'),
                 amplitude: document.getElementById('coeff-amplitude'),
@@ -307,11 +301,6 @@ class GaussianPerturbationApp {
 
         coeffs.position.addEventListener('input', (e) => {
             coeffs.positionValue.textContent = parseFloat(e.target.value).toFixed(1);
-            this.updatePerturbationCoefficients();
-        });
-
-        coeffs.stretch.addEventListener('input', (e) => {
-            coeffs.stretchValue.textContent = parseFloat(e.target.value).toFixed(1);
             this.updatePerturbationCoefficients();
         });
 
@@ -598,7 +587,6 @@ class GaussianPerturbationApp {
         // 获取选中的扰动类型
         const perturbTypes = [];
         if (this.ui.perturb.typeCheckboxes.position.checked) perturbTypes.push('position');
-        if (this.ui.perturb.typeCheckboxes.stretch.checked) perturbTypes.push('stretch');
         if (this.ui.perturb.typeCheckboxes.rotation.checked) perturbTypes.push('rotation');
         if (this.ui.perturb.typeCheckboxes.amplitude.checked) perturbTypes.push('amplitude');
 

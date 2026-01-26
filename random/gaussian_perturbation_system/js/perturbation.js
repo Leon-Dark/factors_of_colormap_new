@@ -47,7 +47,6 @@ class PerturbationSystem {
         this.perturbationHistory = [];
         this.coefficients = {
             position: 1.0,
-            stretch: 0.5,
             rotation: 0.6,
             amplitude: 0.6
         };
@@ -79,7 +78,7 @@ class PerturbationSystem {
         if (Array.isArray(perturbType)) {
             perturbTypes = perturbType;
         } else if (perturbType === 'all') {
-            perturbTypes = ['position', 'stretch', 'rotation', 'amplitude'];
+            perturbTypes = ['position', 'rotation', 'amplitude'];
         } else {
             perturbTypes = [perturbType];
         }
@@ -92,8 +91,6 @@ class PerturbationSystem {
                 // 随机方向 (-1 到 1)
                 positionDirX: Math.random() * 2 - 1,
                 positionDirY: Math.random() * 2 - 1,
-                stretchDirX: Math.random() * 2 - 1,
-                stretchDirY: Math.random() * 2 - 1,
                 rotationDir: Math.random() * 2 - 1,
                 amplitudeDir: Math.random() * 2 - 1,
                 // 存储原始值的引用
@@ -157,14 +154,6 @@ class PerturbationSystem {
 
                 gauss.mX += delta.positionDirX * scaleX;
                 gauss.mY += delta.positionDirY * scaleY;
-            }
-
-            if (perturbTypes.includes('stretch')) {
-                const sigmaChange = magnitude * this.coefficients.stretch;
-                const sXRatio = 1 + delta.stretchDirX * sigmaChange;
-                const sYRatio = 1 + delta.stretchDirY * sigmaChange;
-                gauss.sX = Math.max(delta.originalSX * 0.2, 2.5, gauss.sX * sXRatio);
-                gauss.sY = Math.max(delta.originalSY * 0.2, 2.5, gauss.sY * sYRatio);
             }
 
             if (perturbTypes.includes('rotation')) {
@@ -279,7 +268,7 @@ class PerturbationSystem {
         if (Array.isArray(perturbType)) {
             perturbTypes = perturbType;
         } else if (perturbType === 'all') {
-            perturbTypes = ['position', 'stretch', 'rotation', 'amplitude'];
+            perturbTypes = ['position', 'rotation', 'amplitude'];
         } else {
             perturbTypes = [perturbType];
         }
@@ -323,18 +312,6 @@ class PerturbationSystem {
                         gauss.mY += dirY * scaleY;
                         break;
 
-                    case 'stretch':
-                        // 扰动形状 - 只改变标准差（拉伸/压缩）
-                        // Adjusted to 0.5 for balance
-                        const sigmaChange = magnitude * this.coefficients.stretch;
-                        // Limit sigma shrinkage to prevent artifacting (min 20% of original)
-                        const sXRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
-                        const sYRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
-
-                        gauss.sX = Math.max(gauss.originalSX * 0.2, 2.5, gauss.sX * sXRatio);
-                        gauss.sY = Math.max(gauss.originalSY * 0.2, 2.5, gauss.sY * sYRatio);
-                        break;
-
                     case 'rotation':
                         // 扰动旋转 - 刚体旋转 (Rigid Body Rotation)
                         // 旋转整个协方差矩阵，保持形状不变
@@ -343,10 +320,10 @@ class PerturbationSystem {
                         break;
 
                     case 'shape':
-                        // 向后兼容：shape = stretch + rotation
-                        const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
-                        gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
-                        gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                        // 向后兼容：shape = stretch + rotation (Remove stretch part)
+                        // const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
+                        // gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                        // gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
 
                         const rhoChange2 = magnitude * (this.coefficients.rotation * 0.7);
                         const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;

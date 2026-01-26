@@ -21,7 +21,6 @@ class StimuliGallery {
 
         this.coefficients = {
             position: 1,     // Enhanced position perturbation
-            stretch: 0.0,      // Removed as planned
             rotation: 1,     // Slightly reduced rotation
             amplitude: 1     // Reduced amplitude 
         };
@@ -65,7 +64,6 @@ class StimuliGallery {
         };
 
         updateCoeff('coeff-position', 'position');
-        updateCoeff('coeff-stretch', 'stretch');
         updateCoeff('coeff-rotation', 'rotation');
         updateCoeff('coeff-amplitude', 'amplitude');
 
@@ -141,7 +139,7 @@ class StimuliGallery {
                 this.loadingText.style.display = 'none';
                 return;
             }
-            
+
             // Get repetitions from input
             const repetitions = parseInt(document.getElementById('repetitions').value) || 1;
 
@@ -338,15 +336,15 @@ class StimuliGallery {
                 // 计算并记录扰动幅度
                 const perturbedGaussians = this.generator.gaussians.filter(g => g.isPerturbed);
                 const perturbStats = this.perturbation.computePerturbationMagnitudes(perturbedGaussians);
-                
+
                 console.log(`=== Perturbation Stats for ${freq.name} (Mag: ${chosenMagnitude.toFixed(3)}) ===`);
                 console.log(`  Position: avg=${perturbStats.summary.avgPositionShift.toFixed(2)}px, max=${perturbStats.summary.maxPositionShift.toFixed(2)}px`);
                 console.log(`  Rotation: avg=${perturbStats.summary.avgRotation.toFixed(4)}, max=${perturbStats.summary.maxRotation.toFixed(4)}`);
                 console.log(`  Amplitude: avg=${perturbStats.summary.avgAmplitudeRatio.toFixed(3)}x, range=[${perturbStats.summary.minAmplitudeRatio.toFixed(3)}, ${perturbStats.summary.maxAmplitudeRatio.toFixed(3)}]`);
-                
+
                 // 详细信息
                 perturbStats.gaussians.forEach(g => {
-                    console.log(`    ${g.sizeLevel} #${g.id.substr(0,4)}: pos=${g.positionShift.toFixed(2)}px, amp=${g.amplitudeRatio.toFixed(3)}x`);
+                    console.log(`    ${g.sizeLevel} #${g.id.substr(0, 4)}: pos=${g.positionShift.toFixed(2)}px, amp=${g.amplitudeRatio.toFixed(3)}x`);
                 });
 
                 if (!foundGoodResult) {
@@ -413,7 +411,7 @@ class StimuliGallery {
         const title = card.querySelector('h4');
         const canvasPair = card.querySelector('.canvas-pair');
         const canvases = canvasPair.querySelectorAll('canvas');
-        
+
         // Clear canvases
         canvases.forEach(canvas => {
             const ctx = canvas.getContext('2d');

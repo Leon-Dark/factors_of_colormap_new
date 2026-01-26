@@ -248,49 +248,74 @@ function calculateSSIM(img1, img2, width, height) {
         return 0;
     }
 
-    // 动态计算数据范围L
+    // 1. Constants
+    // Dynamic range L is usually 1.0 for normalized data or 255 for 8-bit.
+    // Our data seems varying, but let's assume it should be viewed as 0-1 or normalized by max.
+    // Safe approach: find max of inputs to determine scale, or default to 1 if small.
     let maxVal = 0;
     for (let i = 0; i < img1.length; i++) {
         maxVal = Math.max(maxVal, img1[i], img2[i]);
     }
+    const L = (maxVal > 1.0) ? maxVal : 1.0;
 
-    // 如果数据范围为0，说明图像完全相同
-    if (maxVal === 0) return 1.0;
+    const K1 = 0.01;
+    const K2 = 0.03;
+    const C1 = (K1 * L) ** 2;
+    const C2 = (K2 * L) ** 2;
 
-    // 使用动态范围计算常数
-    const L = maxVal;
-    const k1 = 0.01;
-    const k2 = 0.03;
-    const c1 = (k1 * L) * (k1 * L);
-    const c2 = (k2 * L) * (k2 * L);
+    // 2. Gaussian kernel for local statistics (Standard uses sigma=1.5, window 11x11)
+    const sigma = 1.5;
 
-    // 计算均值
-    let mean1 = 0, mean2 = 0;
-    for (let i = 0; i < img1.length; i++) {
-        mean1 += img1[i];
-        mean2 += img2[i];
+    // We implement the structural similarity formula:
+    // SSIM(x,y) = ( (2*mu_x*mu_y + C1)(2*sigma_xy + C2) ) / ( (mu_x^2 + mu_y^2 + C1)(sigma_x^2 + sigma_y^2 + C2) )
+    // All components are calculated using Gaussian smoothing.
+
+    // Helper for element-wise multiplication
+    const multiply = (a, b) => {
+        const res = new Float32Array(a.length);
+        for (let i = 0; i < a.length; i++) res[i] = a[i] * b[i];
+        return res;
+    };
+
+    // Calculate mu_x, mu_y
+    // Since we have 1D arrays representing 2D data, we can use existing gaussianBlur2D helper if it supports Float32Array 1D input
+    // gaussianBlur2D(field, width, height, sigma) defined in this file.
+
+    const mu1 = gaussianBlur2D(img1, width, height, sigma);
+    const mu2 = gaussianBlur2D(img2, width, height, sigma);
+
+    const mu1_sq = multiply(mu1, mu1);
+    const mu2_sq = multiply(mu2, mu2);
+    const mu1_mu2 = multiply(mu1, mu2);
+
+    // Calculate sigma_x^2, sigma_y^2, sigma_xy
+    // sigma_x^2 = gaussian(x^2) - mu_x^2
+    const img1_sq = multiply(img1, img1);
+    const img2_sq = multiply(img2, img2);
+    const img1_img2 = multiply(img1, img2);
+
+    const sigma1_sq = gaussianBlur2D(img1_sq, width, height, sigma); // This is E[x^2]
+    const sigma2_sq = gaussianBlur2D(img2_sq, width, height, sigma);
+    const sigma12 = gaussianBlur2D(img1_img2, width, height, sigma);
+
+    // Now subtract mean^2 to get variance: Var(X) = E[X^2] - (E[X])^2
+    // We do element-wise subtraction in the final loop to save memory/loops
+
+    let ssimSum = 0;
+    const totalPixels = width * height;
+
+    for (let i = 0; i < totalPixels; i++) {
+        const s1_sq = sigma1_sq[i] - mu1_sq[i];
+        const s2_sq = sigma2_sq[i] - mu2_sq[i];
+        const s12 = sigma12[i] - mu1_mu2[i];
+
+        const numerator = (2 * mu1_mu2[i] + C1) * (2 * s12 + C2);
+        const denominator = (mu1_sq[i] + mu2_sq[i] + C1) * (s1_sq + s2_sq + C2);
+
+        ssimSum += numerator / denominator;
     }
-    mean1 /= img1.length;
-    mean2 /= img2.length;
 
-    // 计算方差和协方差
-    let var1 = 0, var2 = 0, covar = 0;
-    for (let i = 0; i < img1.length; i++) {
-        const diff1 = img1[i] - mean1;
-        const diff2 = img2[i] - mean2;
-        var1 += diff1 * diff1;
-        var2 += diff2 * diff2;
-        covar += diff1 * diff2;
-    }
-    var1 /= img1.length;
-    var2 /= img2.length;
-    covar /= img1.length;
-
-    // 计算SSIM
-    const numerator = (2 * mean1 * mean2 + c1) * (2 * covar + c2);
-    const denominator = (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
-
-    return numerator / denominator;
+    return ssimSum / totalPixels;
 }
 
 /**
