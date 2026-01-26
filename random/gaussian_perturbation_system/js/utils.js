@@ -240,23 +240,20 @@ function create2DArray(width, height, defaultValue = 0) {
 /**
  * 计算SSIM (简化版本)
  * 结构相似性指数
- * 动态计算c1和c2基于实际数据范围
+ * @param {Float32Array} img1 - 图像1数据
+ * @param {Float32Array} img2 - 图像2数据
+ * @param {number} width - 宽度
+ * @param {number} height - 高度
+ * @param {number} dynamicRange - 数据动态范围 (默认为 1.0，用于归一化数据)
  */
-function calculateSSIM(img1, img2, width, height) {
+function calculateSSIM(img1, img2, width, height, dynamicRange = 1.0) {
     if (img1.length !== img2.length) {
         console.error('Image dimensions do not match');
         return 0;
     }
 
     // 1. Constants
-    // Dynamic range L is usually 1.0 for normalized data or 255 for 8-bit.
-    // Our data seems varying, but let's assume it should be viewed as 0-1 or normalized by max.
-    // Safe approach: find max of inputs to determine scale, or default to 1 if small.
-    let maxVal = 0;
-    for (let i = 0; i < img1.length; i++) {
-        maxVal = Math.max(maxVal, img1[i], img2[i]);
-    }
-    const L = (maxVal > 1.0) ? maxVal : 1.0;
+    const L = dynamicRange;
 
     const K1 = 0.01;
     const K2 = 0.03;
@@ -278,9 +275,6 @@ function calculateSSIM(img1, img2, width, height) {
     };
 
     // Calculate mu_x, mu_y
-    // Since we have 1D arrays representing 2D data, we can use existing gaussianBlur2D helper if it supports Float32Array 1D input
-    // gaussianBlur2D(field, width, height, sigma) defined in this file.
-
     const mu1 = gaussianBlur2D(img1, width, height, sigma);
     const mu2 = gaussianBlur2D(img2, width, height, sigma);
 
@@ -305,9 +299,10 @@ function calculateSSIM(img1, img2, width, height) {
     const totalPixels = width * height;
 
     for (let i = 0; i < totalPixels; i++) {
-        const s1_sq = sigma1_sq[i] - mu1_sq[i];
-        const s2_sq = sigma2_sq[i] - mu2_sq[i];
-        const s12 = sigma12[i] - mu1_mu2[i];
+        // Prevent negative variance due to floating point precision errors
+        const s1_sq = Math.max(0, sigma1_sq[i] - mu1_sq[i]);
+        const s2_sq = Math.max(0, sigma2_sq[i] - mu2_sq[i]);
+        const s12 = sigma12[i] - mu1_mu2[i]; // Covariance can be negative
 
         const numerator = (2 * mu1_mu2[i] + C1) * (2 * s12 + C2);
         const denominator = (mu1_sq[i] + mu2_sq[i] + C1) * (s1_sq + s2_sq + C2);
