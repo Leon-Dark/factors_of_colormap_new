@@ -191,6 +191,7 @@ function drawComparisonCard(candidates, title, container) {
     }
 
     let chartsDiv = div.append("div")
+        .attr("class", "charts-container")
         .style("display", "flex")
         .style("gap", "10px")
         .style("justify-content", "space-between")
@@ -436,10 +437,7 @@ function updateColormapDisplay(index, newData, iteration) {
     }
 
     // 3. Update Charts
-    const chartsDiv = div.selectAll("div")
-        .filter(function () {
-            return d3.select(this).style("display") === "flex";
-        });
+    const chartsDiv = div.select(".charts-container");
 
     if (!chartsDiv.empty()) {
         chartsDiv.html("");

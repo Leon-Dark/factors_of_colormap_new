@@ -86,7 +86,7 @@ class GaussianGenerator {
      */
     generateLevel(level, sigma, count, color) {
         // 1. 准备参数
-        const padding = sigma * 1.5;
+        const padding = sigma;
         const width = this.width;
         const height = this.height;
 

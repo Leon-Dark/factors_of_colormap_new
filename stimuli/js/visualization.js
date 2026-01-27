@@ -96,6 +96,7 @@ function drawGivenColormap2(candidates, condition_name) {
     }
 
     let chartsDiv = div.append("div")
+        .attr("class", "charts-container")
         .style("display", "flex")
         .style("gap", "10px")
         .style("justify-content", "space-between")
