@@ -420,7 +420,7 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="canvas-wrapper" id="view-original">
                         <h3>原始分布 / Original Distribution</h3>
-                        <canvas id="canvas-original" width="200" height="200"></canvas>
+                        <canvas id="canvas-original" width="256" height="256"></canvas>
                         <div class="canvas-info">
                             <span id="info-original">等待生成... / Waiting...</span>
                         </div>
@@ -428,7 +428,7 @@
 
                     <div class="canvas-wrapper" id="view-perturbed">
                         <h3>扰动后 / Perturbed Distribution</h3>
-                        <canvas id="canvas-perturbed" width="200" height="200"></canvas>
+                        <canvas id="canvas-perturbed" width="256" height="256"></canvas>
                         <div class="canvas-info">
                             <span id="info-perturbed">未应用扰动 / No perturbation applied</span>
                         </div>
@@ -459,7 +459,7 @@
                     <div class="canvas-container">
                         <div class="canvas-wrapper" id="view-difference">
                             <h3>差异图 / Difference Map</h3>
-                            <canvas id="canvas-difference" width="200" height="200"></canvas>
+                            <canvas id="canvas-difference" width="256" height="256"></canvas>
                             <div class="canvas-info">
                                 <span id="info-difference">需要先生成和扰动 / Generate and perturb first</span>
                             </div>
@@ -467,7 +467,7 @@
 
                         <div class="canvas-wrapper" id="view-heatmap" style="display: none;">
                             <h3>频率热力图 / Frequency Heatmap</h3>
-                            <canvas id="canvas-heatmap" width="200" height="200"></canvas>
+                            <canvas id="canvas-heatmap" width="256" height="256"></canvas>
                             <div class="canvas-info">
                                 <span id="info-heatmap">需要先生成 / Generate first</span>
                             </div>
@@ -490,7 +490,7 @@
                                     <input type="radio" name="attribution-band" value="high"> 高频 High
                                 </label>
                             </div>
-                            <canvas id="canvas-attribution" width="200" height="200"></canvas>
+                            <canvas id="canvas-attribution" width="256" height="256"></canvas>
                             <div class="canvas-info">
                                 <span id="info-attribution">需要先应用扰动 / Apply perturbation first</span>
                             </div>
@@ -516,7 +516,7 @@
                                     <input type="radio" name="gating-band" value="high"> 高频 High
                                 </label>
                             </div>
-                            <canvas id="canvas-gating" width="200" height="200"></canvas>
+                            <canvas id="canvas-gating" width="256" height="256"></canvas>
                             <div class="canvas-info">
                                 <span id="info-gating">需要先应用扰动 / Apply perturbation first</span>
                             </div>

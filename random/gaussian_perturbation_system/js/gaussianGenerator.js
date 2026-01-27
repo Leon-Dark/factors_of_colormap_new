@@ -84,132 +84,105 @@ class GaussianGenerator {
     /**
      * 生成指定级别的高斯分布（使用力导向松弛算法）
      */
+    /**
+     * 生成指定级别的高斯分布（使用最小距离约束）
+     */
     generateLevel(level, sigma, count, color) {
         // 1. 准备参数
-        const padding = sigma;
+        const padding = 10;
         const width = this.width;
         const height = this.height;
+        const minDistance = 20; // 最小间距 20px
 
-        // 收集现有的固定点（作为障碍物）
-        const staticPoints = this.gaussians.map(g => ({
-            x: g.mX,
-            y: g.mY,
-            radius: (Math.max(g.sX, g.sY) || sigma) * 1.0 // 现有点的排斥半径
-        }));
-
-        // 2. 初始随机生成点
-        const points = [];
-        for (let i = 0; i < count; i++) {
-            points.push({
-                x: randomRange(padding, width - padding),
-                y: randomRange(padding, height - padding),
-                radius: sigma * 1.0, // 新点的排斥半径
-                vx: 0,
-                vy: 0
-            });
-        }
-
-        // 3. 执行力导向松弛 (Force-Directed Relaxation)
-        const iterations = 50; // 迭代次数
-        const repulsionStrength = 0.5; // 排斥力度
-
-        for (let iter = 0; iter < iterations; iter++) {
-            // 计算位移
-            for (let i = 0; i < points.length; i++) {
-                const p1 = points[i];
-                let fx = 0;
-                let fy = 0;
-
-                // 与其他新点的排斥
-                for (let j = 0; j < points.length; j++) {
-                    if (i === j) continue;
-                    const p2 = points[j];
-                    const dx = p1.x - p2.x;
-                    const dy = p1.y - p2.y;
-                    const distSq = dx * dx + dy * dy;
-                    const dist = Math.sqrt(distSq) || 0.1;
-
-                    const desiredDist = (p1.radius + p2.radius) * 1.2; // 期望距离
-
-                    if (dist < desiredDist) {
-                        const force = (desiredDist - dist) / desiredDist; // 线性排斥力
-                        fx += (dx / dist) * force * repulsionStrength;
-                        fy += (dy / dist) * force * repulsionStrength;
-                    }
-                }
-
-                // 与固定点（障碍物）的排斥
-                for (const staticP of staticPoints) {
-                    const dx = p1.x - staticP.x;
-                    const dy = p1.y - staticP.y;
-                    const distSq = dx * dx + dy * dy;
-                    const dist = Math.sqrt(distSq) || 0.1;
-
-                    const desiredDist = (p1.radius + staticP.radius) * 1.0;
-
-                    if (dist < desiredDist) {
-                        const force = (desiredDist - dist) / desiredDist;
-                        fx += (dx / dist) * force * repulsionStrength * 1.5; // 对固定点避让更强
-                        fy += (dy / dist) * force * repulsionStrength * 1.5;
-                    }
-                }
-
-                // 应用力（暂时只累积速度或直接位移，简单的直接位移更稳定）
-                p1.vx = fx * 50; // 缩放系数
-                p1.vy = fy * 50;
-            }
-
-            // 更新位置并应用边界约束
-            for (const p of points) {
-                p.x += p.vx;
-                p.y += p.vy;
-
-                // 边界约束（带缓冲）
-                p.x = Math.max(padding, Math.min(width - padding, p.x));
-                p.y = Math.max(padding, Math.min(height - padding, p.y));
-
-                // 阻尼
-                p.vx *= 0.1;
-                p.vy *= 0.1;
-            }
-        }
-
-        // 4. 将优化后的点转换为高斯对象
         const levelGaussians = [];
-        for (const p of points) {
-            // 生成标准差（添加一些随机变化）
-            const sXVariation = 0.8 + Math.random() * 0.4;
-            const sYVariation = 0.8 + Math.random() * 0.4;
-            const sX = sigma * sXVariation;
-            const sY = sigma * sYVariation;
+        const maxRetries = 200; // 最大重试次数
 
-            // 生成相关系数
-            const rho = (Math.random() * 2 - 1) * 0.6;
+        for (let i = 0; i < count; i++) {
+            let bestX, bestY;
+            let valid = false;
 
+            // 尝试多次生成直到满足距离条件
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                const x = padding + Math.random() * (width - 2 * padding);
+                const y = padding + Math.random() * (height - 2 * padding);
 
-            let scaler = 100;
+                let tooClose = false;
 
+                // 1. 检查与之前所有级别生成的已有高斯的距离
+                for (const g of this.gaussians) {
+                    // skip newly added ones from this level which are added to this.gaussians as we go?
+                    // actually we can just check all in this.gaussians if we push them as we create them.
+                    // But allow separating for clarity if needed.
+                    // Let's just check against 'this.gaussians' which accumulates everything.
+                    if (levelGaussians.includes(g)) continue; // avoid checking itself if logic was different, but here we push AFTER check, so this isn't needed really if we push later.
 
-            // 创建高斯
-            const gauss = new biGauss(p.x, p.y, sX, sY, rho, scaler);
-            gauss.color = color;
-            gauss.sizeLevel = level;
+                    const dx = x - g.mX;
+                    const dy = y - g.mY;
+                    if (dx * dx + dy * dy < minDistance * minDistance) {
+                        tooClose = true;
+                        break;
+                    }
+                }
 
-            // 添加扩展属性
-            gauss.originalMX = p.x;
-            gauss.originalMY = p.y;
-            gauss.originalSX = sX;
-            gauss.originalSY = sY;
-            gauss.originalRho = rho;
-            gauss.originalScaler = scaler;
-            gauss.isPerturbed = false;
-            gauss.id = Math.random().toString(36).substr(2, 9);
+                if (!tooClose) {
+                    // 2. 检查与本级别已生成的点的距离
+                    for (const g of levelGaussians) {
+                        const dx = x - g.mX;
+                        const dy = y - g.mY;
+                        if (dx * dx + dy * dy < minDistance * minDistance) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                }
 
-            levelGaussians.push(gauss);
-            this.gaussians.push(gauss);
+                if (!tooClose) {
+                    bestX = x;
+                    bestY = y;
+                    valid = true;
+                    break;
+                }
+            }
+
+            if (valid) {
+                // 生成标准差（添加一些随机变化）
+                const sXVariation = 0.8 + Math.random() * 0.4;
+                const sYVariation = 0.8 + Math.random() * 0.4;
+                const sX = sigma * sXVariation;
+                const sY = sigma * sYVariation;
+
+                // 生成相关系数
+                const rho = (Math.random() * 2 - 1) * 0.6;
+                let scaler = 100;
+
+                // 创建高斯
+                // Check if biGauss is available globally (it is used in other methods)
+                const gauss = new biGauss(bestX, bestY, sX, sY, rho, scaler);
+                gauss.color = color;
+                gauss.sizeLevel = level;
+
+                // 添加扩展属性
+                gauss.originalMX = bestX;
+                gauss.originalMY = bestY;
+                gauss.originalSX = sX;
+                gauss.originalSY = sY;
+                gauss.originalRho = rho;
+                gauss.originalScaler = scaler;
+                gauss.isPerturbed = false;
+                gauss.id = Math.random().toString(36).substr(2, 9);
+
+                levelGaussians.push(gauss);
+                // 直接加入总列表，这样下一个点生成时会自动避让他
+                // 但是要注意 generateLevel 可能会被循环调用，所以 this.gaussians 里包含了之前 level 的点
+                // 这里我们希望本 level 的点不仅避开之前的，也避开本 level 已生成的
+                // 所以我们在此处加入 this.gaussians 是正确的
+                this.gaussians.push(gauss);
+            } else {
+                console.warn(`Could not place Gaussian ${i + 1}/${count} for level ${level} within ${maxRetries} attempts.`);
+            }
         }
 
-        console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Relaxed Force-Directed`);
+        console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Distance Constraint`);
 
         return levelGaussians;
     }
