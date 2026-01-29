@@ -155,35 +155,19 @@ function drawGivenColormap2(candidates, condition_name) {
         });
         colormapElements.push(divNode);
 
+        // Uniform mode: 4 states based on small and large window checks
+        const passSmall = metrics.uniform_small_window_diff >= UNIFORM_SMALL_MIN_DIFF;
+        const passLarge = metrics.uniform_large_window_diff >= UNIFORM_LARGE_MIN_DIFF;
+
         let borderColor;
-
-        if (SAMPLING_MODE === 'jnd') {
-            const passCond1 = metrics.jnd_consistency >= JND_STEP;
-            const passCond2 = metrics.sample_interval_min_diff >= MIN_INTERVAL_DIFF_J;
-
-            if (passCond1 && passCond2) {
-                borderColor = '#4CAF50';
-            } else if (!passCond1 && passCond2) {
-                borderColor = '#FF9800';
-            } else if (passCond1 && !passCond2) {
-                borderColor = '#9C27B0';
-            } else {
-                borderColor = '#f44336';
-            }
+        if (passSmall && passLarge) {
+            borderColor = '#4CAF50'; // Pass Both
+        } else if (!passSmall && passLarge) {
+            borderColor = '#FF9800'; // Fail Small
+        } else if (passSmall && !passLarge) {
+            borderColor = '#9C27B0'; // Fail Large
         } else {
-            // Uniform mode: 4 states matching filters.js and statistics.js
-            const passSmall = metrics.uniform_small_window_diff >= UNIFORM_SMALL_MIN_DIFF;
-            const passLarge = metrics.uniform_large_window_diff >= UNIFORM_LARGE_MIN_DIFF;
-
-            if (passSmall && passLarge) {
-                borderColor = '#4CAF50'; // Pass Both
-            } else if (!passSmall && passLarge) {
-                borderColor = '#FF9800'; // Fail Small
-            } else if (passSmall && !passLarge) {
-                borderColor = '#9C27B0'; // Fail Large
-            } else {
-                borderColor = '#f44336'; // Fail Both
-            }
+            borderColor = '#f44336'; // Fail Both
         }
 
         div.style("border-color", borderColor)
@@ -216,18 +200,11 @@ function updateMetricsDisplay(divElement, metrics) {
         { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
     ];
 
-    if (SAMPLING_MODE === 'jnd') {
-        const jndLabel = metrics.jnd_sample_count ? `JND Consistency (n=${metrics.jnd_sample_count})` : "JND Consistency";
-        metricsData.unshift(
-            { name: jndLabel, value: metrics.jnd_consistency, color: "#795548" },
-            { name: "Interval Diff", value: metrics.sample_interval_min_diff, color: "#00897B" }
-        );
-    } else {
-        metricsData.unshift(
-            { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
-            { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
-        );
-    }
+    // Uniform mode metrics
+    metricsData.unshift(
+        { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
+        { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
+    );
 
     for (let i = 0; i < metricsData.length; i += 2) {
         const row = table.append("tr")
@@ -306,18 +283,11 @@ function displayMetricsInDiv(div, metrics) {
         { name: "Cat. Tend", value: metrics.categorization_tendency, color: "#E91E63" }
     ];
 
-    if (SAMPLING_MODE === 'jnd') {
-        const jndLabel = metrics.jnd_sample_count ? `JND Consistency (n=${metrics.jnd_sample_count})` : "JND Consistency";
-        metricsData.unshift(
-            { name: jndLabel, value: metrics.jnd_consistency, color: "#795548" },
-            { name: "Interval Diff", value: metrics.sample_interval_min_diff, color: "#00897B" }
-        );
-    } else {
-        metricsData.unshift(
-            { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
-            { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
-        );
-    }
+    // Uniform mode metrics
+    metricsData.unshift(
+        { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
+        { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
+    );
 
     for (let i = 0; i < metricsData.length; i += 2) {
         const row = table.append("tr")

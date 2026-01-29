@@ -575,26 +575,7 @@ function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
         // Convert colormap to HCL format for sampling metrics
         const hclPalette = convertColormapToHCLPalette(colormap);
 
-        // Calculate metrics based on current sampling mode
-        // MODIFICATION: Calculate BOTH metrics regardless of mode
-
-        // 1. JND Mode Metrics
-        // JND Mode: Generate JND samples once and reuse for both conditions
-        const jndSamples = generateJndSamples(hclPalette, JND_STEP);
-        console.log(`Generated ${jndSamples.length} JND samples with step=${JND_STEP}`);
-
-        // Save sample count for display
-        metrics.jnd_sample_count = jndSamples.length;
-
-        // Calculate both conditions using shared JND samples
-        metrics.jnd_consistency = calcJndConsistency(jndSamples, JND_STEP) || 0;
-        console.log('JND Consistency:', metrics.jnd_consistency.toFixed(3));
-
-        metrics.sample_interval_min_diff = calcSampleIntervalMinDiff(jndSamples, SAMPLE_INTERVAL_K, JND_STEP) || 0;
-        console.log(`Sample Interval Min Diff (k=${SAMPLE_INTERVAL_K}):`, metrics.sample_interval_min_diff.toFixed(3));
-
-        // 2. Uniform Mode Metrics
-        // Uniform Mode: Calculate condition 1 (Small Window) and condition 2 (Large Window)
+        // Calculate Uniform mode metrics only
         metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
         console.log(`Uniform Small Window Diff (k=${UNIFORM_SMALL_INTERVAL_K}):`, metrics.uniform_small_window_diff.toFixed(3));
 

@@ -1,11 +1,31 @@
 // Color Generation Functions
 
+/**
+ * Adjust control points by reducing the range while preserving shape relationships
+ * @param {Array} controlPoints - Original control points (e.g., [20, 120] or [20, 120, 20])
+ * @param {number} delta - Amount to reduce the range by
+ * @returns {Array} Adjusted control points with preserved shape
+ */
+function adjustControlPoints(controlPoints, delta) {
+    // Constant type: no adjustment needed
+    if (controlPoints.length === 2 && controlPoints[0] === controlPoints[1]) {
+        return [...controlPoints];
+    }
+
+    const min = Math.min(...controlPoints);
+    const max = Math.max(...controlPoints);
+    const newMax = Math.max(min, max - delta);  // Ensure newMax >= min
+
+    // Replace all max values with newMax, keep others unchanged
+    return controlPoints.map(p => p === max ? newMax : p);
+}
+
 // Generate colormap based on parameters
 function generate(targetH, targetC, targetL, controlPoints_c, controlPoints_l) {
     if (targetC < 0 || targetL < 0) return []
     const cControls = parseControlPoints(controlPoints_c);
     const lControls = parseControlPoints(controlPoints_l);
-    
+
     let hue_start = Math.random() * 360
 
     const sampleN = 256;

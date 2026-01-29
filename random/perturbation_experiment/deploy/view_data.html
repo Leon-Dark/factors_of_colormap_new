@@ -348,7 +348,7 @@
                         const ssim = r[idxSSIM];
                         // Check for ~0.95 or 0.90
                         const val = parseFloat(ssim);
-                        if (Math.abs(val - 0.95) < 0.0005 || Math.abs(val - 0.90) < 0.0005) {
+                        if (Math.abs(val - 0.80) < 0.001 || Math.abs(val - 0.90) < 0.0005) {
                             total++;
                             if (parseInt(r[idxCorrect]) === 1) correct++;
                         }
@@ -503,7 +503,7 @@
             if (filterSSIMDiff) {
                 const idxTargetSSIM = headers.indexOf('targetSSIM');
                 const idxActualSSIM = headers.indexOf('actualSSIM');
-                
+
                 if (idxTargetSSIM !== -1 && idxActualSSIM !== -1) {
                     rows = rows.filter(row => {
                         const target = parseFloat(row[idxTargetSSIM]);
@@ -587,7 +587,7 @@
             if (filterSSIMDiff) {
                 const idxTargetSSIM = headers.indexOf('targetSSIM');
                 const idxActualSSIM = headers.indexOf('actualSSIM');
-                
+
                 if (idxTargetSSIM !== -1 && idxActualSSIM !== -1) {
                     const originalCount = rows.length;
                     rows = rows.filter(row => {
@@ -626,7 +626,7 @@
 
                 // Handle Engagement Checks (SSIM 0.95 or 0.90)
                 const ssimVal = parseFloat(ssim);
-                if (Math.abs(ssimVal - 0.95) < 0.0001 || Math.abs(ssimVal - 0.90) < 0.0001) {
+                if (Math.abs(ssimVal - 0.80) < 0.0001 || Math.abs(ssimVal - 0.90) < 0.0001) {
                     engagementTotal++;
                     if (correct === 1) engagementCorrect++;
                     return; // Skip from main chart

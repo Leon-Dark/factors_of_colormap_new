@@ -18,24 +18,22 @@ function stableAtanh(x) {
 }
 
 /**
- * Calculate maximum safe position shift using canvas boundaries
+ * Calculate directional position limits using canvas boundaries
  * @param {biGauss} gauss - Gaussian object
  * @param {number} canvasWidth - Canvas width
  * @param {number} canvasHeight - Canvas height
- * @param {number} marginMultiplier - Margin as multiple of sigma (default: 2.0, reduced from 3.0 for larger movement)
- * @returns {object} - {maxDx, maxDy}
+ * @param {number} marginMultiplier - Margin as multiple of sigma
+ * @returns {object} - {left, right, up, down} max shift in each direction
  */
-function calculateMaxPositionShift(gauss, canvasWidth, canvasHeight, marginMultiplier = 2.0) {
+function calculateDirectionalConstraints(gauss, canvasWidth, canvasHeight, marginMultiplier = 0.0) {
     // Use smaller margin for large gaussians to allow more movement
     const margin = Math.max(marginMultiplier * Math.max(gauss.sX, gauss.sY), 3);
 
-    const maxDx = Math.min(gauss.mX - margin, canvasWidth - margin - gauss.mX);
-    const maxDy = Math.min(gauss.mY - margin, canvasHeight - margin - gauss.mY);
-
-    // Return 0 if already too close to boundary
     return {
-        maxDx: Math.max(0, maxDx),
-        maxDy: Math.max(0, maxDy)
+        left: Math.max(0, gauss.mX - margin),              // Max move left (negative dx)
+        right: Math.max(0, canvasWidth - margin - gauss.mX), // Max move right (positive dx)
+        up: Math.max(0, gauss.mY - margin),                // Max move up (negative dy)
+        down: Math.max(0, canvasHeight - margin - gauss.mY)  // Max move down (positive dy)
     };
 }
 
@@ -49,7 +47,6 @@ class PerturbationSystem {
         this.perturbationHistory = [];
         this.coefficients = {
             position: 1.0,
-            stretch: 0.5,
             rotation: 0.6,
             amplitude: 0.6
         };
@@ -81,7 +78,7 @@ class PerturbationSystem {
         if (Array.isArray(perturbType)) {
             perturbTypes = perturbType;
         } else if (perturbType === 'all') {
-            perturbTypes = ['position', 'stretch', 'rotation', 'amplitude'];
+            perturbTypes = ['position', 'rotation', 'amplitude'];
         } else {
             perturbTypes = [perturbType];
         }
@@ -94,8 +91,6 @@ class PerturbationSystem {
                 // 随机方向 (-1 到 1)
                 positionDirX: Math.random() * 2 - 1,
                 positionDirY: Math.random() * 2 - 1,
-                stretchDirX: Math.random() * 2 - 1,
-                stretchDirY: Math.random() * 2 - 1,
                 rotationDir: Math.random() * 2 - 1,
                 amplitudeDir: Math.random() * 2 - 1,
                 // 存储原始值的引用
@@ -112,6 +107,7 @@ class PerturbationSystem {
             perturbTypes: perturbTypes
         };
 
+        console.log(`Generated perturbation deltas for ${toPerturb.length} Gaussians`);
     }
 
     /**
@@ -146,33 +142,18 @@ class PerturbationSystem {
                 // Use tanh saturation to prevent out-of-bounds
                 const canvasW = this.generator.width;
                 const canvasH = this.generator.height;
-                const bounds = calculateMaxPositionShift(gauss, canvasW, canvasH);
+                const bounds = calculateDirectionalConstraints(gauss, canvasW, canvasH);
 
-                // Adaptive gain: larger for big gaussians (low frequency)
-                // Large gaussians need more aggressive perturbation
-                const avgSigma = (gauss.sX + gauss.sY) / 2;
-                // const kPos = avgSigma > 20 ? 0.8 : (avgSigma > 10 ? 0.6 : 0.5);
-                const kPos = 0.8;
-                // Boost coefficient for large gaussians
-                const effectiveCoeff = Math.max(this.coefficients.position, 1.0);
-                const boostFactor = avgSigma > 20 ? 1.5 : 1.0;
+                // Asymmetric position perturbation
+                // Select bound based on direction sign
+                const limitX = delta.positionDirX < 0 ? bounds.left : bounds.right;
+                const limitY = delta.positionDirY < 0 ? bounds.up : bounds.down;
 
-                const sMaxX = bounds.maxDx;
-                const sMaxY = bounds.maxDy;
-
-                const scaleX = sMaxX * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
-                const scaleY = sMaxY * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
+                const scaleX = limitX * Math.tanh(magnitude * this.coefficients.position);
+                const scaleY = limitY * Math.tanh(magnitude * this.coefficients.position);
 
                 gauss.mX += delta.positionDirX * scaleX;
                 gauss.mY += delta.positionDirY * scaleY;
-            }
-
-            if (perturbTypes.includes('stretch')) {
-                const sigmaChange = magnitude * this.coefficients.stretch;
-                const sXRatio = 1 + delta.stretchDirX * sigmaChange;
-                const sYRatio = 1 + delta.stretchDirY * sigmaChange;
-                gauss.sX = Math.max(delta.originalSX * 0.2, 2.5, gauss.sX * sXRatio);
-                gauss.sY = Math.max(delta.originalSY * 0.2, 2.5, gauss.sY * sYRatio);
             }
 
             if (perturbTypes.includes('rotation')) {
@@ -190,6 +171,7 @@ class PerturbationSystem {
                 const log_a = log_a0 + delta.amplitudeDir * magnitude * this.coefficients.amplitude;
                 gauss.scaler = Math.exp(log_a);
                 gauss.scaler = Math.max(0.01, gauss.scaler); // Safety floor
+                //  gauss.scaler = Math.min(4.0, gauss.scaler);
             }
 
             gauss.isPerturbed = true;
@@ -197,6 +179,77 @@ class PerturbationSystem {
         }
 
         return perturbedList;
+    }
+
+    /**
+     * 计算被扰动高斯的实际扰动量
+     * @param {Array} perturbedGaussians - 被扰动的高斯列表
+     * @returns {Object} 扰动统计信息
+     */
+    computePerturbationMagnitudes(perturbedGaussians) {
+        const stats = {
+            gaussians: [],
+            summary: {
+                avgPositionShift: 0,
+                maxPositionShift: 0,
+                avgRotation: 0,
+                maxRotation: 0,
+                avgAmplitudeRatio: 0,
+                minAmplitudeRatio: Infinity,
+                maxAmplitudeRatio: 0
+            }
+        };
+
+        let totalPosShift = 0;
+        let totalRotation = 0;
+        let totalAmpRatio = 0;
+
+        for (const gauss of perturbedGaussians) {
+            if (!gauss.isPerturbed) continue;
+
+            // 位置变化
+            const dx = gauss.mX - gauss.originalMX;
+            const dy = gauss.mY - gauss.originalMY;
+            const positionShift = Math.sqrt(dx * dx + dy * dy);
+
+            // 旋转变化（通过 rho 的变化估算）
+            const rhoChange = Math.abs(gauss.rho - gauss.originalRho);
+
+            // 幅度变化比例
+            const amplitudeRatio = gauss.scaler / gauss.originalScaler;
+
+            const gaussInfo = {
+                id: gauss.id,
+                sizeLevel: gauss.sizeLevel,
+                positionShift: positionShift,
+                positionDelta: { dx, dy },
+                rhoChange: rhoChange,
+                amplitudeRatio: amplitudeRatio,
+                originalScaler: gauss.originalScaler,
+                finalScaler: gauss.scaler
+            };
+
+            stats.gaussians.push(gaussInfo);
+
+            // 累积统计
+            totalPosShift += positionShift;
+            totalRotation += rhoChange;
+            totalAmpRatio += amplitudeRatio;
+
+            stats.summary.maxPositionShift = Math.max(stats.summary.maxPositionShift, positionShift);
+            stats.summary.maxRotation = Math.max(stats.summary.maxRotation, rhoChange);
+            stats.summary.maxAmplitudeRatio = Math.max(stats.summary.maxAmplitudeRatio, amplitudeRatio);
+            stats.summary.minAmplitudeRatio = Math.min(stats.summary.minAmplitudeRatio, amplitudeRatio);
+        }
+
+        const count = stats.gaussians.length;
+        if (count > 0) {
+            stats.summary.avgPositionShift = totalPosShift / count;
+            stats.summary.avgRotation = totalRotation / count;
+            stats.summary.avgAmplitudeRatio = totalAmpRatio / count;
+        }
+
+        return stats;
     }
 
     setCoefficients(coeffs) {
@@ -215,7 +268,7 @@ class PerturbationSystem {
         if (Array.isArray(perturbType)) {
             perturbTypes = perturbType;
         } else if (perturbType === 'all') {
-            perturbTypes = ['position', 'stretch', 'rotation', 'amplitude'];
+            perturbTypes = ['position', 'rotation', 'amplitude'];
         } else {
             perturbTypes = [perturbType];
         }
@@ -240,36 +293,23 @@ class PerturbationSystem {
             for (const type of perturbTypes) {
                 switch (type) {
                     case 'position':
-                        // 扰动位置（中心点）with tanh saturation and adaptive parameters
+                        // 扰动位置（中心点）with tanh saturation
                         const canvasW = this.generator.width;
                         const canvasH = this.generator.height;
-                        const bounds = calculateMaxPositionShift(gauss, canvasW, canvasH);
+                        const bounds = calculateDirectionalConstraints(gauss, canvasW, canvasH);
 
-                        // Adaptive gain for different gaussian sizes
-                        const avgSigma = (gauss.sX + gauss.sY) / 2;
-                        const kPos = avgSigma > 20 ? 0.8 : (avgSigma > 10 ? 0.6 : 0.5);
+                        const dirX = Math.random() * 2 - 1;
+                        const dirY = Math.random() * 2 - 1;
 
-                        // Boost for large gaussians
-                        const effectiveCoeff = Math.max(this.coefficients.position, 1.0);
-                        const boostFactor = avgSigma > 20 ? 1.5 : 1.0;
+                        // Asymmetric limit selection
+                        const limitX = dirX < 0 ? bounds.left : bounds.right;
+                        const limitY = dirY < 0 ? bounds.up : bounds.down;
 
-                        const scaleX = bounds.maxDx * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
-                        const scaleY = bounds.maxDy * Math.tanh(kPos * magnitude * effectiveCoeff * boostFactor);
+                        const scaleX = limitX * Math.tanh(magnitude * this.coefficients.position);
+                        const scaleY = limitY * Math.tanh(magnitude * this.coefficients.position);
 
-                        gauss.mX += (Math.random() * 2 - 1) * scaleX;
-                        gauss.mY += (Math.random() * 2 - 1) * scaleY;
-                        break;
-
-                    case 'stretch':
-                        // 扰动形状 - 只改变标准差（拉伸/压缩）
-                        // Adjusted to 0.5 for balance
-                        const sigmaChange = magnitude * this.coefficients.stretch;
-                        // Limit sigma shrinkage to prevent artifacting (min 20% of original)
-                        const sXRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
-                        const sYRatio = (1 + (Math.random() * 2 - 1) * sigmaChange);
-
-                        gauss.sX = Math.max(gauss.originalSX * 0.2, 2.5, gauss.sX * sXRatio);
-                        gauss.sY = Math.max(gauss.originalSY * 0.2, 2.5, gauss.sY * sYRatio);
+                        gauss.mX += dirX * scaleX;
+                        gauss.mY += dirY * scaleY;
                         break;
 
                     case 'rotation':
@@ -280,10 +320,10 @@ class PerturbationSystem {
                         break;
 
                     case 'shape':
-                        // 向后兼容：shape = stretch + rotation
-                        const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
-                        gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
-                        gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                        // 向后兼容：shape = stretch + rotation (Remove stretch part)
+                        // const sigmaChange2 = magnitude * (this.coefficients.stretch * 0.6); // slight scale down for combined
+                        // gauss.sX *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
+                        // gauss.sY *= (1 + (Math.random() * 2 - 1) * sigmaChange2);
 
                         const rhoChange2 = magnitude * (this.coefficients.rotation * 0.7);
                         const newRho2 = gauss.rho + (Math.random() * 2 - 1) * rhoChange2;
@@ -291,12 +331,13 @@ class PerturbationSystem {
                         break;
 
                     case 'amplitude':
-                        // 扰动幅值 - Log-domain perturbation
-                        const log_a0 = Math.log(Math.max(1e-6, gauss.scaler));
+                        // Constrained amplitude perturbation: 0.5x to 2x range
+                        const minRatio = 0.5;
+                        const maxRatio = 2.0;
                         const ampDir = (Math.random() * 2 - 1);
-                        const log_a = log_a0 + ampDir * magnitude * this.coefficients.amplitude;
-                        gauss.scaler = Math.exp(log_a);
-                        gauss.scaler = Math.max(0.01, gauss.scaler); // Safety floor
+                        const ratio = 1.0 + ampDir * magnitude * this.coefficients.amplitude * 0.5;
+                        const clampedRatio = Math.max(minRatio, Math.min(maxRatio, ratio));
+                        gauss.scaler = gauss.scaler * clampedRatio;
                         break;
                 }
             } // end loop types
@@ -398,7 +439,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-
+        console.log(`Applied global perturbation to ${toPerturb.length} Gaussians across entire space`);
         return toPerturb;
     }
 
@@ -430,7 +471,7 @@ class PerturbationSystem {
         // 计算包围圆
         const circle = this.calculateBoundingCircle(compactCluster);
 
-
+        console.log(`Found compact cluster of ${clusterSize} Gaussians with radius ${circle.radius.toFixed(2)}px at (${circle.centerX.toFixed(1)}, ${circle.centerY.toFixed(1)})`);
 
         // 在簇中选择最中心的 perturbCount 个高斯进行扰动
         const gaussWithDist = compactCluster.map(g => ({
@@ -463,7 +504,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-
+        console.log(`Applied local perturbation to ${toPerturb.length} Gaussians in cluster of ${clusterSize}`);
         return { perturbed: toPerturb, cluster: compactCluster, circle };
     }
 
@@ -645,7 +686,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-
+        console.log(`Applied frequency-selective perturbation to ${toPerturb.length} Gaussians`);
         return toPerturb;
     }
 
@@ -683,7 +724,7 @@ class PerturbationSystem {
             timestamp: Date.now()
         });
 
-
+        console.log(`Applied structured perturbation to ${perturbedGaussians.size} Gaussians`);
         return Array.from(perturbedGaussians);
     }
 
@@ -699,7 +740,7 @@ class PerturbationSystem {
             type: 'reset',
             timestamp: Date.now()
         });
-
+        console.log('Reset all perturbations');
     }
 
     /**
@@ -800,7 +841,7 @@ class PerturbationSystem {
             gauss.isPerturbed = false;
         }
         this.clearHistory();
-
+        console.log('Reset all Gaussians to original state');
     }
 
     /**

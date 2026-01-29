@@ -151,6 +151,134 @@ def serve_image(filename):
     """Serve images from perturbation_images directory"""
     return send_from_directory(IMAGES_DIR, filename)
 
+# --- Smart Assignment Logic ---
+
+ASSIGNMENTS_FILE = os.path.join(DATA_DIR, 'assignments.json')
+TOTAL_REPS = 27  # Total available repetition sets
+SESSION_TIMEOUT = 2 * 60 * 60  # 2 hours in seconds
+
+def load_assignments():
+    if not os.path.exists(ASSIGNMENTS_FILE):
+        return {}
+    try:
+        with open(ASSIGNMENTS_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_assignments(assignments):
+    with open(ASSIGNMENTS_FILE, 'w') as f:
+        json.dump(assignments, f, indent=2)
+
+def get_completed_repetitions():
+    """Scan data directory for completed CSVs to see which reps are done."""
+    completed_counts = {i: 0 for i in range(1, TOTAL_REPS + 1)}
+    
+    if not os.path.exists(DATA_DIR):
+        return completed_counts
+        
+    # Regex to find repetition in CSV content or filename is hard without opening.
+    # But usually we assume random assignment fills evenly. 
+    # To be precise, we should open files. But that's slow.
+    # HEURISTIC: We rely on the assignments.json "status" if possible, 
+    # OR we just assume if a file exists for a Participant, their assigned rep is "done".
+    # Let's verify by checking the assignment record for that participant.
+    
+    # Better approach for this simplified server:
+    # 1. We trust `assignments.json` to track what was assigned.
+    # 2. We check if a CSV exists for that participant. If yes -> DONE.
+    # 3. If no CSV -> CHECK TIMEOUT.
+    return completed_counts # Placeholder, logic handled in assign_repetition
+
+@app.route('/api/assign_repetition', methods=['POST'])
+def assign_repetition():
+    try:
+        data = request.json
+        pid = data.get('participantId')
+        if not pid:
+            return jsonify({'error': 'No participantId'}), 400
+            
+        now = int(time.time())
+        assignments = load_assignments()
+        
+        # 1. Check if user already has an assignment
+        if pid in assignments:
+            # Update last seen timestamp? Maybe not needed for simple logic.
+            # Just return consistent assignment.
+            return jsonify({'repetition': assignments[pid]['repetition']})
+            
+        # 2. Smart Allocation
+        # Analyze current state
+        # Count how many completed/active users are on each repetition
+        
+        # Map: Rep -> { 'status': '?', 'count': 0 }
+        # Status can be: 'completed' (csv exists), 'active' (no csv, < 2h), 'abandoned' (no csv, > 2h)
+        
+        rep_status = {i: {'completed': 0, 'active': 0} for i in range(1, TOTAL_REPS + 1)}
+        
+        # Scan existing assignments
+        for assigned_pid, info in assignments.items():
+            rep = info['repetition']
+            ts = info['timestamp']
+            
+            # Check if CSV exists for this pid
+            # Filename format: "{participant_id}_{timestamp}.csv"
+            # We just look for any file starting with pid_
+            csv_exists = False
+            for fname in os.listdir(DATA_DIR):
+                if fname.startswith(f"{assigned_pid}_") and fname.endswith('.csv'):
+                    csv_exists = True
+                    break
+            
+            if csv_exists:
+                rep_status[rep]['completed'] += 1
+            else:
+                # No CSV yet
+                if (now - ts) < SESSION_TIMEOUT:
+                    rep_status[rep]['active'] += 1
+                else:
+                    # Abandoned - we ignore it (effectively recycling the slot)
+                    pass
+
+        # 3. Find Best Repetition
+        # Priority 1: Unused (Completed=0, Active=0)
+        # Priority 2: Abandoned automatically becomes Unused if we just ignore them in counts.
+        # Priority 3: Least Completed (Balance load)
+        
+        candidates = []
+        
+        # Filter for 0 completed, 0 active
+        for r in range(1, TOTAL_REPS + 1):
+            if rep_status[r]['completed'] == 0 and rep_status[r]['active'] == 0:
+                candidates.append(r)
+                
+        target_rep = 1
+        
+        if candidates:
+            # Pick valid candidate (random or sequential?) Sequential is fine.
+            target_rep = candidates[0]
+        else:
+            # All have at least one (completed or active).
+            # Pick the one with FEWEST (Completed + Active)
+            # This balances the load.
+            candidates_by_load = sorted(range(1, TOTAL_REPS + 1), 
+                                      key=lambda r: rep_status[r]['completed'] + rep_status[r]['active'])
+            target_rep = candidates_by_load[0]
+            
+        # 4. Save Assignment
+        assignments[pid] = {
+            'repetition': target_rep,
+            'timestamp': now
+        }
+        save_assignments(assignments)
+        
+        print(f"Assigned Repetition {target_rep} to {pid} (Smart Reclaim)")
+        return jsonify({'repetition': target_rep})
+
+    except Exception as e:
+        print(f"Assignment error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print(f"Starting server on http://localhost:5004")
     print(f"Data will be saved to: {os.path.abspath(DATA_DIR)}")

@@ -15,7 +15,7 @@ importScripts(
 );
 
 // Worker message handler
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
     const { type, data } = e.data;
 
     if (type === 'OPTIMIZE_SSIM') {
@@ -23,9 +23,9 @@ self.onmessage = async function(e) {
             const result = await optimizeSSIM(data);
             self.postMessage({ type: 'SUCCESS', result });
         } catch (error) {
-            self.postMessage({ 
-                type: 'ERROR', 
-                error: error.message || 'Unknown error' 
+            self.postMessage({
+                type: 'ERROR',
+                error: error.message || 'Unknown error'
             });
         }
     }
@@ -78,9 +78,12 @@ async function optimizeSSIM(config) {
         for (let i = 0; i < maxIterPerTry; i++) {
             const mid = (min + max) / 2;
 
+            // Apply direct perturbation (position, rotation, etc.)
             perturbation.applyStoredPerturbation(mid);
-            const saResult = softAttribution.performGatedPerturbation(width, height);
-            const tempPerturbed = saResult.perturbedTotal;
+
+            // Render directly (No Soft Attribution / Gating)
+            // renderTo1DArray(width, height, useOriginal=false, normalize=true)
+            const tempPerturbed = generator.renderTo1DArray(width, height, false, true);
 
             const currentSSIM = calculateSSIM(dataOriginal, tempPerturbed, width, height);
             const diff = Math.abs(currentSSIM - targetSSIM);
@@ -112,9 +115,10 @@ async function optimizeSSIM(config) {
     if (!bestOverallResult) {
         // Fallback
         perturbation.applyStoredPerturbation(0);
-        const saResult = softAttribution.performGatedPerturbation(width, height);
+        // Direct render fallback
+        const fallbackData = generator.renderTo1DArray(width, height, false, true);
         return {
-            data: Array.from(saResult.perturbedTotal),
+            data: Array.from(fallbackData),
             magnitude: 0,
             ssim: 1
         };

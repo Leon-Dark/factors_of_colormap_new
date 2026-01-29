@@ -3,14 +3,70 @@
  * Handles logic for the 4AFC Gaussian Perturbation Experiment
  */
 
+// ============================================================================
+// Viridis Colormap
+// ============================================================================
+
+// Viridis colormap lookup table (256 colors)
+const VIRIDIS_COLORMAP = [
+    [68, 1, 84], [68, 2, 86], [69, 4, 87], [69, 5, 89], [70, 7, 90], [70, 8, 92], [70, 10, 93], [70, 11, 94],
+    [71, 13, 96], [71, 14, 97], [71, 16, 99], [71, 17, 100], [71, 19, 101], [72, 20, 103], [72, 22, 104], [72, 23, 105],
+    [72, 24, 106], [72, 26, 108], [72, 27, 109], [72, 28, 110], [72, 29, 111], [72, 31, 112], [72, 32, 113], [72, 33, 115],
+    [72, 35, 116], [72, 36, 117], [72, 37, 118], [72, 38, 119], [72, 40, 120], [72, 41, 121], [71, 42, 122], [71, 44, 122],
+    [71, 45, 123], [71, 46, 124], [71, 47, 125], [70, 48, 126], [70, 50, 126], [70, 51, 127], [70, 52, 128], [69, 53, 129],
+    [69, 55, 129], [69, 56, 130], [68, 57, 131], [68, 58, 131], [68, 59, 132], [67, 61, 132], [67, 62, 133], [66, 63, 133],
+    [66, 64, 134], [66, 65, 134], [65, 66, 135], [65, 68, 135], [64, 69, 136], [64, 70, 136], [63, 71, 136], [63, 72, 137],
+    [62, 73, 137], [62, 74, 137], [62, 76, 138], [61, 77, 138], [61, 78, 138], [60, 79, 138], [60, 80, 139], [59, 81, 139],
+    [59, 82, 139], [58, 83, 139], [58, 84, 140], [57, 85, 140], [57, 86, 140], [56, 88, 140], [56, 89, 140], [55, 90, 140],
+    [55, 91, 141], [54, 92, 141], [54, 93, 141], [53, 94, 141], [53, 95, 141], [52, 96, 141], [52, 97, 141], [51, 98, 141],
+    [51, 99, 141], [50, 100, 142], [50, 101, 142], [49, 102, 142], [49, 103, 142], [49, 104, 142], [48, 105, 142], [48, 106, 142],
+    [47, 107, 142], [47, 108, 142], [46, 109, 142], [46, 110, 142], [46, 111, 142], [45, 112, 142], [45, 113, 142], [44, 113, 142],
+    [44, 114, 142], [44, 115, 142], [43, 116, 142], [43, 117, 142], [42, 118, 142], [42, 119, 142], [42, 120, 142], [41, 121, 142],
+    [41, 122, 142], [41, 123, 142], [40, 124, 142], [40, 125, 142], [39, 126, 142], [39, 127, 142], [39, 128, 142], [38, 129, 142],
+    [38, 130, 142], [38, 130, 142], [37, 131, 142], [37, 132, 142], [37, 133, 142], [36, 134, 142], [36, 135, 142], [35, 136, 142],
+    [35, 137, 142], [35, 138, 141], [34, 139, 141], [34, 140, 141], [34, 141, 141], [33, 142, 141], [33, 143, 141], [33, 144, 141],
+    [33, 145, 140], [32, 146, 140], [32, 146, 140], [32, 147, 140], [31, 148, 140], [31, 149, 139], [31, 150, 139], [31, 151, 139],
+    [31, 152, 139], [31, 153, 138], [31, 154, 138], [30, 155, 138], [30, 156, 137], [30, 157, 137], [31, 158, 137], [31, 159, 136],
+    [31, 160, 136], [31, 161, 136], [31, 161, 135], [31, 162, 135], [32, 163, 134], [32, 164, 134], [33, 165, 133], [33, 166, 133],
+    [34, 167, 133], [34, 168, 132], [35, 169, 131], [36, 170, 131], [37, 171, 130], [37, 172, 130], [38, 173, 129], [39, 173, 129],
+    [40, 174, 128], [41, 175, 127], [42, 176, 127], [44, 177, 126], [45, 178, 125], [46, 179, 124], [47, 180, 124], [49, 181, 123],
+    [50, 182, 122], [52, 182, 121], [53, 183, 121], [55, 184, 120], [56, 185, 119], [58, 186, 118], [59, 187, 117], [61, 188, 116],
+    [63, 188, 115], [64, 189, 114], [66, 190, 113], [68, 191, 112], [70, 192, 111], [72, 193, 110], [74, 193, 109], [76, 194, 108],
+    [78, 195, 107], [80, 196, 106], [82, 197, 105], [84, 197, 104], [86, 198, 103], [88, 199, 101], [90, 200, 100], [92, 200, 99],
+    [94, 201, 98], [96, 202, 96], [99, 203, 95], [101, 203, 94], [103, 204, 92], [105, 205, 91], [108, 205, 90], [110, 206, 88],
+    [112, 207, 87], [115, 208, 86], [117, 208, 84], [119, 209, 83], [122, 209, 81], [124, 210, 80], [127, 211, 78], [129, 211, 77],
+    [132, 212, 75], [134, 213, 73], [137, 213, 72], [139, 214, 70], [142, 214, 69], [144, 215, 67], [147, 215, 65], [149, 216, 64],
+    [152, 216, 62], [155, 217, 60], [157, 217, 59], [160, 218, 57], [162, 218, 55], [165, 219, 54], [168, 219, 52], [170, 220, 50],
+    [173, 220, 48], [176, 221, 47], [178, 221, 45], [181, 222, 43], [184, 222, 41], [186, 222, 40], [189, 223, 38], [192, 223, 37],
+    [194, 223, 35], [197, 224, 33], [200, 224, 32], [202, 225, 31], [205, 225, 29], [208, 225, 28], [210, 226, 27], [213, 226, 26],
+    [216, 226, 25], [218, 227, 25], [221, 227, 24], [223, 227, 24], [226, 228, 24], [229, 228, 25], [231, 228, 25], [234, 229, 26],
+    [236, 229, 27], [239, 229, 28], [241, 229, 29], [244, 230, 30], [246, 230, 32], [248, 230, 33], [251, 231, 35], [253, 231, 37]
+];
+
+function getViridisColor(normalizedValue) {
+    const clampedValue = Math.max(0, Math.min(1, normalizedValue));
+    const index = Math.floor(clampedValue * (VIRIDIS_COLORMAP.length - 1));
+    return VIRIDIS_COLORMAP[index];
+}
+
+
 class ExperimentController {
     constructor() {
         // --- Configuration ---
+        // Generate SSIM targets: 0.99 to 0.95 with step 0.002 => 21 values
+        const ssimStart = 0.99;
+        const ssimEnd = 0.95;
+        const ssimStep = 0.002;
+        const ssimTargets = [];
+        for (let v = ssimStart; v >= ssimEnd - 1e-6; v -= ssimStep) {
+            ssimTargets.push(parseFloat(v.toFixed(5))); // Fix float precision
+        }
+
         this.config = {
             width: 200,
             height: 200, // Matches canvas size in HTML
             repetitions: 1, // Trials per condition
-            ssimTargets: [0.995, 0.994, 0.993, 0.992, 0.991, 0.990, 0.989, 0.988, 0.987, 0.986, 0.985, 0.984, 0.983, 0.982, 0.981, 0.980, 0.979, 0.978, 0.977, 0.976],
+            ssimTargets: ssimTargets,
             frequencies: [
                 { id: 'low', target: 'large' },
                 { id: 'medium', target: 'medium' },
@@ -25,6 +81,33 @@ class ExperimentController {
             },
             preloadBufferSize: 15, // Maintain a buffer of 15 trials ahead (continuous preload)
             initialPreloadCount: 5 // Initial burst: only 5 trials (fast start)
+        };
+
+        // --- Optimization Lookups ---
+        // 1. SSIM Lookup Map (Value -> Index) for O(1) access
+        // We use string keys to avoid floating point equality issues
+        this.ssimLookup = new Map();
+        this.config.ssimTargets.forEach((val, index) => {
+            this.ssimLookup.set(val.toFixed(5), index);
+        });
+
+        // 2. Frequency Offset Map for O(1) access
+        // Based on generation order: Low -> Medium -> High
+        // Each frequency block contains 'ssimPerFreq' (21) images per repetition
+        const ssimPerFreq = this.config.ssimTargets.length;
+        this.frequencyOffsets = {
+            'low': 0,
+            'medium': ssimPerFreq,
+            'high': ssimPerFreq * 2
+        };
+
+        // --- Components ---
+        // Image naming configuration (based on generation rules)
+        this.imageNaming = {
+            totalReps: 27, // Matches config.json repetitions
+            ssimPerFreq: ssimPerFreq, // 21
+            filesPerRep: ssimPerFreq * 3, // 63
+            basePath: '/perturbation_images/images/'
         };
 
         // --- State ---
@@ -42,20 +125,11 @@ class ExperimentController {
         this.concurrentLoadLimit = 3; // Max concurrent image loads
         this.activeLoads = 0;
 
-        // --- Components ---
-        // Image naming configuration (based on generation rules)
-        this.imageNaming = {
-            totalReps: 20,
-            ssimPerFreq: 20,
-            filesPerRep: 60, // 20 SSIM × 3 frequencies
-            basePath: '/perturbation_images/images/'
-        };
-        
         // Real-time Generation System (for engagement checks)
         this.generator = new GaussianGenerator(this.config.width, this.config.height);
         this.perturbation = new PerturbationSystem(this.generator);
         this.softAttribution = new SoftAttributionPerturbation(this.generator);
-        
+
         // Initialize Web Worker for SSIM optimization
         this.ssimWorker = new Worker('static/ssim-worker.js');
         this.workerBusy = false;
@@ -83,7 +157,6 @@ class ExperimentController {
 
         this.buttons = {
             start: document.getElementById('btn-start'),
-
         };
 
         this.bindEvents();
@@ -98,9 +171,31 @@ class ExperimentController {
                 return;
             }
             this.participantId = pid;
-            
-            // Don't wait for library - will load on-demand if needed
-            this.startExperiment();
+
+            // Initialize Retry Count from LocalStorage
+            this.retryCount = parseInt(localStorage.getItem('perturb_retry_' + pid) || '0');
+
+            // --- SERVER ASSIGNMENT ---
+            // Try to get "Smart Assignment" from server
+            this.serverAssignedOffset = null;
+
+            fetch('/api/assign_repetition', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ participantId: pid })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.repetition) {
+                        console.log(`Server assigned Repetition Set: ${data.repetition}`);
+                        this.serverAssignedOffset = data.repetition;
+                    }
+                })
+                .catch(err => console.warn('Server assignment failed, using local hash:', err))
+                .finally(() => {
+                    console.log(`Participant ${pid} starting (Retry #${this.retryCount}). ServerOffset: ${this.serverAssignedOffset}`);
+                    this.startExperiment();
+                });
         });
 
         // Stimuli Clicks
@@ -112,10 +207,6 @@ class ExperimentController {
                 }
             });
         });
-
-
-
-
     }
 
     // --- Experiment Flow ---
@@ -152,11 +243,11 @@ class ExperimentController {
             // Only generate if not already in cache
             if (!this.preloadedTrials.has(index)) {
                 const startTime = performance.now();
-                
+
                 // Start generation and store the promise immediately (don't await yet)
                 const generationPromise = this.generateTrialDataRealtime(trial);
                 this.preloadedTrials.set(index, generationPromise);
-                
+
                 // Wait for this one to complete before starting the next
                 // This prevents overwhelming the CPU but doesn't block the main thread
                 try {
@@ -201,7 +292,7 @@ class ExperimentController {
         const checkTrialTempl = {
             frequencyId: 'medium',
             targetLevel: 'medium',
-            targetSSIM: 0.90,
+            targetSSIM: 0.80,
             isEngagementCheck: true,
             repetition: 0
         };
@@ -294,7 +385,7 @@ class ExperimentController {
     async initialPreloadMinimal() {
         const count = Math.min(1, this.trials.length);
         console.log(`Initial preload: Loading first ${count} trials (blocking)...`);
-        
+
         const promises = [];
         for (let i = 0; i < count; i++) {
             if (!this.preloadedTrials.has(i)) {
@@ -303,11 +394,11 @@ class ExperimentController {
                 promises.push(promise);
             }
         }
-        
+
         // Wait for first 3 to complete
         await Promise.all(promises);
         this.preloadPointer = count;
-        
+
         console.log(`Initial preload complete: ${count} trials ready, starting experiment`);
     }
 
@@ -317,19 +408,19 @@ class ExperimentController {
     async initialPreloadBackground() {
         const count = Math.min(this.config.initialPreloadCount, this.trials.length);
         console.log(`Background preload: Loading ${count} trials (controlled concurrency)...`);
-        
+
         // Load in controlled batches to avoid server overload
         for (let i = 0; i < count; i++) {
             // Wait if too many concurrent loads
             while (this.activeLoads >= this.concurrentLoadLimit) {
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
-            
+
             if (!this.preloadedTrials.has(i)) {
                 this.activeLoads++;
                 const promise = this.generateTrialData(this.trials[i]);
                 this.preloadedTrials.set(i, promise);
-                
+
                 // Decrement counter when done
                 promise.finally(() => {
                     this.activeLoads--;
@@ -338,7 +429,7 @@ class ExperimentController {
                 });
             }
         }
-        
+
         this.preloadPointer = count;
     }
 
@@ -387,38 +478,41 @@ class ExperimentController {
     /**
      * Calculate image file paths based on naming rules (no metadata loading needed)
      * Naming: {ID}_{frequency}_ssim_{ssimValue}_rep{repetition}_{type}.png
-     * Generation order: rep -> frequency (low, medium, high) -> ssim (20 values)
+     * Generation order: rep -> frequency (low, medium, high) -> ssim (21 values)
+     * 
+     * OPTIMIZED: Uses O(1) lookups instead of array searches.
      */
     calculateImagePath(frequencyId, targetSSIM, randomRep = null) {
         // Randomly select a repetition if not specified
         const rep = randomRep || Math.floor(Math.random() * this.imageNaming.totalReps) + 1;
-        
-        // Calculate frequency offset within each rep
-        const freqOffset = {
-            'low': 0,
-            'medium': this.imageNaming.ssimPerFreq,
-            'high': this.imageNaming.ssimPerFreq * 2
-        }[frequencyId];
-        
-        // Find SSIM index in the list (0-19)
-        const ssimIndex = this.config.ssimTargets.findIndex(s => 
-            Math.abs(s - targetSSIM) < 0.00001
-        );
-        
-        if (ssimIndex === -1) {
-            console.warn(`SSIM ${targetSSIM} not found in targets`);
+
+        // 1. Get frequency offset (O(1))
+        // 'low' -> 0, 'medium' -> 21, 'high' -> 42
+        const freqOffset = this.frequencyOffsets[frequencyId];
+        if (freqOffset === undefined) {
+            console.error(`Invalid frequencyId: ${frequencyId}`);
             return null;
         }
-        
-        // Calculate global file ID
+
+        // 2. Get SSIM index (O(1))
+        // formatted string "0.99000" -> 0, etc.
+        const ssimKey = targetSSIM.toFixed(5);
+        const ssimIndex = this.ssimLookup.get(ssimKey);
+
+        if (ssimIndex === undefined) {
+            console.warn(`SSIM ${targetSSIM} (${ssimKey}) not found in lookup`);
+            return null;
+        }
+
+        // 3. Calculate global file ID
+        // Formula: (rep-1) * 63 + freqOffset + ssimIndex + 1
         const repBaseId = (rep - 1) * this.imageNaming.filesPerRep;
         const fileId = repBaseId + freqOffset + ssimIndex + 1;
-        
+
         // Format file name
         const idStr = fileId.toString().padStart(4, '0');
-        const ssimStr = targetSSIM.toFixed(5);
-        const prefix = `${idStr}_${frequencyId}_ssim_${ssimStr}_rep${rep}`;
-        
+        const prefix = `${idStr}_${frequencyId}_ssim_${ssimKey}_rep${rep}`;
+
         return {
             prefix: prefix,
             originalPath: `${this.imageNaming.basePath}${prefix}_original.png`,
@@ -428,19 +522,64 @@ class ExperimentController {
     }
 
     /**
+     * Calculate a unique repetition offset based on Participant ID.
+     * Tries to parse a number from the ID (e.g. "P05" -> 5), otherwise hashes the string.
+     * Returns 0-based offset.
+     */
+    getRepetitionOffset(pid) {
+        if (!pid) return 0;
+
+        // 1. Try to find a CLEAR number pattern (e.g. "5", "P05", "S-10")
+        // We don't want to match "a1b2" as "1". Only match if it looks like a manual ID.
+        // Match: Optional non-digit prefix + Digits + End
+        const explicitMatch = pid.match(/^[a-zA-Z_-]*(\d+)$/);
+
+        if (explicitMatch) {
+            return parseInt(explicitMatch[1], 10);
+        }
+
+        // 2. Garbled / Random IDs (e.g. "5f8e9a...", "user_x7z")
+        // Use a robust hash to distribute them evenly across repetitions
+        let hash = 0;
+        for (let i = 0; i < pid.length; i++) {
+            const char = pid.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash);
+    }
+
+    /**
      * Select image path based on trial configuration (rule-based, no metadata needed)
      */
     selectImageForTrial(trial) {
+        // 1. Determine unique repetition for this participant
+        // Priority: Server Assignment > Local Hash
+        const userOffset = this.serverAssignedOffset !== null ? this.serverAssignedOffset : this.getRepetitionOffset(this.participantId);
+        const totalAvailable = this.imageNaming.totalReps;
+
+        // Logic: (UserOffset + TrialRep - 1) % Total + 1
+        // If UserOffset=1 (P1), TrialRep=1 => 1 % Total => Rep 1.
+        // If UserOffset=5 (P5), TrialRep=1 => 5 % Total => Rep 5.
+
+        // Note: The UserOffset number (e.g. 5) is 1-based, so treat it directly.
+        // Formula: ((UserOffset + TrialRep - 2) % Total) + 1
+        // P1 (1) + Rep1 (1) - 2 = 0 => 0 % 27 + 1 = 1. Correct.
+        // P5 (5) + Rep1 (1) - 2 = 4 => 4 % 27 + 1 = 5. Correct.
+
+        let assignedRep = ((userOffset + trial.repetition - 2) % totalAvailable) + 1;
+        if (assignedRep <= 0) assignedRep += totalAvailable; // Handle negative or zero if offset was 0
+
         // Directly calculate the image path based on naming rules
-        const imagePaths = this.calculateImagePath(trial.frequencyId, trial.targetSSIM);
-        
+        const imagePaths = this.calculateImagePath(trial.frequencyId, trial.targetSSIM, assignedRep);
+
         if (!imagePaths) {
             console.error(`Failed to calculate image path for trial ${trial.id}`);
             return null;
         }
-        
-        console.log(`Trial ${trial.id} [${trial.frequencyId}]: SSIM = ${trial.targetSSIM.toFixed(5)}, Rep = ${imagePaths.repetition}, File = ${imagePaths.prefix}`);
-        
+
+        console.log(`Trial ${trial.id} [${trial.frequencyId}]: SSIM=${trial.targetSSIM.toFixed(5)} | User=${this.participantId} -> Rep=${assignedRep} | File=${imagePaths.prefix}`);
+
         return imagePaths;
     }
 
@@ -465,7 +604,7 @@ class ExperimentController {
     async generateTrialDataFromLibrary(trial) {
         // 1. Select appropriate image from library
         const imageInfo = this.selectImageForTrial(trial);
-        
+
         if (!imageInfo) {
             throw new Error(`No suitable image found for trial ${trial.id}`);
         }
@@ -593,10 +732,10 @@ class ExperimentController {
         for (let i = 0; i < data.length; i++) {
             const val = (data[i] - min) / range;
             const pixelIndex = i * 4;
-            const color = Math.floor(val * 255);
-            imgData.data[pixelIndex] = color;
-            imgData.data[pixelIndex + 1] = color;
-            imgData.data[pixelIndex + 2] = color;
+            const [r, g, b] = getViridisColor(val);
+            imgData.data[pixelIndex] = r;
+            imgData.data[pixelIndex + 1] = g;
+            imgData.data[pixelIndex + 2] = b;
             imgData.data[pixelIndex + 3] = 255;
         }
 
@@ -622,14 +761,14 @@ class ExperimentController {
         return new Promise((resolve, reject) => {
             const messageHandler = (e) => {
                 const { type, result, error } = e.data;
-                
+
                 if (type === 'SUCCESS') {
                     // Convert array back to Float32Array
                     const perturbedData = new Float32Array(result.data);
-                    
+
                     this.ssimWorker.removeEventListener('message', messageHandler);
                     this.workerBusy = false;
-                    
+
                     resolve({
                         data: perturbedData,
                         magnitude: result.magnitude,
@@ -657,7 +796,7 @@ class ExperimentController {
                     height: this.config.height,
                     sizeLevels: this.config.sizeLevels,
                     coefficients,
-                    tolerance: 0.0001,
+                    tolerance: 0.001,
                     maxRetries: 6,
                     maxIterPerTry: 60
                 }
@@ -710,10 +849,10 @@ class ExperimentController {
             // Success: Show completion code
             document.getElementById('success-container').style.display = 'block';
             document.getElementById('failure-container').style.display = 'none';
-            
+
             const code = 'CMP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
             document.getElementById('completion-code').textContent = code;
-            
+
             this.uploadData();
         } else {
             // Failure: Show retry message
@@ -721,15 +860,20 @@ class ExperimentController {
             document.getElementById('failure-container').style.display = 'block';
             document.getElementById('end-title').textContent = 'Experiment Incomplete';
             document.getElementById('end-message').textContent = '';
-            
+
             const details = `Failed ${failedChecks.length} out of ${engagementResults.length} attention checks.`;
             document.getElementById('engagement-details').textContent = details;
-            
+
             // Bind restart button
-            document.getElementById('btn-restart').addEventListener('click', () => {
+            document.getElementById('btn-restart').onclick = () => {
+                // Increment retry counter for this participant
+                const pidKey = 'perturb_retry_' + this.participantId;
+                const currentRetries = parseInt(localStorage.getItem(pidKey) || '0');
+                localStorage.setItem(pidKey, currentRetries + 1);
+
                 location.reload();
-            });
-            
+            };
+
             // Do not upload data for failed attempts
             console.log('Engagement check failed. Data will not be uploaded.');
         }

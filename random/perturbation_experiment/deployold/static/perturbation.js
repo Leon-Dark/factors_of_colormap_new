@@ -49,9 +49,9 @@ class PerturbationSystem {
         this.perturbationHistory = [];
         this.coefficients = {
             position: 1.0,
-            stretch: 0.5,
-            rotation: 0.6,
-            amplitude: 0.6
+            stretch: 0.0,
+            rotation: 0.1,
+            amplitude: 0.1
         };
         // 存储预生成的扰动方向（用于稳定的二分搜索）
         this.storedDeltas = null;

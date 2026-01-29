@@ -4,16 +4,11 @@
 let allColormaps = [];
 let colormapElements = [];
 
-// Sampling mode: 'jnd' or 'uniform'
-let SAMPLING_MODE = 'uniform';
-
-// JND mode parameters
-let JND_STEP = 3.0;
-let SAMPLE_INTERVAL_K = 5;
-let MIN_INTERVAL_DIFF_J = 10;
+// Sampling mode: only 'uniform' is supported
+const SAMPLING_MODE = 'uniform';
 
 // Uniform mode parameters
-let UNIFORM_SAMPLE_COUNT = 20;
+let UNIFORM_SAMPLE_COUNT = 30;
 let UNIFORM_SMALL_INTERVAL_K = 2;
 let UNIFORM_SMALL_MIN_DIFF = 3;
 let UNIFORM_LARGE_INTERVAL_K = 5;
