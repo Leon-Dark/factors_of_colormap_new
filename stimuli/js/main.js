@@ -70,9 +70,10 @@ function generateAll() {
                 let usedDeltaL = 0;
                 let retryCount = 0;
                 let actualHue = hue;
+                let passesQualityCheck = false;
 
-                // Keep trying until we get a valid colormap
-                while (colormap.length === 0 && retryCount < 100) {
+                // Keep trying until we get a colormap that passes quality checks
+                while (!passesQualityCheck && retryCount < 100) {
                     // Try different perturbation offsets
                     for (let i = 0; i < perturbOffsets.length; i++) {
                         const [deltaC, deltaL] = perturbOffsets[i];
@@ -89,30 +90,49 @@ function generateAll() {
                         colormap = generate(actualHue, chroma_target, lumi_target, adjustedChroma, adjustedLumi);
 
                         if (colormap.length > 0) {
-                            usedDeltaC = deltaC;
-                            usedDeltaL = deltaL;
-                            break;  // Success! Stop trying perturbations
+                            // Colormap generated successfully, now check quality
+                            // Note: generate() returns [{colormap, hValues, cValues, lValues}, ...]
+                            const actualColormap = colormap[0].colormap;
+                            const hclPalette = convertColormapToHCLPalette(actualColormap);
+                            const smallWindowDiff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
+                            const largeWindowDiff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT);
+
+                            const passSmall = smallWindowDiff >= UNIFORM_SMALL_MIN_DIFF;
+                            const passLarge = largeWindowDiff >= UNIFORM_LARGE_MIN_DIFF;
+
+                            if (passSmall && passLarge) {
+                                // Quality check passed!
+                                usedDeltaC = deltaC;
+                                usedDeltaL = deltaL;
+                                passesQualityCheck = true;
+                                break;  // Success! Stop trying perturbations
+                            } else {
+                                // Quality check failed, keep trying
+                                colormap = []; // Reset to continue loop
+                            }
                         }
                     }
 
                     // If still failed after all perturbations, try a slightly different hue
-                    if (colormap.length === 0) {
+                    if (!passesQualityCheck) {
                         retryCount++;
                         actualHue = hue + (Math.random() - 0.5) * 20;  // Random offset ±10 degrees
-                        console.log(`Retry ${retryCount} for H=${hue}, C=[${chroma}], L=[${lumi}] with adjusted hue=${actualHue.toFixed(1)}`);
+                        if (retryCount % 10 === 0) {
+                            console.log(`Retry ${retryCount} for H=${hue}, C=[${chroma}], L=[${lumi}] with adjusted hue=${actualHue.toFixed(1)}`);
+                        }
                     }
                 }
 
-                if (colormap.length > 0) {
+                if (passesQualityCheck && colormap.length > 0) {
                     const hueNote = actualHue !== hue ? ` (adjusted H=${actualHue.toFixed(1)})` : '';
                     const condition = `H diff=${hue}${hueNote}, C=[${chroma}]→[${adjustedChroma}], L=[${adjustedLumi}]` +
                         ` (ΔC=${usedDeltaC}, ΔL=${usedDeltaL})`;
                     if (retryCount > 0) {
-                        console.log(`✓ Success after ${retryCount} retries`);
+                        console.log(`✓ Quality passed after ${retryCount} retries`);
                     }
                     drawGivenColormap2(colormap[0], (colormap_count++) + ", " + condition);
                 } else {
-                    console.error(`❌ Failed to generate colormap after ${retryCount} retries for H=${hue}, C=[${chroma}], L=[${lumi}]`);
+                    console.error(`❌ Failed to generate quality colormap after ${retryCount} retries for H=${hue}, C=[${chroma}], L=[${lumi}]`);
                 }
             }
         }
