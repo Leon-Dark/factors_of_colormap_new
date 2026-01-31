@@ -43,6 +43,7 @@ async function optimizeSSIM(config) {
         height,
         sizeLevels,
         coefficients,
+        isEngagementCheck = false, // Default to false for backward compatibility
         tolerance = 0.0001,
         maxRetries = 10,
         maxIterPerTry = 80
@@ -81,9 +82,21 @@ async function optimizeSSIM(config) {
             // Apply direct perturbation (position, rotation, etc.)
             perturbation.applyStoredPerturbation(mid);
 
-            // Render directly (No Soft Attribution / Gating)
-            // renderTo1DArray(width, height, useOriginal=false, normalize=true)
-            const tempPerturbed = generator.renderTo1DArray(width, height, false, true);
+            let tempPerturbed;
+
+            if (isEngagementCheck) {
+                // Engagement checks: Direct rendering (no soft attribution)
+                tempPerturbed = generator.renderTo1DArray(width, height, false, true);
+            } else {
+                // Main trials: Use soft attribution with gating
+                // This applies frequency-selective perturbation
+                softAttribution.applySoftAttributionPerturbation(
+                    freqTarget,
+                    mid,
+                    coefficients
+                );
+                tempPerturbed = generator.renderTo1DArray(width, height, false, true);
+            }
 
             const currentSSIM = calculateSSIM(dataOriginal, tempPerturbed, width, height);
             const diff = Math.abs(currentSSIM - targetSSIM);

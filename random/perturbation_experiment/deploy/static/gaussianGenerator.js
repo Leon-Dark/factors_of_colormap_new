@@ -29,6 +29,21 @@ class GaussianGenerator {
             'medium': 1.5,
             'large': 3.0
         };
+
+        // Colormap support
+        this.currentColormap = null; // Will store custom colormap data
+    }
+
+    /**
+     * Set custom colormap for rendering
+     * @param {Object} colormapData - Colormap object with colormap array
+     */
+    setColormap(colormapData) {
+        if (colormapData && colormapData.colormap) {
+            this.currentColormap = colormapData.colormap; // Array of d3 color objects
+        } else {
+            this.currentColormap = null; // Reset to default (viridis)
+        }
     }
 
     /**

@@ -65,7 +65,8 @@
                 <div class="completion-code-container"
                     style="margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px;">
                     <p>Your completion code is:</p>
-                    <h2 id="completion-code" style="font-family: monospace; letter-spacing: 2px; color: #333;">Generating...
+                    <h2 id="completion-code" style="font-family: monospace; letter-spacing: 2px; color: #333;">
+                        Generating...
                     </h2>
                 </div>
                 <div id="upload-status"></div>
@@ -73,10 +74,11 @@
 
             <!-- Failure State: Request retry -->
             <div id="failure-container" style="display: none;">
-                <div style="margin: 20px 0; padding: 20px; background: #ffe6e6; border-radius: 8px; border: 2px solid #ff4444;">
+                <div
+                    style="margin: 20px 0; padding: 20px; background: #ffe6e6; border-radius: 8px; border: 2px solid #ff4444;">
                     <h3 style="color: #cc0000; margin-top: 0;">⚠️ Attention Check Failed</h3>
                     <p style="color: #333; line-height: 1.6;">
-                        We detected that you may not have been fully engaged during the experiment. 
+                        We detected that you may not have been fully engaged during the experiment.
                         Some catch trials were answered incorrectly.
                     </p>
                     <p style="color: #333; line-height: 1.6;">
@@ -105,6 +107,10 @@
     <script src="static/gaussianGenerator.js"></script>
     <script src="static/perturbation.js"></script>
     <script src="static/softAttributionPerturbation.js"></script>
+
+    <!-- Colormap Generation System -->
+    <script src="static/colormapUtils.js"></script>
+    <script src="static/colormapGeneration.js"></script>
 
     <!-- Experiment Logic -->
     <script src="static/experiment.js"></script>

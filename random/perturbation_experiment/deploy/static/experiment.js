@@ -53,62 +53,35 @@ function getViridisColor(normalizedValue) {
 class ExperimentController {
     constructor() {
         // --- Configuration ---
-        // Generate SSIM targets: 0.99 to 0.95 with step 0.002 => 21 values
-        const ssimStart = 0.99;
-        const ssimEnd = 0.95;
-        const ssimStep = 0.002;
-        const ssimTargets = [];
-        for (let v = ssimStart; v >= ssimEnd - 1e-6; v -= ssimStep) {
-            ssimTargets.push(parseFloat(v.toFixed(5))); // Fix float precision
-        }
-
+        // Simplified: Only 3 specific SSIM targets
         this.config = {
             width: 200,
             height: 200, // Matches canvas size in HTML
             repetitions: 1, // Trials per condition
-            ssimTargets: ssimTargets,
+            // Map each frequency to its specific SSIM target
             frequencies: [
-                { id: 'low', target: 'large' },
-                { id: 'medium', target: 'medium' },
-                { id: 'high', target: 'small' }
+                { id: 'low', target: 'large', ssim: 0.954 },
+                { id: 'medium', target: 'medium', ssim: 0.982 },
+                { id: 'high', target: 'small', ssim: 0.956 }
             ],
+            // Colormap configuration (will be populated with 48 colormaps)
+            colormaps: [],
+            engagementCheckInterval: 24, // Insert engagement check every 24 trials
             // Gaussian Generation Params
-            // User Request: 4 small(σ=15, high), 3 medium(σ=25, mid), 2 large(σ=50, low)
             sizeLevels: {
                 'small': { sigma: 15, count: 2, color: '#377eb8' },
                 'medium': { sigma: 25, count: 3, color: '#4daf4a' },
                 'large': { sigma: 50, count: 4, color: '#ff7f00' }
             },
-            preloadBufferSize: 15, // Maintain a buffer of 15 trials ahead (continuous preload)
-            initialPreloadCount: 5 // Initial burst: only 5 trials (fast start)
+            preloadBufferSize: 10, // Buffer for 144 trials
+            initialPreloadCount: 5 // Initial burst
         };
 
         // --- Optimization Lookups ---
-        // 1. SSIM Lookup Map (Value -> Index) for O(1) access
-        // We use string keys to avoid floating point equality issues
-        this.ssimLookup = new Map();
-        this.config.ssimTargets.forEach((val, index) => {
-            this.ssimLookup.set(val.toFixed(5), index);
-        });
-
-        // 2. Frequency Offset Map for O(1) access
-        // Based on generation order: Low -> Medium -> High
-        // Each frequency block contains 'ssimPerFreq' (21) images per repetition
-        const ssimPerFreq = this.config.ssimTargets.length;
-        this.frequencyOffsets = {
-            'low': 0,
-            'medium': ssimPerFreq,
-            'high': ssimPerFreq * 2
-        };
+        // No longer needed with simplified trial structure
 
         // --- Components ---
-        // Image naming configuration (based on generation rules)
-        this.imageNaming = {
-            totalReps: 27, // Matches config.json repetitions
-            ssimPerFreq: ssimPerFreq, // 21
-            filesPerRep: ssimPerFreq * 3, // 63
-            basePath: '/perturbation_images/images/'
-        };
+        // Real-time generation only - no image library needed
 
         // --- State ---
         this.trials = [];
@@ -175,27 +148,8 @@ class ExperimentController {
             // Initialize Retry Count from LocalStorage
             this.retryCount = parseInt(localStorage.getItem('perturb_retry_' + pid) || '0');
 
-            // --- SERVER ASSIGNMENT ---
-            // Try to get "Smart Assignment" from server
-            this.serverAssignedOffset = null;
-
-            fetch('/api/assign_repetition', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ participantId: pid })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.repetition) {
-                        console.log(`Server assigned Repetition Set: ${data.repetition}`);
-                        this.serverAssignedOffset = data.repetition;
-                    }
-                })
-                .catch(err => console.warn('Server assignment failed, using local hash:', err))
-                .finally(() => {
-                    console.log(`Participant ${pid} starting (Retry #${this.retryCount}). ServerOffset: ${this.serverAssignedOffset}`);
-                    this.startExperiment();
-                });
+            console.log(`Participant ${pid} starting (Retry #${this.retryCount}) with real-time generation`);
+            this.startExperiment();
         });
 
         // Stimuli Clicks
@@ -212,6 +166,26 @@ class ExperimentController {
     // --- Experiment Flow ---
 
     async startExperiment() {
+        // Generate colormaps if not already generated
+        if (this.config.colormaps.length === 0) {
+            console.log('Generating 48 colormaps...');
+            this.switchScreen('experiment');
+            this.display.waitMessage.style.display = 'block';
+            this.display.waitMessage.textContent = 'Generating colormaps, please wait...';
+
+            try {
+                const generator = new ColormapGenerator();
+                this.config.colormaps = await generator.generateAll48Colormaps();
+                console.log(`Successfully generated ${this.config.colormaps.length} colormaps`);
+            } catch (error) {
+                console.error('Failed to generate colormaps:', error);
+                alert('Failed to generate colormaps. Please refresh the page.');
+                return;
+            }
+
+            this.display.waitMessage.style.display = 'none';
+        }
+
         this.generateTrials();
         this.shuffleArray(this.trials);
         this.insertEngagementChecks();
@@ -267,55 +241,60 @@ class ExperimentController {
         this.trials = [];
         let id = 1;
 
+        // Generate 144 main trials: 3 frequencies × 48 colormaps × 1 repetition
         for (const freq of this.config.frequencies) {
-            for (const ssim of this.config.ssimTargets) {
+            for (const colormap of this.config.colormaps) {
                 for (let r = 0; r < this.config.repetitions; r++) {
                     this.trials.push({
                         id: id++,
                         frequencyId: freq.id,
                         targetLevel: freq.target,
-                        targetSSIM: ssim,
+                        targetSSIM: freq.ssim,
+                        colormap: colormap, // Include full colormap object
+                        colormapId: colormap.id,
+                        colormapHue: colormap.hue,
+                        colormapChromaPattern: colormap.chromaPattern,
+                        colormapLumaPattern: colormap.lumiPattern,
                         repetition: r + 1,
                         isEngagementCheck: false
                     });
                 }
             }
         }
+
+        console.log(`Generated ${this.trials.length} main trials`);
     }
 
+
     insertEngagementChecks() {
-        // Insert catch trials at specific indices: 15, 30, 45
-        // We do this AFTER shuffling normal trials so their position is fixed absolute
-        const checkPositions = [15, 30, 45];
+        // Insert engagement checks every 24 trials (≈6 checks for 144 trials)
+        const interval = this.config.engagementCheckInterval;
+        let insertCount = 0;
 
-        // Use 'medium' frequency for checks, but very easy SSIM
-        const checkTrialTempl = {
-            frequencyId: 'medium',
-            targetLevel: 'medium',
-            targetSSIM: 0.80,
-            isEngagementCheck: true,
-            repetition: 0
-        };
+        // Use first colormap for engagement checks (simple constant pattern)
+        const engagementColormap = this.config.colormaps[0] || null;
 
-        let insertedCount = 0;
-        checkPositions.forEach(pos => {
-            // Adjust position for previously inserted items if we wanted relative, 
-            // but user likely means absolute index in the final sequence.
-            // Since we insert into an array, inserting at 15 shifts everything after.
-            // So if we want them at exactly 15, 30, 45 of the FINAL array:
-            // We should insert them. Note that inserting at 15 makes the old 15 become 16.
-            // If the user meant "after 15th trial" (index 15), "after 30th trial" (index 30)...
+        for (let pos = interval; pos < this.trials.length; pos += interval + 1) {
+            const checkTrial = {
+                id: 9000 + insertCount,
+                frequencyId: 'medium',
+                targetLevel: 'medium',
+                targetSSIM: 0.80,
+                colormap: engagementColormap,
+                colormapId: engagementColormap ? engagementColormap.id : 0,
+                colormapHue: engagementColormap ? engagementColormap.hue : 100,
+                colormapChromaPattern: engagementColormap ? engagementColormap.chromaPattern : 'Constant',
+                colormapLumaPattern: engagementColormap ? engagementColormap.lumiPattern : 'Constant',
+                isEngagementCheck: true,
+                repetition: 0
+            };
+            this.trials.splice(pos + insertCount, 0, checkTrial);
+            insertCount++;
+        }
 
-            // Let's assume 0-based index 15, 30, 45.
-            if (pos <= this.trials.length) {
-                const trial = { ...checkTrialTempl, id: 9000 + insertedCount };
-                this.trials.splice(pos, 0, trial);
-                insertedCount++;
-            }
-        });
-
-        // Re-index slightly or just keep IDs unique
+        // Re-index
         this.trials.forEach((t, i) => t.trialIndex = i);
+        console.log(`Inserted ${insertCount} engagement checks`);
     }
 
     async loadTrial(index) {
@@ -475,168 +454,31 @@ class ExperimentController {
         }
     }
 
-    /**
-     * Calculate image file paths based on naming rules (no metadata loading needed)
-     * Naming: {ID}_{frequency}_ssim_{ssimValue}_rep{repetition}_{type}.png
-     * Generation order: rep -> frequency (low, medium, high) -> ssim (21 values)
-     * 
-     * OPTIMIZED: Uses O(1) lookups instead of array searches.
-     */
-    calculateImagePath(frequencyId, targetSSIM, randomRep = null) {
-        // Randomly select a repetition if not specified
-        const rep = randomRep || Math.floor(Math.random() * this.imageNaming.totalReps) + 1;
+    // calculateImagePath removed - using real-time generation only
 
-        // 1. Get frequency offset (O(1))
-        // 'low' -> 0, 'medium' -> 21, 'high' -> 42
-        const freqOffset = this.frequencyOffsets[frequencyId];
-        if (freqOffset === undefined) {
-            console.error(`Invalid frequencyId: ${frequencyId}`);
-            return null;
-        }
-
-        // 2. Get SSIM index (O(1))
-        // formatted string "0.99000" -> 0, etc.
-        const ssimKey = targetSSIM.toFixed(5);
-        const ssimIndex = this.ssimLookup.get(ssimKey);
-
-        if (ssimIndex === undefined) {
-            console.warn(`SSIM ${targetSSIM} (${ssimKey}) not found in lookup`);
-            return null;
-        }
-
-        // 3. Calculate global file ID
-        // Formula: (rep-1) * 63 + freqOffset + ssimIndex + 1
-        const repBaseId = (rep - 1) * this.imageNaming.filesPerRep;
-        const fileId = repBaseId + freqOffset + ssimIndex + 1;
-
-        // Format file name
-        const idStr = fileId.toString().padStart(4, '0');
-        const prefix = `${idStr}_${frequencyId}_ssim_${ssimKey}_rep${rep}`;
-
-        return {
-            prefix: prefix,
-            originalPath: `${this.imageNaming.basePath}${prefix}_original.png`,
-            perturbedPath: `${this.imageNaming.basePath}${prefix}_perturbed.png`,
-            repetition: rep
-        };
-    }
+    // getRepetitionOffset and selectImageForTrial removed - using real-time generation only
 
     /**
-     * Calculate a unique repetition offset based on Participant ID.
-     * Tries to parse a number from the ID (e.g. "P05" -> 5), otherwise hashes the string.
-     * Returns 0-based offset.
-     */
-    getRepetitionOffset(pid) {
-        if (!pid) return 0;
-
-        // 1. Try to find a CLEAR number pattern (e.g. "5", "P05", "S-10")
-        // We don't want to match "a1b2" as "1". Only match if it looks like a manual ID.
-        // Match: Optional non-digit prefix + Digits + End
-        const explicitMatch = pid.match(/^[a-zA-Z_-]*(\d+)$/);
-
-        if (explicitMatch) {
-            return parseInt(explicitMatch[1], 10);
-        }
-
-        // 2. Garbled / Random IDs (e.g. "5f8e9a...", "user_x7z")
-        // Use a robust hash to distribute them evenly across repetitions
-        let hash = 0;
-        for (let i = 0; i < pid.length; i++) {
-            const char = pid.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32bit integer
-        }
-        return Math.abs(hash);
-    }
-
-    /**
-     * Select image path based on trial configuration (rule-based, no metadata needed)
-     */
-    selectImageForTrial(trial) {
-        // 1. Determine unique repetition for this participant
-        // Priority: Server Assignment > Local Hash
-        const userOffset = this.serverAssignedOffset !== null ? this.serverAssignedOffset : this.getRepetitionOffset(this.participantId);
-        const totalAvailable = this.imageNaming.totalReps;
-
-        // Logic: (UserOffset + TrialRep - 1) % Total + 1
-        // If UserOffset=1 (P1), TrialRep=1 => 1 % Total => Rep 1.
-        // If UserOffset=5 (P5), TrialRep=1 => 5 % Total => Rep 5.
-
-        // Note: The UserOffset number (e.g. 5) is 1-based, so treat it directly.
-        // Formula: ((UserOffset + TrialRep - 2) % Total) + 1
-        // P1 (1) + Rep1 (1) - 2 = 0 => 0 % 27 + 1 = 1. Correct.
-        // P5 (5) + Rep1 (1) - 2 = 4 => 4 % 27 + 1 = 5. Correct.
-
-        let assignedRep = ((userOffset + trial.repetition - 2) % totalAvailable) + 1;
-        if (assignedRep <= 0) assignedRep += totalAvailable; // Handle negative or zero if offset was 0
-
-        // Directly calculate the image path based on naming rules
-        const imagePaths = this.calculateImagePath(trial.frequencyId, trial.targetSSIM, assignedRep);
-
-        if (!imagePaths) {
-            console.error(`Failed to calculate image path for trial ${trial.id}`);
-            return null;
-        }
-
-        console.log(`Trial ${trial.id} [${trial.frequencyId}]: SSIM=${trial.targetSSIM.toFixed(5)} | User=${this.participantId} -> Rep=${assignedRep} | File=${imagePaths.prefix}`);
-
-        return imagePaths;
-    }
-
-    /**
-     * Load trial data - use real-time generation for engagement checks, 
-     * pregenerated images for normal trials
+     * Load trial data - always use real-time generation
      */
     async generateTrialData(trial) {
-        // Check if this is an engagement check trial
-        if (trial.isEngagementCheck) {
-            // Real-time generation for engagement checks
-            return await this.generateTrialDataRealtime(trial);
-        } else {
-            // Use pregenerated images for normal trials
-            return await this.generateTrialDataFromLibrary(trial);
-        }
+        // Always use real-time generation for all trials
+        return await this.generateTrialDataRealtime(trial);
     }
 
-    /**
-     * Load trial data from pregenerated images (normal trials)
-     */
-    async generateTrialDataFromLibrary(trial) {
-        // 1. Select appropriate image from library
-        const imageInfo = this.selectImageForTrial(trial);
-
-        if (!imageInfo) {
-            throw new Error(`No suitable image found for trial ${trial.id}`);
-        }
-
-        // 2. Load images
-        const originalImg = await this.loadImage(imageInfo.originalPath);
-        const perturbedImg = await this.loadImage(imageInfo.perturbedPath);
-
-        // Store trial info (actual SSIM/magnitude unknown without loading metadata, use target)
-        trial.actualMagnitude = null; // Unknown without metadata
-        trial.actualSSIM = trial.targetSSIM; // Assume target is accurate
-        trial.actualKL = null; // Unknown without metadata
-
-        // 3. Randomly choose target position
-        const targetPos = Math.floor(Math.random() * 4);
-
-        return {
-            originalImg: originalImg,
-            perturbedImg: perturbedImg,
-            targetPos: targetPos,
-            trial: trial,
-            isRealtime: false
-        };
-    }
 
     /**
-     * Generate trial data in real-time (for engagement checks)
+     * Generate trial data in real-time
      */
     async generateTrialDataRealtime(trial) {
         // 1. Setup Generator
         this.generator.updateDimensions(this.config.width, this.config.height);
         this.generator.sizeLevels = JSON.parse(JSON.stringify(this.config.sizeLevels));
+
+        // Set custom colormap if available
+        if (trial.colormap) {
+            this.generator.setColormap(trial.colormap);
+        }
 
         // 2. Generate Random Distribution (The "Base")
         this.generator.generateAll();
@@ -652,7 +494,7 @@ class ExperimentController {
         trial.actualSSIM = optimizationResult.ssim;
 
         // Log SSIM values
-        console.log(`Trial ${trial.id} [${trial.frequencyId}] (ENGAGEMENT CHECK): Target SSIM = ${trial.targetSSIM.toFixed(5)}, Actual SSIM = ${trial.actualSSIM.toFixed(5)}, Diff = ${Math.abs(trial.targetSSIM - trial.actualSSIM).toFixed(6)}`);
+        console.log(`Trial ${trial.id} [${trial.frequencyId}]: Target SSIM = ${trial.targetSSIM.toFixed(5)}, Actual SSIM = ${trial.actualSSIM.toFixed(5)}, Diff = ${Math.abs(trial.targetSSIM - trial.actualSSIM).toFixed(6)}`);
 
         // 5. Randomly choose target position
         const targetPos = Math.floor(Math.random() * 4);
@@ -666,51 +508,20 @@ class ExperimentController {
         };
     }
 
-    /**
-     * Load an image and return as HTMLImageElement (with retry)
-     */
-    async loadImage(path, retries = 3) {
-        for (let attempt = 0; attempt <= retries; attempt++) {
-            try {
-                return await new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.onload = () => resolve(img);
-                    img.onerror = () => reject(new Error(`Failed to load image: ${path}`));
-                    img.src = path + (attempt > 0 ? `?retry=${attempt}` : ''); // Cache busting on retry
-                });
-            } catch (err) {
-                if (attempt === retries) {
-                    console.error(`Image load failed after ${retries + 1} attempts: ${path}`);
-                    throw err;
-                }
-                // Wait before retry (exponential backoff)
-                await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
-                console.log(`Retrying image load (attempt ${attempt + 2}/${retries + 1}): ${path}`);
-            }
-        }
-    }
 
     /**
-     * Puts the loaded images or generated data onto the canvas
+     * Puts the generated data onto the canvas
      */
     renderTrialDataToScreen(trialData) {
         this.currentTargetPos = trialData.targetPos;
 
-        // Render to Canvases
+        // Render to Canvases (all trials use real-time data now)
         for (let i = 0; i < 4; i++) {
             const canvas = this.display.canvases[i];
             const ctx = canvas.getContext('2d');
 
-            if (trialData.isRealtime) {
-                // Real-time generated data (Float32Array)
-                const data = (i === this.currentTargetPos) ? trialData.perturbedData : trialData.originalData;
-                this.renderDataToCanvas(ctx, data, this.config.width, this.config.height);
-            } else {
-                // Preloaded images (HTMLImageElement)
-                const img = (i === this.currentTargetPos) ? trialData.perturbedImg : trialData.originalImg;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            }
+            const data = (i === this.currentTargetPos) ? trialData.perturbedData : trialData.originalData;
+            this.renderDataToCanvas(ctx, data, this.config.width, this.config.height);
         }
     }
 
@@ -729,10 +540,21 @@ class ExperimentController {
 
         const range = max - min || 1;
 
+        // Get colormap from generator (or fallback to viridis)
+        const customColormap = this.generator.currentColormap;
+
         for (let i = 0; i < data.length; i++) {
             const val = (data[i] - min) / range;
             const pixelIndex = i * 4;
-            const [r, g, b] = getViridisColor(val);
+
+            // Use custom colormap if available, otherwise fallback to viridis
+            let r, g, b;
+            if (customColormap) {
+                [r, g, b] = applyCustomColormap(val, customColormap);
+            } else {
+                [r, g, b] = getViridisColor(val);
+            }
+
             imgData.data[pixelIndex] = r;
             imgData.data[pixelIndex + 1] = g;
             imgData.data[pixelIndex + 2] = b;
@@ -796,6 +618,7 @@ class ExperimentController {
                     height: this.config.height,
                     sizeLevels: this.config.sizeLevels,
                     coefficients,
+                    isEngagementCheck: trial.isEngagementCheck || false, // Pass trial type to worker
                     tolerance: 0.001,
                     maxRetries: 6,
                     maxIterPerTry: 60
@@ -822,6 +645,10 @@ class ExperimentController {
             actualSSIM: trialData.actualSSIM,
             actualMagnitude: trialData.actualMagnitude,
             repetition: trialData.repetition,
+            colormapId: trialData.colormapId,
+            colormapHue: trialData.colormapHue,
+            colormapChromaPattern: trialData.colormapChromaPattern,
+            colormapLumaPattern: trialData.colormapLumaPattern,
             targetPosition: this.currentTargetPos,
             selectedPosition: selectedIndex,
             isCorrect: isCorrect ? 1 : 0,
