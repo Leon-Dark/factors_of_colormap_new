@@ -124,9 +124,11 @@ function generateAll() {
                 }
 
                 if (passesQualityCheck && colormap.length > 0) {
+                    const actualColormapObj = colormap[0];
+                    const hStart = actualColormapObj.hValues[0];
+                    const hEnd = actualColormapObj.hValues[actualColormapObj.hValues.length - 1];
                     const hueNote = actualHue !== hue ? ` (adjusted H=${actualHue.toFixed(1)})` : '';
-                    const condition = `H diff=${hue}${hueNote}, C=[${chroma}]→[${adjustedChroma}], L=[${adjustedLumi}]` +
-                        ` (ΔC=${usedDeltaC}, ΔL=${usedDeltaL})`;
+                    const condition = `H diff=${hue}${hueNote}, H Range=[${hStart.toFixed(0)}, ${hEnd.toFixed(0)}], C=[${adjustedChroma}], L=[${adjustedLumi}]`;
                     if (retryCount > 0) {
                         console.log(`✓ Quality passed after ${retryCount} retries`);
                     }
