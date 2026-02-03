@@ -147,7 +147,7 @@ class SoftAttributionPerturbation {
             for (let i = 0; i < size; i++) sum += energyFields[band][i];
             avgEnergy[band] = sum / size;
         }
-        console.log(`[Analysis] Mean Gradient Energy (E_k) -> Low: ${avgEnergy.low.toFixed(6)}, Mid: ${avgEnergy.mid.toFixed(6)}, High: ${avgEnergy.high.toFixed(6)}`);
+        //console.log(`[Analysis] Mean Gradient Energy (E_k) -> Low: ${avgEnergy.low.toFixed(6)}, Mid: ${avgEnergy.mid.toFixed(6)}, High: ${avgEnergy.high.toFixed(6)}`);
 
         this.cache.energyFields = energyFields;
         return energyFields;
@@ -306,7 +306,7 @@ class SoftAttributionPerturbation {
             // 抑制率 = (总潜在扰动能量 - 实际门控后扰动能量) / 总潜在扰动能量
             // 表示有多少生成的扰动因为不符合频段区域特征而被“抑制”了
             const suppressionRatio = (totalDelta > 0) ? (1 - gatedDelta / totalDelta) : 0;
-            console.log(`Band ${band}: Suppression Ratio = ${(suppressionRatio * 100).toFixed(2)}% (Energy Blocked / Total Potential)`);
+            // console.log(`Band ${band}: Suppression Ratio = ${(suppressionRatio * 100).toFixed(2)}% (Energy Blocked / Total Potential)`);
         }
 
 

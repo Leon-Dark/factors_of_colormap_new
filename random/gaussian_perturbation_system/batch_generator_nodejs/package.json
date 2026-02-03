@@ -1,0 +1,17 @@
+{
+  "name": "gaussian-perturbation-batch-generator",
+  "version": "1.0.0",
+  "description": "Node.js batch generator for Gaussian perturbation stimuli",
+  "main": "batch_generate.js",
+  "scripts": {
+    "start": "node batch_generate.js",
+    "generate": "node batch_generate.js --config config.json"
+  },
+  "keywords": ["gaussian", "perturbation", "stimuli", "batch"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "sharp": "^0.33.2",
+    "archiver": "^6.0.1"
+  }
+}

@@ -50,6 +50,39 @@ function getViridisColor(normalizedValue) {
 }
 
 
+// --- Seeded RNG Helper ---
+class SeededRandom {
+    constructor(seed) {
+        this.seed = this._hashString(String(seed));
+    }
+
+    _hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+            hash |= 0; // Convert to 32bit integer
+        }
+        return Math.abs(hash);
+    }
+
+    // Returns a pseudo-random number between 0 and 1
+    next() {
+        this.seed = (this.seed * 9301 + 49297) % 233280;
+        return this.seed / 233280;
+    }
+
+    // Shuffle array in place
+    shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(this.next() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+}
+
+
 class ExperimentController {
     constructor() {
         // --- Configuration ---
@@ -65,8 +98,9 @@ class ExperimentController {
                 { id: 'high', target: 'small', ssim: 0.956 }
             ],
             // Colormap configuration (will be populated with 48 colormaps)
+            useGrayscale: false, // Set to true to use grayscale for testing
             colormaps: [],
-            engagementCheckInterval: 24, // Insert engagement check every 24 trials
+            engagementCheckInterval: 16, // Insert engagement check every 24 trials
             // Gaussian Generation Params
             sizeLevels: {
                 'small': { sigma: 15, count: 2, color: '#377eb8' },
@@ -74,7 +108,7 @@ class ExperimentController {
                 'large': { sigma: 50, count: 4, color: '#ff7f00' }
             },
             preloadBufferSize: 10, // Buffer for 144 trials
-            initialPreloadCount: 5 // Initial burst
+            initialPreloadCount: 2 // Initial burst
         };
 
         // --- Optimization Lookups ---
@@ -167,20 +201,64 @@ class ExperimentController {
 
     async startExperiment() {
         // Generate colormaps if not already generated
+        // Load colormaps from JSON (or use grayscale) if not already loaded
         if (this.config.colormaps.length === 0) {
-            console.log('Generating 48 colormaps...');
-            this.switchScreen('experiment');
-            this.display.waitMessage.style.display = 'block';
-            this.display.waitMessage.textContent = 'Generating colormaps, please wait...';
 
-            try {
-                const generator = new ColormapGenerator();
-                this.config.colormaps = await generator.generateAll48Colormaps();
-                console.log(`Successfully generated ${this.config.colormaps.length} colormaps`);
-            } catch (error) {
-                console.error('Failed to generate colormaps:', error);
-                alert('Failed to generate colormaps. Please refresh the page.');
-                return;
+            if (this.config.useGrayscale) {
+                console.log('Testing Mode: Using Grayscale...');
+                // Generate a linear grayscale colormap (0-255)
+                const grayscaleMap = [];
+                for (let i = 0; i < 256; i++) {
+                    grayscaleMap.push({ r: i, g: i, b: i });
+                }
+
+                // Create 48 identical "trials" using this grayscale map
+                // (We still need 48 items to satisfy the latinsquare/grouping logic)
+                for (let i = 0; i < 48; i++) {
+                    this.config.colormaps.push({
+                        id: `gray_${i}`,
+                        hue: 'gray',
+                        chromaPattern: 'gray',
+                        lumiPattern: 'gray',
+                        colormap: grayscaleMap
+                    });
+                }
+
+                // Fall through to common start logic
+
+            } else {
+                console.log('Loading 48 colormaps from JSON...');
+                this.switchScreen('experiment');
+                this.display.waitMessage.style.display = 'block';
+                this.display.waitMessage.textContent = 'Loading colormaps, please wait...';
+
+                try {
+                    const response = await fetch('static/colormaps.json');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const rawColormaps = await response.json();
+
+                    // Map JSON data to expected format
+                    this.config.colormaps = rawColormaps.map(item => ({
+                        id: item.id,
+                        hue: item.metadata.hueTarget,
+                        chromaPattern: item.metadata.chromaPattern,
+                        lumiPattern: item.metadata.lumiPattern,
+                        // Convert [r, g, b] arrays to {r, g, b} objects for compatibility
+                        colormap: item.colormap.map(c => ({
+                            r: c[0],
+                            g: c[1],
+                            b: c[2]
+                        }))
+                    }));
+
+                    console.log(`Successfully loaded ${this.config.colormaps.length} colormaps`);
+                } catch (error) {
+                    console.error('Failed to load colormaps:', error);
+                    alert('Failed to load colormaps. Please refresh the page.');
+                    return;
+                }
             }
 
             this.display.waitMessage.style.display = 'none';
@@ -200,6 +278,7 @@ class ExperimentController {
         // Delay background preload slightly to let first trial load smoothly
         setTimeout(() => {
             this.initialPreloadBackground();
+            this.preGenerateEngagementChecksAsync();
         }, 1000); // Start after 1 second
     }
 
@@ -237,13 +316,62 @@ class ExperimentController {
         console.log('✓ All engagement checks pre-generated successfully');
     }
 
+
+
     generateTrials() {
         this.trials = [];
         let id = 1;
 
-        // Generate 144 main trials: 3 frequencies × 48 colormaps × 1 repetition
+        // 1. Get Participant Group (0, 1, or 2)
+        // Extract numeric part from ID (e.g., "P005" -> 5)
+        const pidNum = parseInt(this.participantId.replace(/\D/g, '')) || 0;
+        // Group 0: 1, 4, 7...
+        // Group 1: 2, 5, 8...
+        // Group 2: 3, 6, 9...
+        const group = (pidNum > 0 ? pidNum - 1 : 0) % 3;
+
+        console.log(`Participant ${this.participantId} (Num: ${pidNum}) assigned to Group ${group}`);
+
+        // 2. Deterministically Shuffle Colormaps (Global Shuffle)
+        // Use a FIXED seed so everyone gets the same "Chunks" of colormaps
+        // If we used participantID here, everyone would have different chunks, breaking the Latin Square guarantee
+        const globalRng = new SeededRandom("GLOBAL_EXPERIMENT_SEED_V1");
+
+        // Clone and Shuffle
+        const shuffledColormaps = [...this.config.colormaps];
+        globalRng.shuffle(shuffledColormaps);
+
+        // 3. Split into 3 Chunks (A, B, C)
+        const chunkSize = 16; // 48 / 3
+        const chunks = [
+            shuffledColormaps.slice(0, chunkSize),              // Chunk A
+            shuffledColormaps.slice(chunkSize, chunkSize * 2),  // Chunk B
+            shuffledColormaps.slice(chunkSize * 2, chunkSize * 3) // Chunk C
+        ];
+
+        // 4. Assign Chunks to Frequencies (Latin Square)
+        // Pattern:
+        // Group 0: Low(A), Mid(B), High(C)
+        // Group 1: Low(B), Mid(C), High(A)
+        // Group 2: Low(C), Mid(A), High(B)
+
+        const assignments = {
+            'low': chunks[(group + 0) % 3],
+            'medium': chunks[(group + 1) % 3],
+            'high': chunks[(group + 2) % 3]
+        };
+
+        console.log('Assignments:', {
+            'Low': `Chunk ${(group + 0) % 3} (${assignments['low'].length})`,
+            'Medium': `Chunk ${(group + 1) % 3} (${assignments['medium'].length})`,
+            'High': `Chunk ${(group + 2) % 3} (${assignments['high'].length})`
+        });
+
+        // 5. Generate Trials
         for (const freq of this.config.frequencies) {
-            for (const colormap of this.config.colormaps) {
+            const assignedColormaps = assignments[freq.id];
+
+            for (const colormap of assignedColormaps) {
                 for (let r = 0; r < this.config.repetitions; r++) {
                     this.trials.push({
                         id: id++,
@@ -262,7 +390,7 @@ class ExperimentController {
             }
         }
 
-        console.log(`Generated ${this.trials.length} main trials`);
+        console.log(`Generated ${this.trials.length} main trials (16 per frequency)`);
     }
 
 
@@ -272,9 +400,18 @@ class ExperimentController {
         let insertCount = 0;
 
         // Use first colormap for engagement checks (simple constant pattern)
-        const engagementColormap = this.config.colormaps[0] || null;
+        // Find the specific engagement colormap requested: Thermal Thermal Hue=300
+        const engagementColormap = this.config.colormaps.find(c =>
+            c.hue === 300 &&
+            (c.chromaPattern === 'thermal' || c.chromaPattern === 'Thermal') &&
+            (c.lumiPattern === 'thermal' || c.lumiPattern === 'Thermal')
+        ) || this.config.colormaps[0] || null;
 
-        for (let pos = interval; pos < this.trials.length; pos += interval + 1) {
+        if (engagementColormap) {
+            console.log(`Using Engagement Colormap: ID=${engagementColormap.id}, Hue=${engagementColormap.hue}, Patterns=${engagementColormap.chromaPattern}/${engagementColormap.lumiPattern}`);
+        }
+
+        for (let pos = interval; pos <= this.trials.length; pos += interval + 1) {
             const checkTrial = {
                 id: 9000 + insertCount,
                 frequencyId: 'medium',
@@ -487,7 +624,12 @@ class ExperimentController {
         const originalData = this.generator.renderTo1DArray(this.config.width, this.config.height, false, true);
 
         // 4. Find Perturbation Magnitude that matches SSIM Target
-        const optimizationResult = await this.findMagnitudeForSSIM(trial.targetSSIM, trial.targetLevel, originalData);
+        const optimizationResult = await this.findMagnitudeForSSIM(
+            trial.targetSSIM,
+            trial.targetLevel,
+            originalData,
+            trial.isEngagementCheck // New argument
+        );
 
         // Store optimization results in the trial object for recording later
         trial.actualMagnitude = optimizationResult.magnitude;
@@ -568,13 +710,17 @@ class ExperimentController {
      * Finds the magnitude that produces a result closest to the target SSIM.
      * Uses Web Worker for heavy computation to keep UI responsive.
      */
-    async findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal) {
+    async findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal, isEngagementCheck = false) {
         const coefficients = {
-            position: 0,       // Auto-controlled by tanh saturation (in perturbation.js)
+            position: 1.0,     // Auto-controlled by tanh saturation (in perturbation.js)
             stretch: 0.0,      // Disabled
             rotation: 1.0,     // Free to scale
-            amplitude: 1.0     // Free to scale
+            amplitude: 0.0     // Free to scale
         };
+
+        // Generate a unique ID for this request
+        const requestId = Math.random().toString(36).substring(2, 15);
+
 
         // Export generator state for worker
         const generatorState = this.generator.exportConfig();
@@ -582,7 +728,10 @@ class ExperimentController {
         // Send optimization task to worker
         return new Promise((resolve, reject) => {
             const messageHandler = (e) => {
-                const { type, result, error } = e.data;
+                const { type, id, result, error } = e.data;
+
+                // Only process messages matching our request ID
+                if (id !== requestId) return;
 
                 if (type === 'SUCCESS') {
                     // Convert array back to Float32Array
@@ -611,6 +760,7 @@ class ExperimentController {
             this.ssimWorker.postMessage({
                 type: 'OPTIMIZE_SSIM',
                 data: {
+                    id: requestId, // Pass ID to worker
                     targetSSIM,
                     freqTarget,
                     generatorState,
@@ -618,10 +768,10 @@ class ExperimentController {
                     height: this.config.height,
                     sizeLevels: this.config.sizeLevels,
                     coefficients,
-                    isEngagementCheck: trial.isEngagementCheck || false, // Pass trial type to worker
+                    isEngagementCheck: isEngagementCheck, // Pass trial type to worker
                     tolerance: 0.001,
                     maxRetries: 6,
-                    maxIterPerTry: 60
+                    maxIterPerTry: 20
                 }
             });
         });

@@ -188,7 +188,16 @@
             padding: 20px;
             position: relative;
             display: none;
+            overflow-x: auto;
+            /* Enable horizontal scrolling */
             /* Hidden by default */
+        }
+
+        /* Ensure canvas inside can force width */
+        #chart-canvas-wrapper {
+            min-width: 100%;
+            /* Fallback */
+            height: 100%;
         }
 
         #sidebar-analysis {
@@ -239,21 +248,33 @@
 
             <div class="view-controls">
                 <div style="margin-right: 15px; display: flex; align-items: center; gap: 8px;">
-                    <span>Metric:</span>
-                    <label><input type="radio" name="metric" value="accuracy" checked
-                            onchange="switchMetric(this.value)"> Accuracy</label>
-                    <label><input type="radio" name="metric" value="time" onchange="switchMetric(this.value)">
-                        Time</label>
+                    <label style="font-weight: bold;">Metric:</label>
+                    <select id="metricSelect" onchange="toggleMetric()" style="padding: 4px; border-radius: 4px;">
+                        <option value="accuracy">Accuracy</option>
+                        <option value="time">Response Time</option>
+                    </select>
                 </div>
+
+                <div style="margin-right: 15px; display: flex; align-items: center; gap: 8px;">
+                    <label style="font-weight: bold;">X-Axis Factor:</label>
+                    <select id="groupSelect" onchange="toggleGroup()" style="padding: 4px; border-radius: 4px;">
+                        <option value="colormap">Individual Colormap</option>
+                        <option value="hue">Hue</option>
+                        <option value="chroma">Chroma Pattern</option>
+                        <option value="luma">Luminance Pattern</option>
+                    </select>
+                </div>
+
                 <div style="border-left: 1px solid #ccc; height: 20px; margin-right: 15px;"></div>
+
                 <label style="display: flex; align-items: center; gap: 5px; margin-right: 15px; cursor: pointer;">
                     <input type="checkbox" id="filter-ssim-diff" onchange="toggleSSIMFilter(this.checked)">
                     <span style="font-size: 0.9rem;">Filter SSIM Δ > 0.0005</span>
                 </label>
+
                 <div style="border-left: 1px solid #ccc; height: 20px; margin-right: 15px;"></div>
                 <button class="view-btn active" onclick="switchView('table')">Table</button>
-                <button class="view-btn" onclick="switchView('bar')">Bar Chart</button>
-                <button class="view-btn" onclick="switchView('line')">Line Chart</button>
+                <button class="view-btn" onclick="switchView('bar')">Chart</button>
             </div>
 
             <a href="#" id="download-btn" download>Download CSV</a>
@@ -264,7 +285,9 @@
             </div>
         </div>
         <div id="chart-container">
-            <canvas id="dataChart"></canvas>
+            <div id="chart-canvas-wrapper">
+                <canvas id="dataChart"></canvas>
+            </div>
         </div>
     </div>
 
@@ -281,6 +304,7 @@
         let myChart = null;
         let currentChartType = 'bar';
         let currentMetric = 'accuracy'; // 'accuracy' or 'time'
+        let currentGroup = 'colormap'; // 'colormap', 'hue', 'chroma', 'luma'
         let filterSSIMDiff = false; // Filter out rows with |targetSSIM - actualSSIM| > 0.0005
 
         // Configuration
@@ -290,6 +314,27 @@
         const backendURL = '';
 
         // --- Functions ---
+
+        function toggleMetric() {
+            const sel = document.getElementById('metricSelect');
+            currentMetric = sel.value;
+            if (currentChartType !== 'table') {
+                renderChart(currentData, currentChartType);
+            }
+        }
+
+        function toggleGroup() {
+            const sel = document.getElementById('groupSelect');
+            currentGroup = sel.value;
+            if (currentChartType !== 'table') {
+                renderChart(currentData, currentChartType);
+            }
+        }
+
+        // ...
+
+
+
 
         async function fetchFileList() {
             try {
@@ -578,66 +623,91 @@
         // --- Visualization Logic ---
 
         function renderChart(data, type) {
+            console.log("renderChart called. Group:", currentGroup, "Data length:", data ? data.length : 0);
             if (!data || data.length < 2) return;
 
             const headers = data[0];
             let rows = data.slice(1);
 
-            // Apply SSIM difference filter if enabled
-            if (filterSSIMDiff) {
-                const idxTargetSSIM = headers.indexOf('targetSSIM');
-                const idxActualSSIM = headers.indexOf('actualSSIM');
-
-                if (idxTargetSSIM !== -1 && idxActualSSIM !== -1) {
-                    const originalCount = rows.length;
-                    rows = rows.filter(row => {
-                        const target = parseFloat(row[idxTargetSSIM]);
-                        const actual = parseFloat(row[idxActualSSIM]);
-                        return Math.abs(target - actual) <= 0.0005;
-                    });
-                    console.log(`SSIM Filter: ${originalCount} -> ${rows.length} rows (removed ${originalCount - rows.length})`);
-                }
-            }
-
             // Accessors
             const idxFreq = headers.indexOf('frequencyId');
-            const idxSSIM = headers.indexOf('targetSSIM');
+            const idxColormap = headers.indexOf('colormapId') !== -1 ? headers.indexOf('colormapId') : headers.indexOf('colormap');
+
+            // Descriptive columns for labels
+            const idxHue = headers.indexOf('colormapHue');
+            const idxChroma = headers.indexOf('colormapChromaPattern');
+            const idxLuma = headers.indexOf('colormapLumaPattern');
+
             const idxCorrect = headers.indexOf('isCorrect');
-            // Try to find response time column
             let idxRT = headers.indexOf('reactionTimeMs');
             if (idxRT === -1) idxRT = headers.indexOf('responseTime');
             if (idxRT === -1) idxRT = headers.indexOf('rt');
             if (idxRT === -1) idxRT = headers.indexOf('time');
 
-            if (idxFreq === -1 || idxSSIM === -1 || idxCorrect === -1) {
-                console.warn("Missing necessary columns for visualization");
-                return;
+            // Handle Engagement Checks (Filter them OUT)
+            const idxSSIM = headers.indexOf('targetSSIM');
+
+            if (idxFreq === -1 || idxCorrect === -1 || idxColormap === -1) {
+                console.warn("Missing necessary columns for visualization (need frequencyId, isCorrect, and colormapId/colormap)");
+                if (idxColormap === -1) {
+                    alert("Data does not contain 'colormapId' column. Cannot render Colormap breakdown.");
+                    return;
+                }
             }
 
+            // --- Aggregation ---
+            // Structure: stats[groupKey][frequency] = { correct, total, rtSum }
             const stats = {};
+            const idToLabel = {}; // Map GroupKey to Description
+
             let engagementCorrect = 0;
             let engagementTotal = 0;
 
             rows.forEach(row => {
                 const freq = row[idxFreq];
-                const ssim = row[idxSSIM];
+                const colormap = row[idxColormap];
                 const correct = parseInt(row[idxCorrect]);
                 const rt = idxRT !== -1 ? parseFloat(row[idxRT]) : 0;
+                const ssim = idxSSIM !== -1 ? parseFloat(row[idxSSIM]) : 0;
 
-                // Handle Engagement Checks (SSIM 0.95 or 0.90)
-                const ssimVal = parseFloat(ssim);
-                if (Math.abs(ssimVal - 0.80) < 0.0001 || Math.abs(ssimVal - 0.90) < 0.0001) {
+                // Get Factor Values
+                const h = idxHue !== -1 ? row[idxHue] : '?';
+                const c = idxChroma !== -1 ? row[idxChroma] : '?';
+                const l = idxLuma !== -1 ? row[idxLuma] : '?';
+
+                // Engagement Check Filter
+                if (Math.abs(ssim - 0.80) < 0.001 || Math.abs(ssim - 0.90) < 0.001) {
                     engagementTotal++;
                     if (correct === 1) engagementCorrect++;
-                    return; // Skip from main chart
+                    // Do NOT include engagement checks in the main chart
+                    return;
                 }
 
-                if (!stats[freq]) stats[freq] = {};
-                if (!stats[freq][ssim]) stats[freq][ssim] = { correct: 0, total: 0, rtSum: 0 };
+                // Determine Group Key based on currentGroup
+                let groupKey = colormap;
+                let groupLabel = `H=${h}, C=${c}, L=${l}`;
 
-                stats[freq][ssim].correct += (correct === 1 ? 1 : 0);
-                stats[freq][ssim].rtSum += (!isNaN(rt) ? rt : 0);
-                stats[freq][ssim].total += 1;
+                if (currentGroup === 'hue') {
+                    groupKey = h;
+                    groupLabel = `Hue=${h}`;
+                } else if (currentGroup === 'chroma') {
+                    groupKey = c;
+                    groupLabel = `Chroma=${c}`;
+                } else if (currentGroup === 'luma') {
+                    groupKey = l;
+                    groupLabel = `Luma=${l}`;
+                }
+
+                // Initialize Stats Entry
+                if (!stats[groupKey]) {
+                    stats[groupKey] = {};
+                    idToLabel[groupKey] = groupLabel;
+                }
+                if (!stats[groupKey][freq]) stats[groupKey][freq] = { correct: 0, total: 0, rtSum: 0 };
+
+                stats[groupKey][freq].correct += (correct === 1 ? 1 : 0);
+                stats[groupKey][freq].rtSum += (!isNaN(rt) ? rt : 0);
+                stats[groupKey][freq].total += 1;
             });
 
             // Update Engagement Stats UI
@@ -645,93 +715,87 @@
             if (engagementTotal > 0) {
                 const engAcc = (engagementCorrect / engagementTotal * 100).toFixed(1);
                 engStatsEl.textContent = `Engagement Check: ${engAcc}% (${engagementCorrect}/${engagementTotal})`;
-                engStatsEl.style.color = (engAcc >= 80) ? '#2b8a3e' : '#e03131'; // Green or Red
+                engStatsEl.style.color = (engAcc >= 80) ? '#2b8a3e' : '#e03131';
             } else {
                 engStatsEl.textContent = '';
             }
 
-            // Prepare Chart Data
-            // We want labels to be SSIM levels (numerically sorted)
-            let allSSIMs = new Set();
-            Object.values(stats).forEach(freqGroup => {
-                Object.keys(freqGroup).forEach(s => allSSIMs.add(s));
+            // --- Chart Data Preparation ---
+            // Sort Keys
+            let sortedKeys = Object.keys(stats);
+            console.log("Generated stats keys:", sortedKeys);
+
+            sortedKeys.sort((a, b) => {
+                if (currentGroup === 'hue') {
+                    // Numerical sort for Hue
+                    const numA = parseFloat(a);
+                    const numB = parseFloat(b);
+                    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                }
+                // Default lexical sort
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
 
-            // Sort numerically descending (High SSIM -> Low SSIM) i.e., Easy -> Hard
-            // Or usually plots go Low -> High (Hard -> Easy).
-            // Previous code was string sort reverse: "1.0", "0.9".
-            // Let's do standard numeric sort descending to keep "1.0" at left if that's what it was,
-            // or maybe user wants X-axis to be 0 -> 1.
-            // "Target SSIM": 1.0 is reference, lower is more perturbed.
-            // Usually X-axis is "Amount of Perturbation" or "SSIM".
-            // If SSIM: 1.0 is max. 
-            // Let's sort numerically ascending (0 -> 1). That is standard for axes.
-            // Wait, previous code `sort().reverse()` on strings like "0.9", "0.75".
-            // "0.9" vs "0.75"? "0.9" > "0.75". Reverse -> "0.9", "0.75" ...
-            // Let's stick to Descending SSIM (1.0 -> 0.0) so it goes from "Reference" to "Distorted".
-            // Or Ascending?
-            // User likely wants consistent X-axis. 
-            // Let's do Descending Numeric: 1.0, 0.95, ... 0.5.
-            const labels = Array.from(allSSIMs).sort((a, b) => parseFloat(b) - parseFloat(a));
+            // Set Canvas Container Width for Scrolling
+            // Assume ~80px per item
+            const itemWidth = 80;
+            const requiredWidth = Math.max(100, sortedKeys.length * itemWidth);
+            const wrapper = document.getElementById('chart-canvas-wrapper');
+            if (wrapper) {
+                wrapper.style.width = `${requiredWidth}px`;
+                wrapper.style.height = '100%';
+            }
 
-            const datasets = [];
+            // Generate descriptive labels
+            const labels = sortedKeys.map(key => idToLabel[key] || key);
+
+            const frequencies = ['low', 'medium', 'high'];
             const colors = {
                 'low': 'rgba(255, 127, 0)',   // Orange
                 'medium': 'rgba(77, 175, 74)', // Green
                 'high': 'rgba(55, 126, 184)'   // Blue
             };
 
-            for (const freq of ['high', 'medium', 'low']) { // Order: Small, Medium, Large
-                if (!stats[freq]) continue;
-
-                const dataPoints = labels.map(ssim => {
-                    const item = stats[freq][ssim];
-                    if (!item) return 0;
+            const datasets = frequencies.map(freq => {
+                const dataPoints = sortedKeys.map(key => {
+                    const item = stats[key][freq];
+                    if (!item || item.total === 0) return 0;
 
                     if (currentMetric === 'accuracy') {
-                        return (item.correct / item.total); // Rate 0-1
+                        return (item.correct / item.total);
                     } else {
-                        // Time
-                        return item.total > 0 ? (item.rtSum / item.total) : 0;
+                        return (item.rtSum / item.total);
                     }
                 });
 
                 const baseColor = colors[freq] || 'rgba(200, 200, 200)';
 
-                const dataset = {
+                return {
                     label: freq.toUpperCase() + ' Freq',
                     data: dataPoints,
+                    backgroundColor: baseColor.replace(')', ', 0.7)'),
                     borderColor: baseColor,
-                    borderWidth: 2
+                    borderWidth: 1,
+                    // Line chart specific
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 4
                 };
-
-                if (type === 'line') {
-                    dataset.backgroundColor = baseColor.replace(')', ', 0.1)'); // Transparent fill
-                    dataset.fill = false; // No fill for clean lines
-                    dataset.tension = 0.1; // Smooth lines
-                    dataset.pointRadius = 4;
-                } else {
-                    // Bar settings
-                    dataset.backgroundColor = baseColor.replace(')', ', 0.7)'); // 0.7 opacity
-                    dataset.borderWidth = 1;
-                }
-
-                datasets.push(dataset);
-            }
+            });
 
             // Add 62.5% Threshold Line (Only for Accuracy)
             if (currentMetric === 'accuracy') {
                 const thresholdValue = 0.625;
                 datasets.push({
-                    type: 'line', // Mixed charts: line on top of bars
+                    type: 'line',
                     label: '62.5% Threshold',
-                    data: Array(labels.length).fill(thresholdValue),
+                    data: Array(sortedKeys.length).fill(thresholdValue),
                     borderColor: 'rgba(0, 0, 0, 0.6)',
-                    borderWidth: 2, // Thicker line
-                    borderDash: [8, 8], // Longer dashes
+                    borderWidth: 2,
+                    borderDash: [8, 8],
                     pointRadius: 0,
                     fill: false,
-                    order: 0 // Render on top
+                    order: 0
                 });
             }
 
@@ -742,8 +806,14 @@
                 myChart.destroy();
             }
 
+            // Dynamically set X-Axis Title
+            let xAxisTitle = 'Colormap Parameters';
+            if (currentGroup === 'hue') xAxisTitle = 'Hue (Degrees)';
+            else if (currentGroup === 'chroma') xAxisTitle = 'Chroma Type';
+            else if (currentGroup === 'luma') xAxisTitle = 'Luminance Type';
+
             myChart = new Chart(ctx, {
-                type: type,
+                type: type === 'line' ? 'line' : 'bar', // Helper to keep it valid
                 data: {
                     labels: labels,
                     datasets: datasets
@@ -763,14 +833,19 @@
                         x: {
                             title: {
                                 display: true,
-                                text: 'Target SSIM'
+                                text: xAxisTitle
+                            },
+                            ticks: {
+                                maxRotation: 90,
+                                minRotation: 45
                             }
                         }
                     },
                     plugins: {
                         title: {
                             display: true,
-                            text: currentMetric === 'accuracy' ? 'Accuracy by Frequency & SSIM' : 'Response Time by Frequency & SSIM'
+                            text: currentMetric === 'accuracy' ? 'Accuracy by ' + currentGroup.charAt(0).toUpperCase() + currentGroup.slice(1) + ' & Frequency'
+                                : 'Response Time by ' + currentGroup.charAt(0).toUpperCase() + currentGroup.slice(1) + ' & Frequency'
                         },
                         tooltip: {
                             callbacks: {

@@ -21,10 +21,12 @@ self.onmessage = async function (e) {
     if (type === 'OPTIMIZE_SSIM') {
         try {
             const result = await optimizeSSIM(data);
-            self.postMessage({ type: 'SUCCESS', result });
+            // Echo back the request ID
+            self.postMessage({ type: 'SUCCESS', id: data.id, result });
         } catch (error) {
             self.postMessage({
                 type: 'ERROR',
+                id: data.id,
                 error: error.message || 'Unknown error'
             });
         }
@@ -61,6 +63,29 @@ async function optimizeSSIM(config) {
     // Render original data
     const dataOriginal = generator.renderTo1DArray(width, height, false, true);
 
+    // Precompute Soft Attribution Masks (Avoid recomputing in loop)
+    let saCache = null;
+    if (!isEngagementCheck) {
+        // Render 1 time only
+        const originalTotal = generator.renderTo1DArray(width, height, true, false);
+        const originalBands = {
+            low: softAttribution.renderBandField('large', width, height, true),
+            mid: softAttribution.renderBandField('medium', width, height, true),
+            high: softAttribution.renderBandField('small', width, height, true)
+        };
+
+        // Compute fields 1 time only
+        const energyFields = softAttribution.computeGradientEnergyFields(width, height);
+        const attributionWeights = softAttribution.computeAttributionWeights(energyFields, width, height);
+        const gatingMasks = softAttribution.generateGatingMasks(attributionWeights, width, height);
+
+        saCache = {
+            originalTotal,
+            originalBands,
+            gatingMasks
+        };
+    }
+
     let bestOverallDiff = Infinity;
     let bestOverallResult = null;
     let bestOverallMagnitude = 0;
@@ -88,14 +113,24 @@ async function optimizeSSIM(config) {
                 // Engagement checks: Direct rendering (no soft attribution)
                 tempPerturbed = generator.renderTo1DArray(width, height, false, true);
             } else {
-                // Main trials: Use soft attribution with gating
-                // This applies frequency-selective perturbation
-                softAttribution.applySoftAttributionPerturbation(
-                    freqTarget,
-                    mid,
-                    coefficients
+                // Main trials: Use soft attribution with gating using PRECOMPUTED MASKS
+
+                // Only render the CURRENT perturbed state (fast)
+                const perturbedBands = {
+                    low: softAttribution.renderBandField('large', width, height, false),
+                    mid: softAttribution.renderBandField('medium', width, height, false),
+                    high: softAttribution.renderBandField('small', width, height, false)
+                };
+
+                // Apply gating using cached masks
+                tempPerturbed = softAttribution.applyGatedPerturbation(
+                    saCache.originalTotal,
+                    saCache.originalBands,
+                    perturbedBands,
+                    saCache.gatingMasks,
+                    width,
+                    height
                 );
-                tempPerturbed = generator.renderTo1DArray(width, height, false, true);
             }
 
             const currentSSIM = calculateSSIM(dataOriginal, tempPerturbed, width, height);

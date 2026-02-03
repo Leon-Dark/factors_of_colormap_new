@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-generated Image Viewer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .gallery-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .control-group {
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ddd;
+            margin: 15px auto;
+            border-radius: 4px;
+            max-width: 800px;
+            text-align: left;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-item label {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .control-item input,
+        .control-item select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: normal;
+        }
+
+        .btn-load {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 15px;
+        }
+
+        .btn-load:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-load:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading-text {
+            margin-top: 10px;
+            color: #666;
+            font-style: italic;
+            display: none;
+        }
+
+        .section-frequency {
+            margin-bottom: 40px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 15px 20px;
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .header-low {
+            background-color: #ff7f00;
+        }
+
+        .header-medium {
+            background-color: #4daf4a;
+        }
+
+        .header-high {
+            background-color: #377eb8;
+        }
+
+        .stimuli-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .stimuli-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .stimuli-card h4 {
+            margin: 5px 0 10px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .image-pair {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        .image-pair img {
+            border: 1px solid #eee;
+            background: #fff;
+            width: 200px;
+            height: 200px;
+        }
+
+        .labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #999;
+            padding: 0 5px;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="gallery-container">
+        <h1>Pre-generated Stimuli Image Viewer</h1>
+
+        <div class="controls">
+            <p style="margin-bottom: 15px; color: #666;">
+                Load and display pre-generated stimuli images from the batch generator output.
+            </p>
+
+            <div class="control-group">
+                <div class="control-row">
+                    <div class="control-item">
+                        <label>SSIM Start:</label>
+                        <input type="number" id="ssim-start" value="0.99" step="0.002" min="0.9" max="1.0"
+                            style="width: 100px;">
+                    </div>
+                    <div class="control-item">
+                        <label>SSIM End:</label>
+                        <input type="number" id="ssim-end" value="0.95" step="0.002" min="0.9" max="1.0"
+                            style="width: 100px;">
+                    </div>
+                    <div class="control-item">
+                        <label>SSIM Step:</label>
+                        <input type="number" id="ssim-step" value="0.002" step="0.001" min="0.001" max="0.1"
+                            style="width: 100px;">
+                    </div>
+                    <div class="control-item">
+                        <label>Repetitions:</label>
+                        <input type="number" id="repetitions" value="3" min="1" max="20" style="width: 80px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-weight: bold; display: block; margin-bottom: 8px;">Frequencies:</label>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="freq-low" checked>
+                            Low Complexity
+                        </label>
+                        <label>
+                            <input type="checkbox" id="freq-medium" checked>
+                            Medium Complexity
+                        </label>
+                        <label>
+                            <input type="checkbox" id="freq-high" checked>
+                            High Complexity
+                        </label>
+                    </div>
+                </div>
+
+                <div class="info-text">
+                    <strong>Note:</strong> Images will be randomly selected from available repetitions (rep1-rep40)
+                    for each SSIM-Frequency combination. The "Repetitions" value controls how many different samples
+                    to show for each combination.
+                </div>
+            </div>
+
+            <button id="btn-load" class="btn-load">Load Images</button>
+            <div id="loading" class="loading-text">Loading images... Please wait</div>
+        </div>
+
+        <div id="gallery-content">
+            <!-- Dynamically generated content will be placed here -->
+        </div>
+    </div>
+
+    <script src="static/image_viewer.js"></script>
+</body>
+
+</html>

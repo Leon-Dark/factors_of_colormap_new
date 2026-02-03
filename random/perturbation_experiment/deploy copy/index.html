@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gaussian Perturbation Experiment (4AFC)</title>
+    <link rel="stylesheet" href="static/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Intro Screen -->
+        <div id="intro-screen" class="screen active">
+            <h1>Gaussian Perturbation Perception Experiment</h1>
+
+            <div class="instructions">
+                <h2>Instructions</h2>
+                <p>Welcome to this perception experiment.</p>
+                <p><strong>Task:</strong> In each trial, you will see 4 images displayed in a grid.</p>
+                <ul>
+                    <li><strong>3 images</strong> are identical "Original" patterns.</li>
+                    <li><strong>1 image</strong> is slightly "Perturbed" (different).</li>
+                </ul>
+                <p>Your goal is to identify and click on the <strong>Odd One Out</strong> (the perturbed image) as
+                    quickly and accurately as possible.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="participant-id">Participant ID:</label>
+                <input type="text" id="participant-id" placeholder="Enter ID (e.g., P001)">
+            </div>
+
+            <button id="btn-start" class="btn-primary">Start Experiment</button>
+        </div>
+
+        <!-- Experiment Screen -->
+        <div id="experiment-screen" class="screen">
+            <div class="top-bar">
+                <div class="trial-info">Trial: <span id="trial-current">0</span> / <span id="trial-total">0</span></div>
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+            </div>
+
+            <div id="stimuli-container" class="stimuli-grid">
+                <div class="stimulus-item" data-index="0"><canvas width="200" height="200"></canvas></div>
+                <div class="stimulus-item" data-index="1"><canvas width="200" height="200"></canvas></div>
+                <div class="stimulus-item" data-index="2"><canvas width="200" height="200"></canvas></div>
+                <div class="stimulus-item" data-index="3"><canvas width="200" height="200"></canvas></div>
+            </div>
+
+
+
+            <div id="wait-message" class="wait-message" style="display:none;">Loading next trial...</div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="screen">
+            <h1 id="end-title">Experiment Complete</h1>
+            <p id="end-message">Thank you for your participation!</p>
+
+            <!-- Success State: Show completion code -->
+            <div id="success-container" style="display: none;">
+                <div class="completion-code-container"
+                    style="margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px;">
+                    <p>Your completion code is:</p>
+                    <h2 id="completion-code" style="font-family: monospace; letter-spacing: 2px; color: #333;">Generating...
+                    </h2>
+                </div>
+                <div id="upload-status"></div>
+            </div>
+
+            <!-- Failure State: Request retry -->
+            <div id="failure-container" style="display: none;">
+                <div style="margin: 20px 0; padding: 20px; background: #ffe6e6; border-radius: 8px; border: 2px solid #ff4444;">
+                    <h3 style="color: #cc0000; margin-top: 0;">⚠️ Attention Check Failed</h3>
+                    <p style="color: #333; line-height: 1.6;">
+                        We detected that you may not have been fully engaged during the experiment. 
+                        Some catch trials were answered incorrectly.
+                    </p>
+                    <p style="color: #333; line-height: 1.6;">
+                        <strong>Please restart the experiment and pay close attention to all trials.</strong>
+                    </p>
+                    <p id="engagement-details" style="color: #666; font-size: 14px; margin-top: 10px;"></p>
+                </div>
+                <button id="btn-restart" class="btn-primary" style="background-color: #ff9800; margin-top: 20px;">
+                    Restart Experiment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Dependencies (From sibling directory) -->
+    <!-- Note: Paths are relative to index.html location in random/perturbation_experiment/ -->
+    <script src="static/d3.min.js"></script>
+    <script src="static/scalar.js"></script>
+    <script src="static/gaussmix.js"></script>
+    <script src="static/gaussmix_bivariate.js"></script>
+    <script src="static/gauss_w_noise.js"></script>
+    <script src="static/scalar_sample.js"></script>
+
+    <!-- Project Logic Modules -->
+    <script src="static/utils.js"></script>
+    <script src="static/gaussianGenerator.js"></script>
+    <script src="static/perturbation.js"></script>
+    <script src="static/softAttributionPerturbation.js"></script>
+
+    <!-- Experiment Logic -->
+    <script src="static/experiment.js"></script>
+</body>
+
+</html>

@@ -91,7 +91,7 @@ class GaussianGenerator {
         for (const [level, config] of Object.entries(this.sizeLevels)) {
             this.generateLevel(level, config.sigma, config.count, config.color);
         }
-        console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
+        // console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
 
         return this.gaussians;
     }
@@ -197,7 +197,7 @@ class GaussianGenerator {
             }
         }
 
-        console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Distance Constraint`);
+        //  console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Distance Constraint`);
 
         return levelGaussians;
     }

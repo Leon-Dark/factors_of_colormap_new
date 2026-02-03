@@ -1,0 +1,15 @@
+{
+    "name": "colormap-batch-generator",
+    "version": "1.0.0",
+    "description": "Batch generation system for high-quality colormaps",
+    "main": "batch_generate.js",
+    "scripts": {
+        "generate": "node batch_generate.js",
+        "test": "node batch_generate.js --count 5 --output test_output --verbose"
+    },
+    "dependencies": {
+        "d3": "^7.8.5"
+    },
+    "author": "",
+    "license": "MIT"
+}

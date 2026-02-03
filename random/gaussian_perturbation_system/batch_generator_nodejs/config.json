@@ -1,0 +1,72 @@
+{
+  "outputDir": "./output",
+  "width": 200,
+  "height": 200,
+  "generationMode": "ssim",
+  "repetitions": 60,
+  "frequencies": [
+    "low",
+    "medium",
+    "high"
+  ],
+  "ssim": {
+    "start": 0.99,
+    "end": 0.95,
+    "step": 0.002
+  },
+  "kl": {
+    "start": 0.01,
+    "end": 0.10,
+    "step": 0.02
+  },
+  "magnitudes": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "mixingParameters": {
+    "weightHigh": 1.0,
+    "weightMid": 1.5,
+    "weightLow": 3.0,
+    "exponent": 1.0
+  },
+  "perturbationCoefficients": {
+    "position": 1.0,
+    "stretch": 0.0,
+    "rotation": 1.0,
+    "amplitude": 0.0
+  },
+  "sizeLevels": {
+    "small": {
+      "sigma": 15,
+      "count": 2
+    },
+    "medium": {
+      "sigma": 25,
+      "count": 3
+    },
+    "large": {
+      "sigma": 50,
+      "count": 4
+    }
+  },
+  "softAttributionParams": {
+    "sigma_E_ratio": 0.4,
+    "sigma_m_ratio": 0.6,
+    "sigma_Delta_ratio": 0,
+    "tau_low": 0.3,
+    "tau_high": 0.7
+  },
+  "exportOptions": {
+    "saveImages": true,
+    "saveJSON": true,
+    "imageFormat": "png"
+  }
+}
