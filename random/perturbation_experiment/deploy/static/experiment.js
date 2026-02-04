@@ -264,7 +264,7 @@ class ExperimentController {
             this.display.waitMessage.style.display = 'none';
         }
 
-        this.generateTrials();
+        await this.generateTrials();
         this.shuffleArray(this.trials);
         this.insertEngagementChecks();
 
@@ -318,23 +318,43 @@ class ExperimentController {
 
 
 
-    generateTrials() {
+    async generateTrials() {
         this.trials = [];
         let id = 1;
 
-        // 1. Get Participant Group (0, 1, or 2)
-        // Extract numeric part from ID (e.g., "P005" -> 5)
-        const pidNum = parseInt(this.participantId.replace(/\D/g, '')) || 0;
-        // Group 0: 1, 4, 7...
-        // Group 1: 2, 5, 8...
-        // Group 2: 3, 6, 9...
-        const group = (pidNum > 0 ? pidNum - 1 : 0) % 3;
+        // 1. Get Participant Group (Smart Assignment from Server)
+        this.display.waitMessage.style.display = 'block';
+        this.display.waitMessage.textContent = 'Assigning participant group...';
 
-        console.log(`Participant ${this.participantId} (Num: ${pidNum}) assigned to Group ${group}`);
+        let group;
+        try {
+            // Request assignment from server
+            const response = await fetch('/api/assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ participantId: this.participantId })
+            });
+
+            if (!response.ok) throw new Error('Assignment server error');
+            const data = await response.json();
+            group = data.group;
+            console.log(`Server assigned Participant ${this.participantId} to Group ${group}`);
+
+        } catch (error) {
+            console.warn('Server assignment failed, falling back to local hash:', error);
+            // Fallback to local hash if server fails
+            let hash = 0;
+            const pidStr = this.participantId;
+            for (let i = 0; i < pidStr.length; i++) {
+                hash = (hash << 5) - hash + pidStr.charCodeAt(i);
+                hash |= 0;
+            }
+            group = Math.abs(hash) % 3;
+            console.log(`Fallback: Participant ${this.participantId} assigned to Group ${group}`);
+        }
 
         // 2. Deterministically Shuffle Colormaps (Global Shuffle)
         // Use a FIXED seed so everyone gets the same "Chunks" of colormaps
-        // If we used participantID here, everyone would have different chunks, breaking the Latin Square guarantee
         const globalRng = new SeededRandom("GLOBAL_EXPERIMENT_SEED_V1");
 
         // Clone and Shuffle
@@ -350,11 +370,6 @@ class ExperimentController {
         ];
 
         // 4. Assign Chunks to Frequencies (Latin Square)
-        // Pattern:
-        // Group 0: Low(A), Mid(B), High(C)
-        // Group 1: Low(B), Mid(C), High(A)
-        // Group 2: Low(C), Mid(A), High(B)
-
         const assignments = {
             'low': chunks[(group + 0) % 3],
             'medium': chunks[(group + 1) % 3],
