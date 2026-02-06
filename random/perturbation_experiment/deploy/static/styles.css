@@ -88,6 +88,30 @@ input[type="text"] {
     transition: width 0.3s ease;
 }
 
+/* Layout for Grid + Legend */
+.experiment-layout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+}
+
+.legend-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    height: 440px;
+    /* Match approximate height of grid (200+200+gap) */
+}
+
+.legend-label {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #555;
+    margin: 5px 0;
+}
+
 .stimuli-grid {
     display: grid;
     grid-template-columns: repeat(2, auto);
@@ -95,7 +119,7 @@ input[type="text"] {
     gap: 20px;
     justify-items: center;
     justify-content: center;
-    margin-bottom: 1rem;
+    /* margin-bottom removed as it is handled by flex alignment */
 }
 
 .stimulus-item {

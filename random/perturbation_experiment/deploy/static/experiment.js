@@ -100,7 +100,7 @@ class ExperimentController {
             // Colormap configuration (will be populated with 48 colormaps)
             useGrayscale: false, // Set to true to use grayscale for testing
             colormaps: [],
-            engagementCheckInterval: 16, // Insert engagement check every 24 trials
+            engagementCheckInterval: 12, // Insert engagement check every 12 trials
             // Gaussian Generation Params
             sizeLevels: {
                 'small': { sigma: 15, count: 2, color: '#377eb8' },
@@ -159,7 +159,8 @@ class ExperimentController {
             stimuliContainer: document.getElementById('stimuli-container'),
             waitMessage: document.getElementById('wait-message'),
             canvases: Array.from(document.querySelectorAll('.stimulus-item canvas')),
-            items: Array.from(document.querySelectorAll('.stimulus-item'))
+            items: Array.from(document.querySelectorAll('.stimulus-item')),
+            legendCanvas: document.getElementById('legend-canvas')
         };
 
         this.buttons = {
@@ -439,7 +440,14 @@ class ExperimentController {
             console.log(`Using Engagement Colormap: ID=${engagementColormap.id}, Hue=${engagementColormap.hue}, Patterns=${engagementColormap.chromaPattern}/${engagementColormap.lumiPattern}`);
         }
 
-        for (let pos = interval; pos <= this.trials.length; pos += interval + 1) {
+        for (let i = 1; i * interval <= this.trials.length; i++) {
+            // Calculate position: (i * interval) data trials + (i-1) previous checks
+            // We want to insert AFTER the (i * interval)-th data trial
+            // Since array is 0-indexed, the (N)th item is at index N-1.
+            // We want to insert at index: N + (i-1)
+
+            const insertPos = (i * interval) + insertCount;
+
             const checkTrial = {
                 id: 9000 + insertCount,
                 frequencyId: 'medium',
@@ -453,8 +461,12 @@ class ExperimentController {
                 isEngagementCheck: true,
                 repetition: 0
             };
-            this.trials.splice(pos + insertCount, 0, checkTrial);
-            insertCount++;
+
+            // Should be safe to splice if within bounds
+            if (insertPos <= this.trials.length) {
+                this.trials.splice(insertPos, 0, checkTrial);
+                insertCount++;
+            }
         }
 
         // Re-index
@@ -693,6 +705,48 @@ class ExperimentController {
             const data = (i === this.currentTargetPos) ? trialData.perturbedData : trialData.originalData;
             this.renderDataToCanvas(ctx, data, this.config.width, this.config.height);
         }
+
+        // Render Legend
+        this.renderLegend(this.generator.currentColormap);
+    }
+
+    /**
+     * Renders a vertical colormap legend
+     */
+    renderLegend(colormap) {
+        if (!this.display.legendCanvas) return;
+        const canvas = this.display.legendCanvas;
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw gradients
+        // We draw line by line from top (1.0) to bottom (0.0)
+        const imgData = ctx.createImageData(width, height);
+
+        for (let y = 0; y < height; y++) {
+            // Normalized value: Top=1.0, Bottom=0.0
+            const val = 1.0 - (y / (height - 1));
+
+            let r, g, b;
+            if (colormap) {
+                [r, g, b] = applyCustomColormap(val, colormap);
+            } else {
+                [r, g, b] = getViridisColor(val);
+            }
+
+            for (let x = 0; x < width; x++) {
+                const pixelIndex = (y * width + x) * 4;
+                imgData.data[pixelIndex] = r;
+                imgData.data[pixelIndex + 1] = g;
+                imgData.data[pixelIndex + 2] = b;
+                imgData.data[pixelIndex + 3] = 255;
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
     }
 
     /**
