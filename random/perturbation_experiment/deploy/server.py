@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS # Need to install: pip install flask-cors
 import os
 import time
+import json
+import random
 
 app = Flask(__name__, static_folder='static')
 CORS(app) # Enable CORS for all routes
@@ -44,7 +46,7 @@ def save_data():
 
     # START_UPDATE: Mark assignment as completed in assignments.json
     try:
-        import json # Ensure json is imported if not at top, but it is standard
+
         # Ideally import should be at top, assuming it is.
         # We re-load logic here or reuse functions if possible. 
         # Since functions are defined below in the file, we might need to move them UP or just replicate logic simply here
@@ -160,7 +162,7 @@ def assign_group():
     min_load = min(counts.values())
     candidates = [g for g, c in counts.items() if c == min_load]
     
-    import random
+
     assigned_group = random.choice(candidates)
     
     # Record assignment

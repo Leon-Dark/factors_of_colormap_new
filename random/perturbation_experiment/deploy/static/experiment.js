@@ -256,7 +256,20 @@ class ExperimentController {
                     console.log(`Successfully loaded ${this.config.colormaps.length} colormaps`);
                 } catch (error) {
                     console.error('Failed to load colormaps:', error);
-                    alert('Failed to load colormaps. Please refresh the page.');
+
+                    let msg = 'Failed to load colormaps.\n\n';
+                    if (window.location.protocol === 'file:') {
+                        msg += '⚠️ You seem to be running this file directly (file:// protocol).\n';
+                        msg += 'Browsers block loading external JSON data in this mode due to security (CORS).\n\n';
+                        msg += 'SOLUTION: Please run a local server.\n';
+                        msg += '  Example: python -m http.server 8000\n';
+                        msg += '  Then open: http://localhost:8000/random/perturbation_experiment/deploy/index.html';
+                    } else {
+                        msg += 'Error details: ' + error.message + '\n';
+                        msg += 'Please check your network connection or local server configuration.';
+                    }
+
+                    alert(msg);
                     return;
                 }
             }

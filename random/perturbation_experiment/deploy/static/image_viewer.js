@@ -1,235 +1,385 @@
+
 /**
- * Image Viewer Logic
- * Optimized to use calculated paths instead of directory scanning
+ * Real-time Colormap Viewer
+ * Generates Gaussian fields and applies colormaps from JSON
+ * NOW UPDATED to match experiment.js logic (Soft Attribution + SSIM Optimization)
  */
 
-class ImageViewer {
+class RealtimeViewer {
     constructor() {
-        // --- Configuration (Must calculate everything to match Batch Generator) ---
-        // Defaults matching batch_generate.js and experiment.js
-        this.config = {
-            ssimStart: 0.99,
-            ssimEnd: 0.95,
-            ssimStep: 0.002,
-
-            frequencies: [
-                { id: 'low', name: 'Low Complexity', offset: 0 },
-                { id: 'medium', name: 'Medium Complexity', offset: 21 }, // Determined dynamically typically, but hardcoded here based on known structure
-                { id: 'high', name: 'High Complexity', offset: 42 }
-            ],
-
-            // Image Naming Rules
-            imageNaming: {
-                totalReps: 27,
-                ssimPerFreq: 21, // (0.99-0.95)/0.002 + 1 = 21
-                filesPerRep: 63, // 21 * 3
-                basePath: '/perturbation_images/images/'
-            }
-        };
-
-        // --- DOM Elements ---
-        this.inputs = {
-            ssimStart: document.getElementById('ssim-start'),
-            ssimEnd: document.getElementById('ssim-end'),
-            ssimStep: document.getElementById('ssim-step'),
-            repetitions: document.getElementById('repetitions'),
-            freqLow: document.getElementById('freq-low'),
-            freqMedium: document.getElementById('freq-medium'),
-            freqHigh: document.getElementById('freq-high')
-        };
-
+        this.width = 200;
+        this.height = 200;
         this.container = document.getElementById('gallery-content');
-        this.btnLoad = document.getElementById('btn-load');
-        this.loadingText = document.getElementById('loading');
+        this.loading = document.getElementById('loading');
 
-        // Initialize Lookup Maps
-        this.recalculateLookups();
+        // Generator and Systems
+        this.generator = new GaussianGenerator(this.width, this.height);
+        this.perturbation = new PerturbationSystem(this.generator);
+        this.softAttribution = new SoftAttributionPerturbation(this.generator);
 
-        // Bind Events
-        this.bindEvents();
-    }
-
-    bindEvents() {
-        this.btnLoad.addEventListener('click', () => {
-            this.loadImages();
-        });
-    }
-
-    recalculateLookups() {
-        // 1. Generate FULL list of SSIM targets that exist on server (The Source of Truth)
-        // This MUST match what was generated.
-        // We know from config.json it is 0.99 -> 0.95 step 0.002
-        this.serverSSIMTargets = [];
-        for (let v = 0.99; v >= 0.95 - 1e-6; v -= 0.002) {
-            this.serverSSIMTargets.push(parseFloat(v.toFixed(5)));
-        }
-
-        // 2. SSIM Lookup Map (Value -> Index)
-        this.ssimLookup = new Map();
-        this.serverSSIMTargets.forEach((val, index) => {
-            this.ssimLookup.set(val.toFixed(5), index);
-        });
-
-        // 3. Frequency Offsets
-        const ssimPerFreq = this.serverSSIMTargets.length;
-        this.config.imageNaming.ssimPerFreq = ssimPerFreq;
-        this.config.imageNaming.filesPerRep = ssimPerFreq * 3;
-
-        this.frequencyOffsets = {
-            'low': 0,
-            'medium': ssimPerFreq,
-            'high': ssimPerFreq * 2
+        // SSIM Targets from experiment.js
+        this.targets = {
+            'low': { id: 'low', target: 'large', ssim: 0.954 },
+            'mid': { id: 'mid', target: 'medium', ssim: 0.982 },
+            'high': { id: 'high', target: 'small', ssim: 0.956 }
         };
+
+        // Store the final perturbed fields (Float32Array) for each band
+        this.finalFields = {
+            'low': null,
+            'mid': null,
+            'high': null
+        };
+
+        this.init();
     }
 
-    /**
-     * Main Load Function
-     */
-    loadImages() {
-        this.toggleLoading(true);
-        this.container.innerHTML = '';
+    async init() {
+        try {
+            this.checkDependencies();
+            console.log('Dependencies loaded.');
 
-        // Allow UI to update before heavy processing
-        setTimeout(() => {
-            try {
-                this.renderGallery();
-            } catch (e) {
-                console.error(e);
-                alert('Error loading images: ' + e.message);
-            } finally {
-                this.toggleLoading(false);
-            }
-        }, 50);
-    }
+            // 1. Generate Master Fields (Base + 3 Optimized Perturbations)
+            await this.generateMasterPerturbations();
 
-    renderGallery() {
-        // 1. Get User Filter Preferences
-        const userStart = parseFloat(this.inputs.ssimStart.value);
-        const userEnd = parseFloat(this.inputs.ssimEnd.value);
-        const userStep = parseFloat(this.inputs.ssimStep.value);
-        const repsToShow = parseInt(this.inputs.repetitions.value);
+            // 2. Load Colormaps and Render
+            await this.loadColormapsAndRender();
 
-        const activeFreqs = [];
-        if (this.inputs.freqLow.checked) activeFreqs.push('low');
-        if (this.inputs.freqMedium.checked) activeFreqs.push('medium');
-        if (this.inputs.freqHigh.checked) activeFreqs.push('high');
-
-        // 2. Generate Requested SSIM List
-        // Note: User might request a weird step (e.g. 0.01) that subsets the available 0.002 steps
-        const requestedSSIMs = [];
-        // Direction handling
-        if (userStart >= userEnd) {
-            for (let v = userStart; v >= userEnd - 1e-6; v -= userStep) {
-                requestedSSIMs.push(parseFloat(v.toFixed(5)));
-            }
-        } else {
-            for (let v = userStart; v <= userEnd + 1e-6; v += userStep) {
-                requestedSSIMs.push(parseFloat(v.toFixed(5)));
-            }
-        }
-
-        // 3. Build HTML
-        activeFreqs.forEach(freqId => {
-            const section = document.createElement('div');
-            section.className = 'section-frequency';
-
-            // Header
-            const header = document.createElement('h3');
-            header.className = `section-header header-${freqId}`;
-            header.textContent = freqId.toUpperCase() + ' Frequency';
-            section.appendChild(header);
-
-            // Grid
-            const grid = document.createElement('div');
-            grid.className = 'stimuli-grid';
-
-            requestedSSIMs.forEach(ssimVal => {
-                // Check if this SSIM exists in our server generation
-                const ssimKey = ssimVal.toFixed(5);
-                if (!this.ssimLookup.has(ssimKey)) {
-                    return; // Skip invalid SSIMs that don't match server step
-                }
-
-                // Show N random repetitions
-                for (let i = 0; i < repsToShow; i++) {
-                    // Pick a random rep from 1 to 27 (total generated)
-                    // Or cyclic? Let's just pick random to show variety
-                    const rep = Math.floor(Math.random() * this.config.imageNaming.totalReps) + 1;
-
-                    const paths = this.calculateImagePath(freqId, ssimVal, rep);
-
-                    if (paths) {
-                        const card = this.createCard(paths, ssimVal, rep);
-                        grid.appendChild(card);
-                    }
-                }
-            });
-
-            section.appendChild(grid);
-            this.container.appendChild(section);
-        });
-
-        if (this.container.children.length === 0) {
-            this.container.innerHTML = '<p style="text-align:center; padding:20px;">No images match your criteria.</p>';
+        } catch (e) {
+            console.error(e);
+            this.loading.textContent = 'Error: ' + e.message;
         }
     }
 
-    createCard(paths, ssim, rep) {
-        const div = document.createElement('div');
-        div.className = 'stimuli-card';
-
-        div.innerHTML = `
-            <h4>SSIM: ${ssim.toFixed(5)} <span style="font-weight:normal; font-size:0.9em">(Rep ${rep})</span></h4>
-            <div class="image-pair">
-                <div>
-                    <img src="${paths.originalPath}" loading="lazy" alt="Original">
-                    <div class="labels">Original</div>
-                </div>
-                <div>
-                    <img src="${paths.perturbedPath}" loading="lazy" alt="Perturbed">
-                    <div class="labels">Perturbed</div>
-                </div>
-            </div>
-            <div class="labels" style="justify-content: center; margin-top:5px;">ID: ${paths.prefix}</div>
-        `;
-        return div;
+    checkDependencies() {
+        if (typeof GaussianGenerator === 'undefined' ||
+            typeof PerturbationSystem === 'undefined' ||
+            typeof SoftAttributionPerturbation === 'undefined') {
+            throw new Error('Required scripts not loaded. Check html.');
+        }
     }
 
     /**
-     * Core optimized path calculation (Ported from experiment.js)
+     * Core Logic:
+     * 1. Generate one random distribution.
+     * 2. For each frequency band, find the perturbation magnitude that hits the SSIM target.
+     * 3. Store the resulting FULL perturbed field.
      */
-    calculateImagePath(frequencyId, targetSSIM, rep) {
-        // 1. Get frequency offset
-        const freqOffset = this.frequencyOffsets[frequencyId];
-        if (freqOffset === undefined) return null;
+    async generateMasterPerturbations() {
+        this.loading.innerText = 'Optimizing perturbation magnitudes...';
+        await new Promise(r => setTimeout(r, 50)); // Render UI
 
-        // 2. Get SSIM index
-        const ssimKey = targetSSIM.toFixed(5);
-        const ssimIndex = this.ssimLookup.get(ssimKey);
-        if (ssimIndex === undefined) return null;
+        // 1. Setup Generator
+        this.generator.updateDimensions(this.width, this.height);
+        this.generator.sizeLevels = {
+            'small': { sigma: 15, count: 2, color: '#377eb8' },
+            'medium': { sigma: 25, count: 3, color: '#4daf4a' },
+            'large': { sigma: 50, count: 4, color: '#ff7f00' }
+        };
 
-        // 3. Calculate global file ID
-        // Formula: (rep-1) * filesPerRep + freqOffset + ssimIndex + 1
-        const repBaseId = (rep - 1) * this.config.imageNaming.filesPerRep;
-        const fileId = repBaseId + freqOffset + ssimIndex + 1;
+        // 2. Generate Random Distribution (The "Base")
+        this.generator.generateAll();
 
-        const idStr = fileId.toString().padStart(4, '0');
-        const prefix = `${idStr}_${frequencyId}_ssim_${ssimKey}_rep${rep}`;
+        // Render Original Field (for SSIM calc)
+        // Note: In experiment logic, we compare Original Total vs Perturbed Total
+        const originalData = this.generator.renderTo1DArray(this.width, this.height, false, true);
+
+        // Precompute Soft Attribution components (Optimization)
+        const saCache = this.precomputeSoftAttributionCache();
+
+        // 3. Optimize for each band
+        for (const bandKey of ['low', 'mid', 'high']) {
+            const config = this.targets[bandKey];
+            console.log(`Optimizing ${bandKey}... Target SSIM: ${config.ssim}`);
+
+            this.loading.innerText = `Optimizing ${bandKey} frequency (Target: ${config.ssim})...`;
+            await new Promise(r => setTimeout(r, 10));
+
+            const result = this.findMagnitudeForSSIM(
+                config.ssim,
+                config.target,
+                originalData,
+                saCache
+            );
+
+            console.log(`  > Done. Magnitude: ${result.magnitude.toFixed(3)}, Actual SSIM: ${result.ssim.toFixed(5)}`);
+
+            // Normalize for display (0-1)
+            this.finalFields[bandKey] = this.normalize(result.data);
+        }
+    }
+
+    precomputeSoftAttributionCache() {
+        // Render 1 time only from current generator state
+        const originalTotal = this.generator.renderTo1DArray(this.width, this.height, true, false);
+        const originalBands = {
+            low: this.softAttribution.renderBandField('large', this.width, this.height, true),
+            mid: this.softAttribution.renderBandField('medium', this.width, this.height, true),
+            high: this.softAttribution.renderBandField('small', this.width, this.height, true)
+        };
+
+        const energyFields = this.softAttribution.computeGradientEnergyFields(this.width, this.height);
+        const attributionWeights = this.softAttribution.computeAttributionWeights(energyFields, this.width, this.height);
+        const gatingMasks = this.softAttribution.generateGatingMasks(attributionWeights, this.width, this.height);
 
         return {
-            prefix: prefix,
-            originalPath: `${this.config.imageNaming.basePath}${prefix}_original.png`,
-            perturbedPath: `${this.config.imageNaming.basePath}${prefix}_perturbed.png`
+            originalTotal,
+            originalBands,
+            gatingMasks
         };
     }
 
-    toggleLoading(show) {
-        this.loadingText.style.display = show ? 'block' : 'none';
-        this.btnLoad.disabled = show;
+    /**
+     * Simplified synchronous version of SSIM optimization from experiment.js
+     * (We don't need a worker here since we only run it once on load)
+     */
+    findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal, saCache) {
+        const coefficients = {
+            position: 1.0,
+            rotation: 1.0,
+            amplitude: 0.0
+        };
+
+        let bestOverallDiff = Infinity;
+        let bestOverallResult = null;
+        let bestOverallMagnitude = 0;
+        let foundGoodResult = false;
+
+        const tolerance = 0.001;
+        const maxRetries = 5;
+        const maxIterPerTry = 20;
+
+        for (let retry = 0; retry < maxRetries && !foundGoodResult; retry++) {
+            this.perturbation.resetToOriginal(); // Reset gaussians
+            this.perturbation.setCoefficients(coefficients);
+
+            // Generate random directions
+            this.perturbation.generatePerturbationDeltas(freqTarget, 1.0, 'all');
+
+            const maxMagnitude = (freqTarget === 'large') ? 12.0 : 8.0;
+            let min = 0.0, max = maxMagnitude;
+            let bestDiff = Infinity;
+
+            for (let i = 0; i < maxIterPerTry; i++) {
+                const mid = (min + max) / 2;
+
+                // Apply perturbation
+                this.perturbation.applyStoredPerturbation(mid);
+
+                // Render with Soft Attribution
+                const perturbedBands = {
+                    low: this.softAttribution.renderBandField('large', this.width, this.height, false),
+                    mid: this.softAttribution.renderBandField('medium', this.width, this.height, false),
+                    high: this.softAttribution.renderBandField('small', this.width, this.height, false)
+                };
+
+                const tempPerturbed = this.softAttribution.applyGatedPerturbation(
+                    saCache.originalTotal,
+                    saCache.originalBands,
+                    perturbedBands,
+                    saCache.gatingMasks,
+                    this.width,
+                    this.height
+                );
+
+                const currentSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.width, this.height);
+                const diff = Math.abs(currentSSIM - targetSSIM);
+
+                if (diff < bestDiff) {
+                    bestDiff = diff;
+                }
+
+                if (diff < bestOverallDiff) {
+                    bestOverallDiff = diff;
+                    bestOverallMagnitude = mid;
+                    bestOverallResult = new Float32Array(tempPerturbed); // Clone
+
+                    if (diff < tolerance) {
+                        foundGoodResult = true;
+                        break;
+                    }
+                }
+
+                // Binary search step
+                if (currentSSIM > targetSSIM) {
+                    min = mid; // Need more perturbation (reduce SSIM)
+                } else {
+                    max = mid; // Need less perturbation
+                }
+            }
+        }
+
+        if (!bestOverallResult) {
+            console.warn("Optimization failed, returning original");
+            return {
+                data: dataOriginal,
+                magnitude: 0,
+                ssim: 1
+            };
+        }
+
+        const finalSSIM = calculateSSIM(dataOriginal, bestOverallResult, this.width, this.height);
+        return {
+            data: bestOverallResult,
+            magnitude: bestOverallMagnitude,
+            ssim: finalSSIM
+        };
+    }
+
+    normalize(data) {
+        let max = -Infinity;
+        let min = Infinity;
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] > max) max = data[i];
+            if (data[i] < min) min = data[i];
+        }
+
+        const range = max - min;
+        const result = new Float32Array(data.length);
+
+        if (range < 1e-9) return result;
+
+        for (let i = 0; i < data.length; i++) {
+            result[i] = (data[i] - min) / range;
+        }
+        return result;
+    }
+
+    async loadColormapsAndRender() {
+        this.loading.innerText = 'Loading colormaps...';
+        const response = await fetch('static/colormaps.json');
+        const colormaps = await response.json();
+
+        // Sort by ID
+        colormaps.sort((a, b) => a.id - b.id);
+
+        this.container.innerHTML = '';
+
+        // Create Grid Container
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(650px, 1fr))';
+        grid.style.gap = '20px';
+        this.container.appendChild(grid);
+
+        let count = 0;
+        this.loading.innerText = 'Rendering...';
+
+        // Process in chunks to avoid blocking UI
+        const processChunk = () => {
+            const chunkSize = 5;
+            const end = Math.min(count + chunkSize, colormaps.length);
+
+            for (let i = count; i < end; i++) {
+                this.createColormapCard(colormaps[i], grid);
+            }
+
+            count = end;
+            if (count < colormaps.length) {
+                requestAnimationFrame(processChunk);
+            } else {
+                this.loading.style.display = 'none';
+            }
+        };
+
+        processChunk();
+    }
+
+    createColormapCard(colormapEntry, parent) {
+        const card = document.createElement('div');
+        card.className = 'stimuli-card';
+        card.style.textAlign = 'left';
+
+        const cardHeader = document.createElement('h4');
+        cardHeader.innerHTML = `ID: ${colormapEntry.id} <span style="font-weight:normal; font-size:0.9em; float:right">Hue: ${colormapEntry.metadata.hueTarget}</span>`;
+        card.appendChild(cardHeader);
+
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '10px';
+        row.style.justifyContent = 'center';
+
+        // Render 3 canvases (Low, Mid, High)
+        ['low', 'mid', 'high'].forEach(band => {
+            const wrapper = document.createElement('div');
+            wrapper.style.textAlign = 'center';
+
+            // NOTE: Using the FULL PERTURBED FIELD for that band's condition
+            const canvas = this.renderCanvas(this.finalFields[band], colormapEntry.colormap);
+
+            wrapper.appendChild(canvas);
+
+            const label = document.createElement('div');
+            label.className = 'labels';
+            label.innerText = `${band.toUpperCase()} (SSIM ~${this.targets[band].ssim})`;
+            label.style.justifyContent = 'center';
+            wrapper.appendChild(label);
+
+            row.appendChild(wrapper);
+        });
+
+        card.appendChild(row);
+
+        // Add palette strip
+        const palette = document.createElement('div');
+        palette.style.height = '10px';
+        palette.style.width = '100%';
+        palette.style.marginTop = '10px';
+        palette.style.background = `linear-gradient(to right, ${this.generateGradientString(colormapEntry.colormap)})`;
+        palette.style.borderRadius = '4px';
+        card.appendChild(palette);
+
+        parent.appendChild(card);
+    }
+
+    renderCanvas(dataField, colormap) {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.width;
+        canvas.height = this.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(this.width, this.height);
+
+        const len = dataField.length;
+        const mapLen = colormap.length;
+
+        for (let i = 0; i < len; i++) {
+            // value is 0-1
+            const val = dataField[i];
+
+            // Map to index
+            let idx = Math.floor(val * (mapLen - 1));
+            // Clamp just in case
+            if (idx < 0) idx = 0;
+            if (idx >= mapLen) idx = mapLen - 1;
+
+            const color = colormap[idx]; // [r, g, b]
+
+            const pxOffset = i * 4;
+            imgData.data[pxOffset] = color[0];
+            imgData.data[pxOffset + 1] = color[1];
+            imgData.data[pxOffset + 2] = color[2];
+            imgData.data[pxOffset + 3] = 255;
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+        return canvas;
+    }
+
+    generateGradientString(colormap) {
+        const steps = 10;
+        let str = '';
+        for (let i = 0; i <= steps; i++) {
+            const pct = i / steps;
+            const idx = Math.floor(pct * (colormap.length - 1));
+            const c = colormap[idx];
+            str += `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])}) ${pct * 100}%`;
+            if (i < steps) str += ', ';
+        }
+        return str;
     }
 }
 
-// Initialize
+// Start
 document.addEventListener('DOMContentLoaded', () => {
-    new ImageViewer();
+    new RealtimeViewer();
 });
