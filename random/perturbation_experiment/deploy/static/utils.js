@@ -430,46 +430,6 @@ function valueToColor(value, colormap = 'viridis') {
 }
 
 /**
- * Apply custom colormap array to a value
- * @param {number} value - Normalized value [0, 1]
- * @param {Array} colormapArray - Array of d3 color objects (256 colors)
- * @returns {Array} [r, g, b, a] color values
- */
-function applyCustomColormap(value, colormapArray) {
-    // Ensure value is in [0, 1]
-    value = clamp(value, 0, 1);
-
-    if (!colormapArray || colormapArray.length === 0) {
-        // Fallback to viridis if no colormap provided
-        return viridisColormap(value);
-    }
-
-    // Map value to colormap index
-    const index = Math.min(Math.floor(value * (colormapArray.length - 1)), colormapArray.length - 1);
-    const color = colormapArray[index];
-
-    // Handle different color formats from d3
-    let r, g, b;
-    if (color.r !== undefined && color.g !== undefined && color.b !== undefined) {
-        // d3.rgb object
-        r = Math.round(color.r);
-        g = Math.round(color.g);
-        b = Math.round(color.b);
-    } else if (typeof color === 'string') {
-        // Convert hex or color name to RGB using d3
-        const d3Color = d3.rgb(color);
-        r = Math.round(d3Color.r);
-        g = Math.round(d3Color.g);
-        b = Math.round(d3Color.b);
-    } else {
-        // Fallback
-        return viridisColormap(value);
-    }
-
-    return [r, g, b, 255];
-}
-
-/**
  * Viridis颜色映射
  */
 function viridisColormap(t) {

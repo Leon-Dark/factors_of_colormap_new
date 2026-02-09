@@ -37,7 +37,7 @@ class RealtimeViewer {
     async init() {
         try {
             this.checkDependencies();
-            console.log('Dependencies loaded.');
+            console.log('Dependencies loaded. RealtimeViewer v2 (Distinct Objects).');
 
             // 1. Generate Master Fields (Base + 3 Optimized Perturbations)
             await this.generateMasterPerturbations();
@@ -61,15 +61,13 @@ class RealtimeViewer {
 
     /**
      * Core Logic:
-     * 1. Generate one random distribution.
-     * 2. For each frequency band, find the perturbation magnitude that hits the SSIM target.
+     * Loop through each frequency band.
+     * For each band:
+     * 1. Generate a NEW random distribution (Distinct Object).
+     * 2. Find the perturbation magnitude that hits the SSIM target.
      * 3. Store the resulting FULL perturbed field.
      */
     async generateMasterPerturbations() {
-        this.loading.innerText = 'Optimizing perturbation magnitudes...';
-        await new Promise(r => setTimeout(r, 50)); // Render UI
-
-        // 1. Setup Generator
         this.generator.updateDimensions(this.width, this.height);
         this.generator.sizeLevels = {
             'small': { sigma: 15, count: 2, color: '#377eb8' },
@@ -77,24 +75,24 @@ class RealtimeViewer {
             'large': { sigma: 50, count: 4, color: '#ff7f00' }
         };
 
-        // 2. Generate Random Distribution (The "Base")
-        this.generator.generateAll();
-
-        // Render Original Field (for SSIM calc)
-        // Note: In experiment logic, we compare Original Total vs Perturbed Total
-        const originalData = this.generator.renderTo1DArray(this.width, this.height, false, true);
-
-        // Precompute Soft Attribution components (Optimization)
-        const saCache = this.precomputeSoftAttributionCache();
-
-        // 3. Optimize for each band
         for (const bandKey of ['low', 'mid', 'high']) {
             const config = this.targets[bandKey];
-            console.log(`Optimizing ${bandKey}... Target SSIM: ${config.ssim}`);
 
-            this.loading.innerText = `Optimizing ${bandKey} frequency (Target: ${config.ssim})...`;
+            this.loading.innerText = `Generating & Optimizing Object for ${bandKey.toUpperCase()} (Target: ${config.ssim})...`;
             await new Promise(r => setTimeout(r, 10));
 
+            // 1. Generate NEW Random Distribution for this band's object
+            this.generator.generateAll();
+
+            // 2. Render Original Field (for SSIM calc)
+            const originalData = this.generator.renderTo1DArray(this.width, this.height, false, true);
+
+            // 3. Precompute Soft Attribution components for THIS object
+            const saCache = this.precomputeSoftAttributionCache();
+
+            console.log(`Optimizing Object ${bandKey}... Target SSIM: ${config.ssim}`);
+
+            // 4. Optimize
             const result = this.findMagnitudeForSSIM(
                 config.ssim,
                 config.target,
@@ -104,7 +102,7 @@ class RealtimeViewer {
 
             console.log(`  > Done. Magnitude: ${result.magnitude.toFixed(3)}, Actual SSIM: ${result.ssim.toFixed(5)}`);
 
-            // Normalize for display (0-1)
+            // 5. Store result
             this.finalFields[bandKey] = this.normalize(result.data);
         }
     }
@@ -311,7 +309,7 @@ class RealtimeViewer {
 
             const label = document.createElement('div');
             label.className = 'labels';
-            label.innerText = `${band.toUpperCase()} (SSIM ~${this.targets[band].ssim})`;
+            label.innerText = `${band.toUpperCase()} (Indep. Obj, SSIM ~${this.targets[band].ssim})`;
             label.style.justifyContent = 'center';
             wrapper.appendChild(label);
 

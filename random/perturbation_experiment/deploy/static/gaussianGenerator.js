@@ -29,21 +29,6 @@ class GaussianGenerator {
             'medium': 1.5,
             'large': 3.0
         };
-
-        // Colormap support
-        this.currentColormap = null; // Will store custom colormap data
-    }
-
-    /**
-     * Set custom colormap for rendering
-     * @param {Object} colormapData - Colormap object with colormap array
-     */
-    setColormap(colormapData) {
-        if (colormapData && colormapData.colormap) {
-            this.currentColormap = colormapData.colormap; // Array of d3 color objects
-        } else {
-            this.currentColormap = null; // Reset to default (viridis)
-        }
     }
 
     /**
@@ -91,7 +76,7 @@ class GaussianGenerator {
         for (const [level, config] of Object.entries(this.sizeLevels)) {
             this.generateLevel(level, config.sigma, config.count, config.color);
         }
-        // console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
+        console.log(`Generated ${this.gaussians.length} Gaussians randomly distributed`);
 
         return this.gaussians;
     }
@@ -197,7 +182,7 @@ class GaussianGenerator {
             }
         }
 
-        //  console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Distance Constraint`);
+        console.log(`Generated ${levelGaussians.length} Gaussians for level ${level} using Distance Constraint`);
 
         return levelGaussians;
     }
