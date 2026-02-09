@@ -142,7 +142,7 @@
 
         .stimuli-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(700px, 1fr));
             gap: 20px;
             padding: 20px;
         }
@@ -200,7 +200,8 @@
 
         <div class="controls">
             <p style="margin-bottom: 15px; color: #666;">
-                Generating 3 frequency bands (Low, Mid, High) and applying 48 different colormaps.
+                For each colormap: 3 distinct Gaussian distributions (Low/Mid/High freq), showing Original + Perturbed
+                pairs.
             </p>
             <div id="loading" class="loading-text" style="display: block;">Generating... Please wait</div>
         </div>

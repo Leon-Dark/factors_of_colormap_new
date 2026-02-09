@@ -1,0 +1,33 @@
+{
+    "active": {
+        "qqqq": {
+            "group": 1,
+            "timestamp": 1770641426.876677
+        },
+        "1111wqada": {
+            "group": 2,
+            "timestamp": 1770641590.345692
+        },
+        "dsad": {
+            "group": 0,
+            "timestamp": 1770641621.218865
+        },
+        "8u89hh": {
+            "group": 1,
+            "timestamp": 1770642096.411823
+        },
+        "jhbjh": {
+            "group": 0,
+            "timestamp": 1770642196.090646
+        },
+        "dasqwq": {
+            "group": 2,
+            "timestamp": 1770642449.564953
+        }
+    },
+    "completed": {
+        "0": 0,
+        "1": 0,
+        "2": 0
+    }
+}

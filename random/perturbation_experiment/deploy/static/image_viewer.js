@@ -24,6 +24,13 @@ class RealtimeViewer {
             'high': { id: 'high', target: 'small', ssim: 0.956 }
         };
 
+        // Store the original fields (Float32Array) for each band
+        this.originalFields = {
+            'low': null,
+            'mid': null,
+            'high': null
+        };
+
         // Store the final perturbed fields (Float32Array) for each band
         this.finalFields = {
             'low': null,
@@ -86,6 +93,9 @@ class RealtimeViewer {
 
             // 2. Render Original Field (for SSIM calc)
             const originalData = this.generator.renderTo1DArray(this.width, this.height, false, true);
+
+            // Store the normalized original field for this band
+            this.originalFields[bandKey] = this.normalize(new Float32Array(originalData));
 
             // 3. Precompute Soft Attribution components for THIS object
             const saCache = this.precomputeSoftAttributionCache();
@@ -292,31 +302,61 @@ class RealtimeViewer {
         cardHeader.innerHTML = `ID: ${colormapEntry.id} <span style="font-weight:normal; font-size:0.9em; float:right">Hue: ${colormapEntry.metadata.hueTarget}</span>`;
         card.appendChild(cardHeader);
 
-        const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.gap = '10px';
-        row.style.justifyContent = 'center';
+        // Create a 3-column grid for the 6 images
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.style.gap = '10px';
+        grid.style.justifyItems = 'center';
 
-        // Render 3 canvases (Low, Mid, High)
-        ['low', 'mid', 'high'].forEach(band => {
+        // First render the column headers
+        const bands = ['low', 'mid', 'high'];
+        const bandColors = { 'low': '#ff7f00', 'mid': '#4daf4a', 'high': '#377eb8' };
+
+        // Row 1: Original images
+        bands.forEach(band => {
             const wrapper = document.createElement('div');
             wrapper.style.textAlign = 'center';
 
-            // NOTE: Using the FULL PERTURBED FIELD for that band's condition
-            const canvas = this.renderCanvas(this.finalFields[band], colormapEntry.colormap);
+            const headerLabel = document.createElement('div');
+            headerLabel.style.fontWeight = 'bold';
+            headerLabel.style.color = bandColors[band];
+            headerLabel.style.marginBottom = '5px';
+            headerLabel.innerText = `${band.toUpperCase()} Freq`;
+            wrapper.appendChild(headerLabel);
 
+            const canvas = this.renderCanvas(this.originalFields[band], colormapEntry.colormap);
             wrapper.appendChild(canvas);
 
             const label = document.createElement('div');
             label.className = 'labels';
-            label.innerText = `${band.toUpperCase()} (Indep. Obj, SSIM ~${this.targets[band].ssim})`;
             label.style.justifyContent = 'center';
+            label.style.color = '#666';
+            label.innerText = 'Original';
             wrapper.appendChild(label);
 
-            row.appendChild(wrapper);
+            grid.appendChild(wrapper);
         });
 
-        card.appendChild(row);
+        // Row 2: Perturbed images
+        bands.forEach(band => {
+            const wrapper = document.createElement('div');
+            wrapper.style.textAlign = 'center';
+
+            const canvas = this.renderCanvas(this.finalFields[band], colormapEntry.colormap);
+            wrapper.appendChild(canvas);
+
+            const label = document.createElement('div');
+            label.className = 'labels';
+            label.style.justifyContent = 'center';
+            label.style.color = '#333';
+            label.innerText = `Perturbed (SSIM~${this.targets[band].ssim})`;
+            wrapper.appendChild(label);
+
+            grid.appendChild(wrapper);
+        });
+
+        card.appendChild(grid);
 
         // Add palette strip
         const palette = document.createElement('div');

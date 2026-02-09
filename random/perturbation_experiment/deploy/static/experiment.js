@@ -49,6 +49,19 @@ function getViridisColor(normalizedValue) {
     return VIRIDIS_COLORMAP[index];
 }
 
+/**
+ * Apply a custom colormap to a normalized value
+ * @param {number} normalizedValue - Value between 0 and 1
+ * @param {Array} colormap - Array of {r, g, b} objects (256 entries expected)
+ * @returns {Array} [r, g, b] color values
+ */
+function applyCustomColormap(normalizedValue, colormap) {
+    const clampedValue = Math.max(0, Math.min(1, normalizedValue));
+    const index = Math.floor(clampedValue * (colormap.length - 1));
+    const color = colormap[index];
+    return [color.r, color.g, color.b];
+}
+
 
 // --- Seeded RNG Helper ---
 class SeededRandom {

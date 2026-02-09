@@ -29,7 +29,17 @@ class GaussianGenerator {
             'medium': 1.5,
             'large': 3.0
         };
+
+        // Colormap for rendering
         this.currentColormap = null;
+    }
+
+    /**
+     * Set the colormap for rendering
+     * @param {Object} colormap - Colormap object with array of {r, g, b} colors
+     */
+    setColormap(colormap) {
+        this.currentColormap = colormap ? colormap.colormap : null;
     }
 
     /**
@@ -46,14 +56,6 @@ class GaussianGenerator {
      */
     setExponent(exp) {
         this.exponent = exp;
-    }
-
-    /**
-     * Set colormap for rendering
-     * @param {Object|Array} colormap - The colormap to use
-     */
-    setColormap(colormap) {
-        this.currentColormap = colormap;
     }
 
     /**
