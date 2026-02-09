@@ -29,6 +29,7 @@ class GaussianGenerator {
             'medium': 1.5,
             'large': 3.0
         };
+        this.currentColormap = null;
     }
 
     /**
@@ -45,6 +46,14 @@ class GaussianGenerator {
      */
     setExponent(exp) {
         this.exponent = exp;
+    }
+
+    /**
+     * Set colormap for rendering
+     * @param {Object|Array} colormap - The colormap to use
+     */
+    setColormap(colormap) {
+        this.currentColormap = colormap;
     }
 
     /**
