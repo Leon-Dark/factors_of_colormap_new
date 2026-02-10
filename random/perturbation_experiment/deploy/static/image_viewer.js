@@ -383,7 +383,15 @@ class RealtimeViewer {
         card.style.textAlign = 'left';
 
         const cardHeader = document.createElement('h4');
-        cardHeader.innerHTML = `ID: ${colormapEntry.id} <span style="font-weight:normal; font-size:0.9em; float:right">Hue: ${colormapEntry.metadata.hueTarget}</span>`;
+        const meta = colormapEntry.metadata;
+        cardHeader.innerHTML = `
+            ID: ${colormapEntry.id} 
+            <span style="font-weight:normal; font-size:0.9em; float:right; color: #555;">
+                Hue: <b>${meta.hueTarget}</b> | 
+                Lum: <b>${meta.lumiPattern}</b> | 
+                Chr: <b>${meta.chromaPattern}</b>
+            </span>
+        `;
         card.appendChild(cardHeader);
 
         // Create a 3-column grid for the 6 images (Low, Mid, High)
