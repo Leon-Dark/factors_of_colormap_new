@@ -660,8 +660,8 @@
             const stats = {};
             const idToLabel = {}; // Map GroupKey to Description
 
-            let engagementCorrect = 0;
-            let engagementTotal = 0;
+            let experimentCorrect = 0;
+            let experimentTotal = 0;
 
             rows.forEach(row => {
                 const freq = row[idxFreq];
@@ -675,13 +675,15 @@
                 const c = idxChroma !== -1 ? row[idxChroma] : '?';
                 const l = idxLuma !== -1 ? row[idxLuma] : '?';
 
-                // Engagement Check Filter
+                // Engagement Check Filter - skip these for chart but don't count them
                 if (Math.abs(ssim - 0.80) < 0.001 || Math.abs(ssim - 0.90) < 0.001) {
-                    engagementTotal++;
-                    if (correct === 1) engagementCorrect++;
-                    // Do NOT include engagement checks in the main chart
+                    // Do NOT include engagement checks in the main chart or experiment stats
                     return;
                 }
+
+                // Count experiment trials (non-engagement)
+                experimentTotal++;
+                if (correct === 1) experimentCorrect++;
 
                 // Determine Group Key based on currentGroup
                 let groupKey = colormap;
@@ -710,12 +712,12 @@
                 stats[groupKey][freq].total += 1;
             });
 
-            // Update Engagement Stats UI
+            // Update Experiment Stats UI (non-engagement trials)
             const engStatsEl = document.getElementById('engagement-stats');
-            if (engagementTotal > 0) {
-                const engAcc = (engagementCorrect / engagementTotal * 100).toFixed(1);
-                engStatsEl.textContent = `Engagement Check: ${engAcc}% (${engagementCorrect}/${engagementTotal})`;
-                engStatsEl.style.color = (engAcc >= 80) ? '#2b8a3e' : '#e03131';
+            if (experimentTotal > 0) {
+                const expAcc = (experimentCorrect / experimentTotal * 100).toFixed(1);
+                engStatsEl.textContent = `Experiment Accuracy: ${expAcc}% (${experimentCorrect}/${experimentTotal})`;
+                engStatsEl.style.color = (expAcc >= 50) ? '#2b8a3e' : '#e03131';
             } else {
                 engStatsEl.textContent = '';
             }
