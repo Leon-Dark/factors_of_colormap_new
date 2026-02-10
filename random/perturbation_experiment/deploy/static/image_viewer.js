@@ -21,21 +21,24 @@ class RealtimeViewer {
         this.targets = {
             'low': { id: 'low', target: 'large', ssim: 0.954 },
             'mid': { id: 'mid', target: 'medium', ssim: 0.982 },
-            'high': { id: 'high', target: 'small', ssim: 0.956 }
+            'high': { id: 'high', target: 'small', ssim: 0.956 },
+            'engagement': { id: 'mid', target: 'medium', ssim: 0.800 } // Distinct object for engagement check
         };
 
         // Store the original fields (Float32Array) for each band
         this.originalFields = {
             'low': null,
             'mid': null,
-            'high': null
+            'high': null,
+            'engagement': null
         };
 
         // Store the final perturbed fields (Float32Array) for each band
         this.finalFields = {
             'low': null,
             'mid': null,
-            'high': null
+            'high': null,
+            'engagement': null
         };
 
         this.init();
@@ -44,7 +47,7 @@ class RealtimeViewer {
     async init() {
         try {
             this.checkDependencies();
-            console.log('Dependencies loaded. RealtimeViewer v2 (Distinct Objects).');
+            console.log('Dependencies loaded. RealtimeViewer v2 (Distinct Objects + Engagement).');
 
             // 1. Generate Master Fields (Base + 3 Optimized Perturbations)
             await this.generateMasterPerturbations();
@@ -82,8 +85,10 @@ class RealtimeViewer {
             'large': { sigma: 50, count: 4, color: '#ff7f00' }
         };
 
-        for (const bandKey of ['low', 'mid', 'high']) {
+        // Iterate over all targets including engagement
+        for (const bandKey of ['low', 'mid', 'high', 'engagement']) {
             const config = this.targets[bandKey];
+            const isEngagement = (bandKey === 'engagement');
 
             this.loading.innerText = `Generating & Optimizing Object for ${bandKey.toUpperCase()} (Target: ${config.ssim})...`;
             await new Promise(r => setTimeout(r, 10));
@@ -97,17 +102,22 @@ class RealtimeViewer {
             // Store the normalized original field for this band
             this.originalFields[bandKey] = this.normalize(new Float32Array(originalData));
 
-            // 3. Precompute Soft Attribution components for THIS object
-            const saCache = this.precomputeSoftAttributionCache();
+            // 3. Precompute Soft Attribution components for THIS object (Skip for engagement)
+            let saCache = null;
+            if (!isEngagement) {
+                saCache = this.precomputeSoftAttributionCache();
+            }
 
             console.log(`Optimizing Object ${bandKey}... Target SSIM: ${config.ssim}`);
 
             // 4. Optimize
+            // Use config.target ('large', 'medium', 'small') to select freq
             const result = this.findMagnitudeForSSIM(
                 config.ssim,
                 config.target,
                 originalData,
-                saCache
+                saCache,
+                isEngagement
             );
 
             console.log(`  > Done. Magnitude: ${result.magnitude.toFixed(3)}, Actual SSIM: ${result.ssim.toFixed(5)}`);
@@ -141,7 +151,7 @@ class RealtimeViewer {
      * Simplified synchronous version of SSIM optimization from experiment.js
      * (We don't need a worker here since we only run it once on load)
      */
-    findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal, saCache) {
+    findMagnitudeForSSIM(targetSSIM, freqTarget, dataOriginal, saCache, isEngagementCheck = false) {
         const coefficients = {
             position: 1.0,
             rotation: 1.0,
@@ -165,7 +175,8 @@ class RealtimeViewer {
             this.perturbation.generatePerturbationDeltas(freqTarget, 1.0, 'all');
 
             const maxMagnitude = (freqTarget === 'large') ? 12.0 : 8.0;
-            let min = 0.0, max = maxMagnitude;
+            const boost = (targetSSIM < 0.90) ? 2.0 : 1.0; // Boost max magnitude for engagement check
+            let min = 0.0, max = maxMagnitude * boost;
             let bestDiff = Infinity;
 
             for (let i = 0; i < maxIterPerTry; i++) {
@@ -174,21 +185,28 @@ class RealtimeViewer {
                 // Apply perturbation
                 this.perturbation.applyStoredPerturbation(mid);
 
-                // Render with Soft Attribution
-                const perturbedBands = {
-                    low: this.softAttribution.renderBandField('large', this.width, this.height, false),
-                    mid: this.softAttribution.renderBandField('medium', this.width, this.height, false),
-                    high: this.softAttribution.renderBandField('small', this.width, this.height, false)
-                };
+                let tempPerturbed;
 
-                const tempPerturbed = this.softAttribution.applyGatedPerturbation(
-                    saCache.originalTotal,
-                    saCache.originalBands,
-                    perturbedBands,
-                    saCache.gatingMasks,
-                    this.width,
-                    this.height
-                );
+                if (isEngagementCheck) {
+                    // Engagement checks: Direct rendering (no soft attribution)
+                    tempPerturbed = this.generator.renderTo1DArray(this.width, this.height, false, true);
+                } else {
+                    // Render with Soft Attribution
+                    const perturbedBands = {
+                        low: this.softAttribution.renderBandField('large', this.width, this.height, false),
+                        mid: this.softAttribution.renderBandField('medium', this.width, this.height, false),
+                        high: this.softAttribution.renderBandField('small', this.width, this.height, false)
+                    };
+
+                    tempPerturbed = this.softAttribution.applyGatedPerturbation(
+                        saCache.originalTotal,
+                        saCache.originalBands,
+                        perturbedBands,
+                        saCache.gatingMasks,
+                        this.width,
+                        this.height
+                    );
+                }
 
                 const currentSSIM = calculateSSIM(dataOriginal, tempPerturbed, this.width, this.height);
                 const diff = Math.abs(currentSSIM - targetSSIM);
@@ -261,9 +279,24 @@ class RealtimeViewer {
         // Sort by ID
         colormaps.sort((a, b) => a.id - b.id);
 
+        // Find Engagement Colormap (Hue 300, Thermal/Thermal)
+        this.engagementColormap = colormaps.find(c =>
+            c.metadata.hueTarget === 300 &&
+            (c.metadata.chromaPattern === 'thermal' || c.metadata.chromaPattern === 'Thermal') &&
+            (c.metadata.lumiPattern === 'thermal' || c.metadata.lumiPattern === 'Thermal')
+        );
+
+        if (!this.engagementColormap) {
+            console.warn("Could not find specific engagement colormap. Using first as fallback.");
+            this.engagementColormap = colormaps[0];
+        }
+
         this.container.innerHTML = '';
 
-        // Create Grid Container
+        // 1. Render Engagement Section at Top
+        this.createEngagementSection();
+
+        // 2. Render Main Grid
         const grid = document.createElement('div');
         grid.style.display = 'grid';
         grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(650px, 1fr))';
@@ -273,7 +306,6 @@ class RealtimeViewer {
         let count = 0;
         this.loading.innerText = 'Rendering...';
 
-        // Process in chunks to avoid blocking UI
         const processChunk = () => {
             const chunkSize = 5;
             const end = Math.min(count + chunkSize, colormaps.length);
@@ -293,6 +325,58 @@ class RealtimeViewer {
         processChunk();
     }
 
+    createEngagementSection() {
+        if (!this.finalFields['engagement']) return;
+
+        const section = document.createElement('div');
+        section.className = 'stimuli-card'; // Reuse style
+        section.style.marginBottom = '30px';
+        section.style.padding = '20px';
+        section.style.textAlign = 'center';
+        // Force full width if possible
+        section.style.gridColumn = '1 / -1';
+
+        const title = document.createElement('h2');
+        title.style.color = '#c92a2a';
+        title.style.marginTop = '0';
+        title.innerHTML = `Engagement Check Stimulus <span style="font-size:0.6em; font-weight:normal; color:#555">(Fixed Colormap: Thermal, Hue=300)</span>`;
+        section.appendChild(title);
+
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.justifyContent = 'center';
+        container.style.gap = '40px';
+        container.style.alignItems = 'flex-end'; // Align labels
+
+        // Original
+        const wrapperOrig = document.createElement('div');
+        wrapperOrig.innerHTML = '<div style="font-weight:bold; margin-bottom:5px">Original</div>';
+        const canvasOrig = this.renderCanvas(this.originalFields['engagement'], this.engagementColormap.colormap);
+        wrapperOrig.appendChild(canvasOrig);
+        container.appendChild(wrapperOrig);
+
+        // Perturbed
+        const wrapperPert = document.createElement('div');
+        wrapperPert.innerHTML = `<div style="font-weight:bold; margin-bottom:5px; color:#e03131">Perturbed (Target SSIM: ${this.targets['engagement'].ssim})</div>`;
+        const canvasPert = this.renderCanvas(this.finalFields['engagement'], this.engagementColormap.colormap);
+        wrapperPert.appendChild(canvasPert);
+        container.appendChild(wrapperPert);
+
+        section.appendChild(container);
+
+        // Palette
+        const palette = document.createElement('div');
+        palette.style.height = '15px';
+        palette.style.width = '300px';
+        palette.style.margin = '15px auto 0';
+        palette.style.background = `linear-gradient(to right, ${this.generateGradientString(this.engagementColormap.colormap)})`;
+        palette.style.borderRadius = '4px';
+        palette.style.border = '1px solid #ccc';
+        section.appendChild(palette);
+
+        this.container.appendChild(section);
+    }
+
     createColormapCard(colormapEntry, parent) {
         const card = document.createElement('div');
         card.className = 'stimuli-card';
@@ -302,15 +386,14 @@ class RealtimeViewer {
         cardHeader.innerHTML = `ID: ${colormapEntry.id} <span style="font-weight:normal; font-size:0.9em; float:right">Hue: ${colormapEntry.metadata.hueTarget}</span>`;
         card.appendChild(cardHeader);
 
-        // Create a 3-column grid for the 6 images
+        // Create a 3-column grid for the 6 images (Low, Mid, High)
         const grid = document.createElement('div');
         grid.style.display = 'grid';
         grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
         grid.style.gap = '10px';
         grid.style.justifyItems = 'center';
 
-        // First render the column headers
-        const bands = ['low', 'mid', 'high'];
+        const bands = ['low', 'mid', 'high']; // Removed engagement
         const bandColors = { 'low': '#ff7f00', 'mid': '#4daf4a', 'high': '#377eb8' };
 
         // Row 1: Original images
