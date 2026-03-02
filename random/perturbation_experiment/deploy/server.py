@@ -38,45 +38,37 @@ def save_data():
             f.write(csv_content)
 
         print(f"Saved data for participant {participant_id} to {filepath}")
+
+        # Mark assignment as completed in assignments.json
+        try:
+            state = load_assignments()
+            
+            # Remove from active
+            if participant_id in state.get('active', {}):
+                # Get the group they were assigned to
+                group = str(state['active'][participant_id]['group'])
+                del state['active'][participant_id]
+                
+                # Increment completed
+                # Initialize if missing
+                if 'completed' not in state:
+                    state['completed'] = {'0': 0, '1': 0, '2': 0}
+                if group not in state['completed']:
+                    state['completed'][group] = 0
+                
+                state['completed'][group] += 1
+                
+                save_assignments(state)
+                print(f"Marked {participant_id} (Group {group}) as completed.")
+                
+        except Exception as e:
+            print(f"Warning: Failed to update assignment stats: {e}")
+
         return jsonify({'status': 'success', 'filename': filename})
 
     except Exception as e:
         print(f"Error saving data: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-    # START_UPDATE: Mark assignment as completed in assignments.json
-    try:
-
-        # Ideally import should be at top, assuming it is.
-        # We re-load logic here or reuse functions if possible. 
-        # Since functions are defined below in the file, we might need to move them UP or just replicate logic simply here
-        # Python allows calling functions defined later? No, it interprets top-down. 
-        # Wait, the `assign_group` function I just added is at the BOTTOM. 
-        # Functions must be defined before use? No, in Python, if they are modifying global scope or defined at module level, order matters for execution but functions inside functions are resolved at runtime.
-        # However, `save_data` is defined ABOVE `assign_group`. So `load_assignments` is NOT yet defined when `save_data` runs?
-        # NO. Python defines names. If `save_data` is CALLED, it looks up `load_assignments`. By the time it is CALLED (runtime), the whole file has been read. So it IS fine.
-        
-        state = load_assignments()
-        
-        # Remove from active
-        if participant_id in state['active']:
-            # Get the group they were assigned to
-            group = str(state['active'][participant_id]['group'])
-            del state['active'][participant_id]
-            
-            # Increment completed
-            # Initialize if missing
-            if 'completed' not in state: state['completed'] = {'0':0, '1':0, '2':0}
-            if group not in state['completed']: state['completed'][group] = 0
-            
-            state['completed'][group] += 1
-            
-            save_assignments(state)
-            print(f"Marked {participant_id} (Group {group}) as completed.")
-            
-    except Exception as e:
-        print(f"Warning: Failed to update assignment stats: {e}")
-    # END_UPDATE
 
 
 # --- Data Viewing Routes ---
