@@ -1,9 +1,7 @@
 [
   {
-    "id": "khairi_16",
     "metadata": {
-      "name": "purples",
-      "source": "khairi"
+      "name": "purples"
     },
     "colormap": [
       [
@@ -1289,10 +1287,8 @@
     ]
   },
   {
-    "id": "khairi_15",
     "metadata": {
-      "name": "reds",
-      "source": "khairi"
+      "name": "reds"
     },
     "colormap": [
       [
@@ -2578,10 +2574,8 @@
     ]
   },
   {
-    "id": "khairi_17",
     "metadata": {
-      "name": "blues",
-      "source": "khairi"
+      "name": "blues"
     },
     "colormap": [
       [
@@ -3867,10 +3861,8 @@
     ]
   },
   {
-    "id": "khairi_14",
     "metadata": {
-      "name": "coolwarm",
-      "source": "khairi"
+      "name": "coolwarm"
     },
     "colormap": [
       [
@@ -5156,10 +5148,8 @@
     ]
   },
   {
-    "id": "khairi_13",
     "metadata": {
-      "name": "greyred",
-      "source": "khairi"
+      "name": "greyred"
     },
     "colormap": [
       [
@@ -6445,10 +6435,8 @@
     ]
   },
   {
-    "id": "khairi_18",
     "metadata": {
-      "name": "spectral",
-      "source": "khairi"
+      "name": "spectral"
     },
     "colormap": [
       [
@@ -7734,10 +7722,8 @@
     ]
   },
   {
-    "id": "khairi_12",
     "metadata": {
-      "name": "redpurple",
-      "source": "khairi"
+      "name": "redpurple"
     },
     "colormap": [
       [
@@ -9023,10 +9009,8 @@
     ]
   },
   {
-    "id": "khairi_1",
     "metadata": {
-      "name": "rainbow",
-      "source": "khairi"
+      "name": "rainbow"
     },
     "colormap": [
       [
@@ -10312,10 +10296,8 @@
     ]
   },
   {
-    "id": "khairi_3",
     "metadata": {
-      "name": "rainbowjet",
-      "source": "khairi"
+      "name": "rainbowjet"
     },
     "colormap": [
       [
@@ -11601,10 +11583,8 @@
     ]
   },
   {
-    "id": "khairi_19",
     "metadata": {
-      "name": "turbo",
-      "source": "khairi"
+      "name": "turbo"
     },
     "colormap": [
       [
@@ -12890,7 +12870,6 @@
     ]
   },
   {
-    "id": "khairi_viridis",
     "metadata": {
       "name": "viridis"
     },
@@ -14178,7 +14157,6 @@
     ]
   },
   {
-    "id": "khairi_plasma",
     "metadata": {
       "name": "plasma"
     },
