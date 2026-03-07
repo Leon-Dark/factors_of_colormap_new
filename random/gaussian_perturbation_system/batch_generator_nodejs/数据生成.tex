@@ -1,0 +1,293 @@
+\documentclass{article}
+\usepackage[UTF8]{ctex} % 支持中文
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{hyperref}
+\geometry{a4paper, margin=1in}
+\title{高斯扰动生成与扰动}
+\begin{document}
+\maketitle
+
+\section{引言}
+为了系统性地研究色彩场在不同空间频率下的感知特性，我们需要构建一个既随机又可控的生成模型。核心挑战在于如何在保持图像整体统计特性（如均值、方差）稳定的同时，对特定频段或局部区域引入精确的实验性偏差（扰动）。本系统采用各向异性二维高斯函数作为基本单元，通过叠加构建标量场，并设计了一套完整的从生成到扰动的流水线。
+
+整体流程可概括为：
+\begin{enumerate}
+    \item \textbf{生成}：通过多尺度高斯核叠加构建基准标量场 $I(x,y)$；
+    \item \textbf{扰动}：在参数空间中对高斯核施加位置、旋转等扰动；
+    \item \textbf{门控}：通过软归因机制确保扰动仅在目标频段主导的区域生效；
+    \item \textbf{优化}：以结构相似度（SSIM）为目标函数，通过二分搜索精确控制扰动幅度，使扰动后图像达到预设的感知差异水平；
+    \item \textbf{归一化}：对原始场和扰动场进行 Min-Max 归一化，统一到 $[0, 1]$ 值域后计算质量指标和导出图像。
+\end{enumerate}
+
+\section{数据生成：多尺度高斯场}
+\subsection{高斯基元定义}
+视觉场的基本构建单元是二维各向异性高斯函数（Bivariate Gaussian）。对于第 $i$ 个高斯核，其参数集定义为 $\theta_i = \{\mu_x, \mu_y, \sigma_x, \sigma_y, \rho, A\}$。空间位置 $(x, y)$ 处的强度计算公式为：
+\begin{equation}
+g_i(x, y; \theta_i) = A \cdot \exp\left( -\frac{1}{2(1-\rho^2)} \left[ \frac{(x-\mu_x)^2}{\sigma_x^2} + \frac{(y-\mu_y)^2}{\sigma_y^2} - \frac{2\rho(x-\mu_x)(y-\mu_y)}{\sigma_x \sigma_y} \right] \right)
+\end{equation}
+其中：
+\begin{itemize}
+    \item $(\mu_x, \mu_y)$ 表示中心坐标。
+    \item $(\sigma_x, \sigma_y)$ 分别表示沿主轴和副轴的标准差，控制高斯核的空间尺度。
+    \item $\rho \in (-1, 1)$ 是相关系数，决定了高斯椭圆的旋转角度。
+    \item $A$ 是峰值振幅（Scaler）。
+\end{itemize}
+
+\subsection{频段分层与场合成}
+为了模拟复杂的空间频率结构，系统预定义了三个离散的尺度层级（Size Levels）：
+\begin{itemize}
+    \item \textbf{小尺度（Small/High Frequency）}：基准 $\sigma \approx 15$ px，$N_S = 2$ 个核，主要贡献高频细节。
+    \item \textbf{中尺度（Medium/Mid Frequency）}：基准 $\sigma \approx 25$ px，$N_M = 3$ 个核。
+    \item \textbf{大尺度（Large/Low Frequency）}：基准 $\sigma \approx 50$ px，$N_L = 4$ 个核，构成低频背景。
+\end{itemize}
+全局标量场 $I(x, y)$ 由所有 $N$ 个高斯核线性叠加而成：
+\begin{equation}
+I(x, y) = \sum_{j \in \{S, M, L\}} w_j \sum_{i=1}^{N_j} g_{j,i}(x, y)
+\end{equation}
+其中 $w_j$ 是各频段的全局混合权重，具体取值为 $w_S = 1.0$（高频）、$w_M = 1.5$（中频）、$w_L = 3.0$（低频），即低频成分在场合成中的权重最大，以反映自然场景中低频能量占主导的统计规律。
+
+\subsection{初始化：松弛力导向布局算法}
+为了避免高斯核在空间上的过度聚集或重叠，同时保持随机性，我们采用了一种迭代式的"松弛力导向算法"（Relaxed Force-Directed Placement）。
+\begin{algorithm}[H]
+\caption{力导向高斯布局生成}
+\begin{algorithmic}[1]
+\State \textbf{Input:} 画布尺寸 $W, H$，高斯数量 $N$，基准半径 $R$
+\State \textbf{Initialize:} 随机生成 $N$ 个点 $P = \{p_1, \dots, p_N\}$，位置 $\in [padding, W-padding]$
+\State \textbf{Parameters:} 迭代次数 $T=50$，排斥强度 $k_{rep} = 0.5$
+\For{$t = 1$ to $T$}
+    \For{每个点 $p_i \in P$}
+        \State $F_{net} \leftarrow (0, 0)$
+        \For{每个邻居 $p_j \in P, j \neq i$}
+            \State $d_{ij} \leftarrow \|p_i - p_j\|$
+            \State $D_{target} \leftarrow (R_i + R_j) \times 1.2$ \Comment{期望距离：稍微有些空隙}
+            \If{$d_{ij} < D_{target}$}
+                \State $F_{mag} \leftarrow \frac{D_{target} - d_{ij}}{D_{target}} \times k_{rep}$ \Comment{线性排斥力}
+                \State $F_{net} \leftarrow F_{net} + \frac{p_i - p_j}{d_{ij}} \times F_{mag}$
+            \EndIf
+        \EndFor
+        \State $v_i \leftarrow F_{net} \times 50$ \Comment{应用力到位移}
+        \State $p_i \leftarrow p_i + v_i$
+        \State \textbf{Clamp} $p_i$ to boundary $[padding, W-padding]$
+    \EndFor
+\EndFor
+\State \textbf{Output:} 优化后的位置集合 $P$
+\end{algorithmic}
+\end{algorithm}
+
+\section{参数化扰动系统}
+扰动不直接作用于像素，而是作用于生成参数 $\theta$，这保证了扰动后的图像在数学上仍然由高斯函数构成。定义扰动幅度 $\alpha \in [0, +\infty)$（由优化算法自动确定，见第~\ref{sec:optimization}~节）。
+
+\subsection{扰动类型}
+当前实验配置启用了两种扰动：\textbf{位置扰动}和\textbf{旋转扰动}。
+
+\subsubsection{位置扰动 (Position)}
+模拟物体的微小平移。为防止高斯核移出画布边界，采用 \textbf{tanh 饱和函数}进行边界保护。
+
+\textbf{符号定义}：
+\begin{itemize}
+    \item $(\mu_x, \mu_y)$：高斯核的当前中心位置（像素坐标）
+    \item $(\mu_x', \mu_y')$：扰动后的新中心位置
+    \item $W, H$：画布的宽度和高度（像素）
+    \item $\alpha$：扰动幅度（由二分搜索确定）
+    \item $d_x, d_y \sim \mathcal{U}(-1, 1)$：均匀分布的随机方向因子，在初始化时固定
+\end{itemize}
+
+\textbf{步骤1：计算方向性安全移动范围}
+
+根据随机方向的正负号，分别计算该方向上的最大安全距离：
+\begin{align}
+margin &= c_m \cdot \max(\sigma_x, \sigma_y) \quad \text{（边界缓冲区）} \\
+\Delta x_{limit} &= \begin{cases} \mu_x - margin & \text{if } d_x < 0 \text{（向左）} \\ W - margin - \mu_x & \text{if } d_x \geq 0 \text{（向右）} \end{cases} \\
+\Delta y_{limit} &= \begin{cases} \mu_y - margin & \text{if } d_y < 0 \text{（向上）} \\ H - margin - \mu_y & \text{if } d_y \geq 0 \text{（向下）} \end{cases}
+\end{align}
+其中 $c_m$ 为边界缓冲系数。这种\textbf{非对称}约束确保了每个方向独立受限于实际可用空间。
+
+\textbf{步骤2：计算扰动后的位置}
+
+使用 tanh 饱和函数确保扰动量不会超出安全范围：
+\begin{align}
+\mu_x' &= \mu_x + d_x \cdot \Delta x_{limit} \cdot \tanh(c_{pos} \cdot \alpha) \\
+\mu_y' &= \mu_y + d_y \cdot \Delta y_{limit} \cdot \tanh(c_{pos} \cdot \alpha)
+\end{align}
+其中 $c_{pos}$ 是位置扰动系数（配置中 $c_{pos} = 1.0$）。
+
+\textbf{直观理解}：
+\begin{itemize}
+    \item $d_x, d_y$：在初始化阶段随机确定移动方向，后续搜索中保持固定
+    \item $\Delta x_{limit}$：该方向上能移动的最远安全距离
+    \item $\tanh(c_{pos} \cdot \alpha)$：将无界的 $\alpha$ 映射到 $(0, 1)$，保证永远不会超出安全距离
+    \item 当 $\alpha$ 增大时，位移单调递增但渐近饱和，这为二分搜索提供了良好的单调性
+\end{itemize}
+
+\subsubsection{刚体旋转 (Rotation)}
+对协方差矩阵 $\Sigma$ 进行旋转变换，旋转角度范围为 $\pm\pi$（即 $\pm 180°$）：
+\begin{align}
+\phi &= d_r \cdot \alpha \cdot c_{rot} \cdot \pi \\
+\Sigma' &= R(\phi) \Sigma R(\phi)^T, \quad R(\phi) = \begin{bmatrix} \cos\phi & -\sin\phi \\ \sin\phi & \cos\phi \end{bmatrix}
+\end{align}
+其中 $d_r \sim \mathcal{U}(-1,1)$ 为旋转方向因子（初始化时固定），$c_{rot} = 1.0$ 为旋转扰动系数。
+
+\subsection{扰动方向的"预采样-固定"策略}
+\label{sec:delta-strategy}
+一个关键的工程设计是：所有随机方向因子 $\{d_x, d_y, d_r\}$ 在每组刺激的初始化阶段\textbf{一次性采样并固定}，后续的二分搜索只调节统一幅度 $\alpha$。这确保了：
+\begin{itemize}
+    \item 搜索过程中图像变化的\textbf{方向一致}，只有\textbf{幅度}在变化
+    \item SSIM 关于 $\alpha$ 具有良好的\textbf{单调递减}性质，保证二分搜索的正确性
+    \item 不同扰动强度之间具有\textbf{可比性}（同一组方向下的不同幅度）
+\end{itemize}
+
+
+\section{软归因门控分频扰动 (Soft Attribution Gated Perturbation)}
+
+\subsection{核心问题}
+图像由低频（大尺度）、中频和高频（小尺度）三种高斯核混合而成。当我们想单独扰动某个频段（比如只扰动高频细节）时，会遇到一个问题：\textbf{不同频段的高斯核在空间上是重叠的}。
+
+\textbf{举例说明}：假设在某个位置，既有一个大的低频高斯，也有一个小的高频高斯。如果我们移动了高频高斯，这个位置的像素值会改变。但我们无法确定这个改变应该算作"高频扰动"还是"低频扰动"，因为两者都对这个位置有贡献。
+
+\subsection{解决方案：门控机制}
+我们的方法类似于图像编辑中的\textbf{蒙版（Mask）}：
+\begin{itemize}
+    \item 为每个频段创建一个"活动区域地图"（门控掩膜）
+    \item 只在该频段占主导地位的区域应用扰动
+    \item 在其他区域抑制扰动效果
+\end{itemize}
+
+\subsection{实现步骤}
+
+\subsubsection{步骤1：找出每个频段的"活跃区域"}
+我们使用\textbf{梯度能量}来判断哪个频段在某个位置最活跃。梯度表示图像变化的剧烈程度：
+\begin{itemize}
+    \item 高频区域：变化剧烈（如边缘、细节），梯度大
+    \item 低频区域：变化平缓（如大片背景），梯度小
+\end{itemize}
+
+对每个频段 $k$ 单独渲染，计算其梯度能量：
+\begin{equation}
+G_k(x) = \left(\frac{\partial B_k}{\partial x}\right)^2 + \left(\frac{\partial B_k}{\partial y}\right)^2
+\end{equation}
+然后平滑处理得到稳定的能量场 $E_k(x) = \text{GaussianBlur}(G_k(x), \sigma_E^{(k)})$，其中平滑尺度 $\sigma_E^{(k)} = 0.4 \sigma_k$ 与频段尺度相匹配。
+
+\subsubsection{步骤2：计算每个位置"属于"哪个频段}
+在每个像素位置，计算各频段的相对主导性：
+\begin{equation}
+\omega_k(x) = \frac{E_k(x)}{E_{low}(x) + E_{mid}(x) + E_{high}(x) + \epsilon}
+\end{equation}
+$\omega_k(x) \in [0, 1]$ 表示该点有多大程度"属于"频段 $k$。三个频段的权重之和为 1。
+
+\textbf{直观理解}：如果某个位置的高频能量占 80\%，那么 $\omega_{high}(x) = 0.8$，说明这个位置主要由高频细节主导。
+
+\subsubsection{步骤3：生成平滑的门控掩膜}
+将权重转化为掩膜，并进行平滑处理以避免硬边缘：
+\begin{align}
+M_k^{raw}(x) &= \text{SmoothStep}(\omega_k(x); 0.3, 0.7) \quad \text{（软阈值化）} \\
+M_k(x) &= \text{GaussianBlur}(M_k^{raw}(x), \sigma_m^{(k)}) \quad \text{（边缘羽化）}
+\end{align}
+其中 $\sigma_m^{(k)} = 0.6 \sigma_k$。掩膜 $M_k(x)$ 的值越大，表示扰动在该位置的作用越强。
+
+\subsubsection{步骤4：应用门控扰动}
+计算扰动前后的差异 $\Delta_k(x) = B_k'(x) - B_k(x)$，并用掩膜控制其作用范围：
+\begin{equation}
+I'(x) = I(x) + \sum_{k \in \{low, mid, high\}}  M_k(x) \cdot \Delta_k(x)
+\end{equation}
+
+\textbf{关键点}：
+\begin{itemize}
+    \item $\Delta_k(x)$：频段 $k$ 的扰动量（扰动后 $-$ 扰动前）
+    \item $M_k(x)$：门控掩膜，决定扰动在该位置的强度（0 = 完全抑制，1 = 完全生效）
+\end{itemize}
+
+\subsection{效果总结}
+通过这套机制，当我们扰动高频时：
+\begin{itemize}
+    \item 在边缘和细节区域（高频主导），扰动完全生效
+    \item 在平滑背景区域（低频主导），扰动被自动抑制
+    \item 边界处平滑过渡，不会产生突兀的分界线
+\end{itemize}
+这样就实现了真正的"分频扰动"——每个频段的扰动只在其应该作用的区域生效。
+
+
+\section{数值域归一化}
+\label{sec:normalization}
+
+高斯场的叠加值域是无界的（取决于高斯核的数量、振幅和重叠程度），不同的随机布局会产生不同的绝对强度范围。为了保证不同样本之间的\textbf{可比性}，以及 SSIM 等指标的\textbf{数值稳定性}，系统对原始标量场和扰动标量场分别进行 Min-Max 归一化：
+
+\begin{equation}
+\hat{I}(x) = \frac{I(x) - \min_x I(x)}{\max_x I(x) - \min_x I(x)}
+\end{equation}
+
+归一化后场值 $\hat{I}(x) \in [0, 1]$。
+
+\textbf{关键设计}：原始场 $I$ 和扰动场 $I'$ 各自独立归一化（而非共用同一组 min/max），这是因为：
+\begin{itemize}
+    \item 扰动可能改变全局极值（例如移动一个高斯核可能露出之前被覆盖的低值区域）
+    \item 独立归一化确保两幅图像都充分利用 $[0, 1]$ 的动态范围
+    \item SSIM 度量的是\textbf{结构相似性}而非绝对亮度差异，因此独立归一化不影响其语义
+\end{itemize}
+
+归一化后的 $\hat{I}$ 和 $\hat{I}'$ 被用于：(1) 计算 SSIM 目标函数（见第~\ref{sec:optimization}~节）；(2) 通过色彩映射（如 Viridis）转换为 RGB 图像并导出。
+
+
+\section{基于 SSIM 的扰动幅度闭环优化}
+\label{sec:optimization}
+
+\subsection{动机}
+前述扰动系统可以在给定幅度 $\alpha$ 下生成扰动场，但实验设计需要的是\textbf{精确控制感知差异}——例如生成一组 SSIM 分别为 $0.99, 0.988, 0.986, \dots, 0.95$ 的刺激对。由于 SSIM 与 $\alpha$ 之间的映射关系非线性且依赖于具体的高斯布局，无法通过解析公式直接求解，因此需要一个数值优化过程。
+
+\subsection{目标函数}
+给定目标 SSIM 值 $S^* \in (0, 1)$，优化目标为：
+\begin{equation}
+\alpha^* = \arg\min_{\alpha \geq 0} \left| \text{SSIM}\!\left(\hat{I},\; \hat{I}'(\alpha)\right) - S^* \right|
+\end{equation}
+其中 $\hat{I}$ 为归一化后的原始场，$\hat{I}'(\alpha)$ 为在幅度 $\alpha$ 下经过扰动 $\to$ 门控 $\to$ 归一化后的扰动场。
+
+SSIM 的计算采用标准的 Wang et al. 公式：
+\begin{equation}
+\text{SSIM}(x, y) = \frac{1}{|\Omega|} \sum_{p \in \Omega} \frac{(2\mu_x \mu_y + C_1)(2\sigma_{xy} + C_2)}{(\mu_x^2 + \mu_y^2 + C_1)(\sigma_x^2 + \sigma_y^2 + C_2)}
+\end{equation}
+其中 $\mu, \sigma$ 由高斯加权局部窗口（$\sigma_{window} = 1.5$ px）估计，$C_1 = (0.01 \cdot L)^2$，$C_2 = (0.03 \cdot L)^2$，$L = 1.0$ 为动态范围（归一化后）。
+
+\subsection{二分搜索算法}
+由于 $\text{SSIM}(\hat{I}, \hat{I}'(\alpha))$ 关于 $\alpha$ 是\textbf{单调递减}的（扰动越大，相似度越低），且方向因子已固定（见第~\ref{sec:delta-strategy}~节），可以使用二分搜索高效求解：
+
+\begin{algorithm}[H]
+\caption{基于 SSIM 的扰动幅度二分搜索}
+\begin{algorithmic}[1]
+\State \textbf{Input:} 目标 SSIM $S^*$，容差 $\epsilon = 10^{-4}$，最大迭代 $T = 80$，最大重试 $R = 10$
+\State \textbf{Input:} 原始归一化场 $\hat{I}$，目标频段 $k_{target}$
+\For{$r = 1$ to $R$} \Comment{每次重试重新采样方向因子}
+    \State 采样并固定方向因子 $\{d_x, d_y, d_r\}$ for all target Gaussians
+    \State $\alpha_{lo} \leftarrow 0, \quad \alpha_{hi} \leftarrow \alpha_{max}$ \Comment{$\alpha_{max} = 8.0$（低频）或 $5.0$（中/高频）}
+    \For{$t = 1$ to $T$}
+        \State $\alpha_{mid} \leftarrow (\alpha_{lo} + \alpha_{hi}) / 2$
+        \State Apply perturbation with magnitude $\alpha_{mid}$ \Comment{§3}
+        \State Apply soft-attribution gating \Comment{§4}
+        \State $\hat{I}' \leftarrow \text{Normalize}(I'(\alpha_{mid}))$ \Comment{§5}
+        \State $S_{cur} \leftarrow \text{SSIM}(\hat{I}, \hat{I}')$
+        \If{$|S_{cur} - S^*| < \epsilon$}
+            \State \Return $\alpha_{mid}$, $\hat{I}'$ \Comment{达到精度要求}
+        \EndIf
+        \If{$S_{cur} > S^*$} \Comment{当前相似度过高，需要更大扰动}
+            \State $\alpha_{lo} \leftarrow \alpha_{mid}$
+        \Else \Comment{当前相似度过低，需要减小扰动}
+            \State $\alpha_{hi} \leftarrow \alpha_{mid}$
+        \EndIf
+    \EndFor
+\EndFor
+\State \Return best $\alpha$ found across all retries
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{实验参数配置}
+在当前实验中，系统生成的 SSIM 目标序列为：
+\begin{equation}
+S^* \in \{0.990,\; 0.988,\; 0.986,\; \dots,\; 0.950\} \quad (\text{步长} = 0.002)
+\end{equation}
+对三个频段（低频/中频/高频）分别独立生成，每个条件重复 60 次，共计 $3 \times 21 \times 60 = 3780$ 组刺激对。
+
+\end{document}

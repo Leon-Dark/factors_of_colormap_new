@@ -334,19 +334,16 @@ function calculate_color_name_variation(colormap, sampleCount = 9) {
     }
 
     let totalNameDiff = 0;
-    let pairCount = 0;
 
+    // Sum over adjacent pairs (n segments) as per paper formula
     for (let i = 0; i < samples.length - 1; i++) {
-        for (let j = i + 1; j < samples.length; j++) {
-            const diff = getNameDifference(samples[i], samples[j]);
-            if (!isNaN(diff) && isFinite(diff)) {
-                totalNameDiff += diff;
-                pairCount++;
-            }
+        const diff = getNameDifference(samples[i], samples[i + 1]);
+        if (!isNaN(diff) && isFinite(diff)) {
+            totalNameDiff += diff;
         }
     }
 
-    return pairCount > 0 ? totalNameDiff / pairCount : 0;
+    return totalNameDiff;
 }
 
 // 8. Color Categorization Tendency

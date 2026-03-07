@@ -199,7 +199,7 @@ function getNameDifference(c0, c1) {
 
     // Debug first few calls
     if (_debugCallCount < 5) {
-        console.log(`getNameDifference call ${_debugCallCount}: i0=${i0}, i1=${i1}, same=${i0===i1}`);
+        console.log(`getNameDifference call ${_debugCallCount}: i0=${i0}, i1=${i1}, same=${i0 === i1}`);
         _debugCallCount++;
     }
 
@@ -208,14 +208,15 @@ function getNameDifference(c0, c1) {
     }
 
     try {
-        var hellinger = c3.color.hellinger(i0, i1);
+        var cosineSim = c3.color.cosine(i0, i1);
+        var dist = 1 - cosineSim;
         if (_debugCallCount === 5) {
-            console.log(`First non-zero hellinger: ${hellinger} (i0=${i0}, i1=${i1})`);
+            console.log(`First non-zero CNV dist: ${dist} (cosine=${cosineSim}, i0=${i0}, i1=${i1})`);
             _debugCallCount++;
         }
-        return hellinger;
+        return dist;
     } catch (e) {
-        console.error('Error in c3.color.hellinger:', e);
+        console.error('Error in c3.color.cosine:', e);
         return 0;
     }
 }
@@ -254,7 +255,7 @@ function interpolateMultiSegment(t, controlPoints) {
 function convertColormapToHCLPalette(colormap) {
     return colormap.map(color => {
         let rgb;
-        
+
         // Handle different color formats
         if (color.r !== undefined && color.g !== undefined && color.b !== undefined) {
             // Plain {r, g, b} object
@@ -266,7 +267,7 @@ function convertColormapToHCLPalette(colormap) {
             // Assume it's already a d3 color object
             rgb = d3.rgb(color);
         }
-        
+
         const lab = d3.lab(rgb);
         const hcl = d3.hcl(lab);
         return [hcl.h, hcl.c, hcl.l];

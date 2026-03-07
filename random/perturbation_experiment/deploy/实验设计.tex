@@ -1,0 +1,232 @@
+\documentclass{article}
+\usepackage[UTF8]{ctex}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\geometry{a4paper, margin=1in}
+\title{高斯扰动感知实验设计}
+\begin{document}
+\maketitle
+
+\section{实验概述}
+
+本实验采用 \textbf{四选一迫选范式（4AFC, Four-Alternative Forced Choice）}，研究被试在不同空间频率条件和色彩映射（Colormap）条件下对高斯场微小扰动的感知能力。每个试次中，被试看到 $2 \times 2$ 排列的 4 幅图像，其中 3 幅为同一原始高斯场（Original），1 幅为经过参数扰动的变体（Perturbed）。被试的任务是尽快、尽准确地点击识别出"不一样的那张图"（Odd One Out）。
+
+系统记录每个试次的\textbf{正确率}和\textbf{反应时间}，用于后续心理物理学分析。
+
+\section{实验因素}
+
+\subsection{自变量}
+
+\subsubsection{空间频率（Frequency）}
+实验操纵的核心因素，对应高斯场中被扰动的尺度层级：
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lllc}
+\toprule
+频率条件 & 扰动目标 & 高斯核 $\sigma$ & 目标 SSIM \\
+\midrule
+Low（低频）   & large  & $\sigma \approx 50$ px & 0.954 \\
+Medium（中频）& medium & $\sigma \approx 25$ px & 0.982 \\
+High（高频）  & small  & $\sigma \approx 15$ px & 0.956 \\
+\bottomrule
+\end{tabular}
+\caption{三种空间频率条件及其对应的 SSIM 目标值}
+\end{table}
+
+每个频率条件有独立的目标 SSIM 值，这些值经过预实验标定，旨在使三个频率条件下的任务难度近似可比。SSIM 值越低表示扰动越大、差异越明显。
+
+\subsubsection{色彩映射（Colormap）}
+实验使用 48 条预生成的色彩映射，覆盖 3 种色相目标 $\times$ 4 种色度模式 $\times$ 4 种亮度模式。色彩映射决定了标量场到 RGB 颜色的映射方式，是实验的关键调节变量——不同的色彩映射可能放大或抑制被试对特定频率扰动的感知。
+
+\subsection{因变量}
+\begin{itemize}
+    \item \textbf{正确率（Accuracy）}：被试是否正确识别出扰动图像（0 或 1）
+    \item \textbf{反应时间（Reaction Time）}：从刺激呈现到被试点击响应的毫秒数
+\end{itemize}
+
+
+\section{实验分组：拉丁方平衡设计}
+
+\subsection{设计动机}
+48 条色彩映射 $\times$ 3 个频率条件 $= 144$ 个可能的试次。让每位被试完成全部 144 个试次耗时过长。因此，我们采用\textbf{不完全被试间设计}：将 48 条色彩映射分成 3 组，每位被试只看到全部 48 条色彩映射，但每条色彩映射只在一个频率条件下出现。通过拉丁方旋转（Latin Square Rotation）确保每条色彩映射在跨被试的整体数据中被所有频率条件覆盖。
+
+\subsection{色彩映射分块}
+使用固定种子的伪随机数生成器（种子: \texttt{GLOBAL\_EXPERIMENT\_SEED\_V1}）将 48 条色彩映射\textbf{确定性地}打乱，然后等分为三个 Chunk：
+\begin{itemize}
+    \item \textbf{Chunk A}：色彩映射 $\#1 \sim \#16$（打乱后顺序）
+    \item \textbf{Chunk B}：色彩映射 $\#17 \sim \#32$
+    \item \textbf{Chunk C}：色彩映射 $\#33 \sim \#48$
+\end{itemize}
+固定种子确保所有被试、所有实验运行中 Chunk 划分完全一致。
+
+\subsection{拉丁方分配}
+3 个被试组 $\times$ 3 个频率条件通过\textbf{循环右移}的拉丁方分配 Chunk：
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccc}
+\toprule
+         & Low 频率     & Medium 频率  & High 频率    \\
+\midrule
+Group 0  & Chunk A     & Chunk B     & Chunk C     \\
+Group 1  & Chunk B     & Chunk C     & Chunk A     \\
+Group 2  & Chunk C     & Chunk A     & Chunk B     \\
+\bottomrule
+\end{tabular}
+\caption{拉丁方分配表。数学表示：Group $g$ 在频率 $f$ 使用 Chunk $\text{index} = (g + f) \bmod 3$。}
+\label{tab:latin-square}
+\end{table}
+
+\textbf{平衡性分析}：
+\begin{itemize}
+    \item 每个 Chunk 在每个频率条件下恰好出现 1 次 $\Rightarrow$ 每条色彩映射在三个频率条件下都有被试数据
+    \item 每位被试看到全部 48 条色彩映射（$16 \times 3 = 48$），但每条只在一个频率下出现 $\Rightarrow$ 无重复测量
+    \item 色彩映射与频率条件之间的混淆效应通过跨组平均消除
+\end{itemize}
+
+
+\section{被试分组与负载均衡}
+
+\subsection{服务端动态分组}
+被试加入实验时，客户端向服务器发送 \texttt{POST /api/assign} 请求。服务器使用\textbf{最小负载分配}策略：
+
+\begin{equation}
+g^* = \arg\min_{g \in \{0, 1, 2\}} \left( n_g^{completed} + n_g^{active} \right)
+\end{equation}
+
+其中 $n_g^{completed}$ 为已完成被试数，$n_g^{active}$ 为当前活跃会话数。若多组负载相同，则随机选择。
+
+\subsection{会话超时管理}
+为防止被试中途放弃导致负载计数偏差，系统设置 30 分钟超时：
+\begin{itemize}
+    \item 被试注册时记录时间戳
+    \item 后续分配前清理超时（$> 30$ 分钟）的活跃会话
+    \item 被试提交数据后从活跃列表移至已完成计数
+\end{itemize}
+
+\subsection{降级策略}
+若服务器不可达，客户端自动降级为\textbf{本地哈希分配}：
+\begin{equation}
+g = \text{hash}(\text{participantId}) \bmod 3
+\end{equation}
+
+
+\section{试次结构与流程}
+
+\subsection{试次生成}
+每位被试的实验包含 \textbf{48 个主试次}和约 \textbf{4 个注意力检查试次}，总计约 52 个试次。
+
+主试次的生成规则：
+\begin{equation}
+\text{Trials} = \bigcup_{f \in \{\text{Low, Med, High}\}} \left\{ (f,\; c,\; S_f^*) \;\middle|\; c \in \text{Chunk}_{(g+f) \bmod 3} \right\}
+\end{equation}
+即对每个频率条件 $f$，遍历该组分配到的 16 条色彩映射 $c$，以频率对应的目标 SSIM $S_f^*$ 为扰动强度控制目标。
+
+生成后，所有 48 个主试次进行\textbf{随机打乱}（使用 JavaScript 内置 \texttt{Math.random}），消除顺序效应。
+
+\subsection{注意力检查（Engagement Check）}
+每间隔 12 个主试次插入 1 个注意力检查试次。其设计为：
+\begin{itemize}
+    \item 使用固定的色彩映射（Hue=300°, Chroma=Thermal, Luminance=Thermal）
+    \item 使用远低于主试次的目标 SSIM $= 0.80$（扰动非常明显，正常注意力下必定能识别）
+    \item 扰动目标频段为 Medium
+\end{itemize}
+
+\textbf{判定规则}：若被试在任何一个注意力检查试次中回答错误，则判定为注意力不合格，\textbf{不生成完成码，不上传数据}，要求被试重新开始实验。
+
+\subsection{单个试次流程}
+
+\begin{enumerate}
+    \item \textbf{刺激生成}：在客户端实时生成高斯场（使用 Web Worker 避免阻塞 UI）
+    \begin{itemize}
+        \item 随机生成高斯核布局（3 尺度层级 × 各自数量个核）
+        \item 渲染原始标量场
+        \item 使用二分搜索找到使 SSIM 达到目标值的扰动幅度 $\alpha^*$
+        \item 应用扰动 → 软归因门控 → 渲染扰动场
+    \end{itemize}
+    \item \textbf{色彩映射应用}：将原始场和扰动场通过当前试次指定的色彩映射转换为 RGB 图像
+    \item \textbf{呈现}：4 幅 $200 \times 200$ px 图像排列为 $2 \times 2$ 网格；扰动图像随机放置于 4 个位置之一；右侧显示色彩映射图例
+    \item \textbf{响应}：被试点击认为是扰动图的图像
+    \item \textbf{记录}：记录选择位置、正确性、反应时间、SSIM 等元数据
+    \item \textbf{过渡}：立即加载下一个试次（后台预加载缓冲区大小 = 10）
+\end{enumerate}
+
+\subsection{预加载策略}
+由于实时生成涉及 SSIM 二分搜索（约 20 次迭代 × 全场渲染），单试次生成需要数百毫秒。系统采用\textbf{流水线式预加载}：
+\begin{itemize}
+    \item 初始加载 2 个试次后立即开始实验
+    \item 后台持续预加载当前试次后的 10 个试次
+    \item 注意力检查试次在实验开始后立即全部后台预生成
+    \item 并发控制：最多 3 个并行预加载任务
+\end{itemize}
+
+
+\section{数据记录}
+
+每个试次记录以下字段，以 CSV 格式保存：
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+字段 & 类型 & 说明 \\
+\midrule
+participantId       & string  & 被试编号 \\
+trialId             & int     & 试次编号 \\
+frequencyId         & string  & 频率条件（low / medium / high）\\
+targetSSIM          & float   & 目标 SSIM \\
+actualSSIM          & float   & 实际达到的 SSIM \\
+actualMagnitude     & float   & 实际使用的扰动幅度 $\alpha$ \\
+colormapId          & int     & 色彩映射编号（0--47）\\
+colormapHue         & int     & 色彩映射色相目标 \\
+colormapChromaPattern & string & 色度模式 \\
+colormapLumaPattern & string  & 亮度模式 \\
+targetPosition      & int     & 扰动图像的实际位置（0--3）\\
+selectedPosition    & int     & 被试选择的位置（0--3）\\
+isCorrect           & 0/1     & 是否正确 \\
+reactionTimeMs      & int     & 反应时间（毫秒）\\
+timestamp           & ISO8601 & 响应时间戳 \\
+\bottomrule
+\end{tabular}
+\caption{试次数据记录字段}
+\end{table}
+
+实验完成后，数据通过 \texttt{POST /api/save\_data} 提交至服务器，以 \texttt{participantId\_timestamp.csv} 格式保存。
+
+
+\section{实验参数汇总}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+参数 & 值 \\
+\midrule
+实验范式            & 4AFC Odd-One-Out \\
+刺激尺寸            & $200 \times 200$ px \\
+频率条件数          & 3（Low / Medium / High）\\
+色彩映射数          & 48（3 色相 $\times$ 4 色度 $\times$ 4 亮度）\\
+每组色彩映射数      & 16（每频率条件）\\
+被试间组数          & 3（拉丁方设计）\\
+主试次数 / 被试     & 48 \\
+注意力检查间隔      & 每 12 个主试次 \\
+注意力检查 SSIM     & 0.80 \\
+SSIM 优化容差       & 0.001 \\
+SSIM 搜索最大迭代   & 20（最多 6 次重试）\\
+预加载缓冲区        & 10 个试次 \\
+会话超时            & 30 分钟 \\
+\bottomrule
+\end{tabular}
+\caption{实验关键参数}
+\end{table}
+
+\end{document}
