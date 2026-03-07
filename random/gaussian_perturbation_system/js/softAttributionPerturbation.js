@@ -349,7 +349,7 @@ class SoftAttributionPerturbation {
                 // 中频扰动：应用在中频和低频区域
                 // 使用 (masks.mid + masks.low) 的组合，归一化到 [0,1]
                 effectiveMasks.mid[i] = Math.min(1.0, masks.mid[i] + masks.low[i]);
-
+a
                 // 低频扰动：只应用在低频区域
                 effectiveMasks.low[i] = masks.low[i];
             }
