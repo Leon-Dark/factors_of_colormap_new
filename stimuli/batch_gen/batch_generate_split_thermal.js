@@ -1568,10 +1568,12 @@ function batchGenerateSplitThermal(options = {}) {
     console.log('═══════════════════════════════════════════════\n');
 
     const results = [];
+    const roundFiles = [];
     let successCount = 0;
     let generatedCount = 0;
 
     for (let n = 0; n < perCombination; n++) {
+        const roundResults = [];
         for (const hue of CONFIG.hueTargets) {
             for (const combo of combos) {
                 generatedCount++;
@@ -1608,24 +1610,27 @@ function batchGenerateSplitThermal(options = {}) {
                     exportData.cValues = result.colormap.cValues;
                     exportData.lValues = result.colormap.lValues;
                 }
+                roundResults.push(exportData);
                 results.push(exportData);
-
-                if (CONFIG.incrementalSave > 0 && results.length % CONFIG.incrementalSave === 0) {
-                    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-                    const outputPath = path.join(outputDir, 'thermal_colormaps.json');
-                    fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
-                }
             }
         }
+
+        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+        const roundFile = `thermal_colormaps_round_${String(n + 1).padStart(3, '0')}.json`;
+        const roundPath = path.join(outputDir, roundFile);
+        fs.writeFileSync(roundPath, JSON.stringify(roundResults, null, 2));
+        roundFiles.push(roundPath);
+        console.log(`  Saved round ${n + 1}/${perCombination}: ${roundPath}\n`);
     }
 
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-    const outputPath = path.join(outputDir, 'thermal_colormaps.json');
+    const outputPath = path.join(outputDir, 'thermal_colormaps_all.json');
     fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
 
     console.log('═══════════════════════════════════════════════');
     console.log(`  Done! Success: ${successCount}/${totalTargets}`);
-    console.log(`  Wrote to: ${outputPath}`);
+    console.log(`  Round files: ${roundFiles.length}`);
+    console.log(`  Wrote merged file to: ${outputPath}`);
     console.log('═══════════════════════════════════════════════\n');
 
     return results;

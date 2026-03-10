@@ -8,7 +8,7 @@
 \usepackage{hyperref}
 \geometry{a4paper, margin=1in}
 
-\title{Colormap 数据生成方法论\\(Pattern-Aware Split-Thermal Pipeline)}
+\title{Colormap 数据生成方法论\\(Pattern-Aware SA Pipeline)}
 \date{}
 
 \begin{document}
@@ -47,11 +47,13 @@ thermal & $[20,120,20,120,20]$ & $[20,90,20,90,20]$ \\
 \end{tabular}
 \end{table}
 
-任务组合定义为：
+任务组合默认使用笛卡尔积（\texttt{comboMode=all}）：
 \begin{equation}
-(\text{chroma 为 thermal/diverging}) \ \lor \ (\text{lumi 为 thermal/diverging})
+\{\text{constant, linear, diverging, thermal}\}_{C}
+\times
+\{\text{constant, linear, diverging, thermal}\}_{L}
 \end{equation}
-因此每个色相下有 12 种组合。
+因此每个色相下有 16 种组合（3 个色相共 48 组任务）。若需要可切换到 \texttt{focus} 子集模式。
 
 \subsection{状态向量与控制点重建}
 每个候选解由状态向量表示：
@@ -72,9 +74,9 @@ Stage 1 的任务是先找到 ``可显示'' 的种子，再进入质量优化。
 \paragraph{(1) Hue-start 采样}
 在 \(hStart\) 空间采样：
 \begin{itemize}
-    \item 先按步长扫描 \(0^\circ \sim 360^\circ\)；
-    \item 再补充随机 \(hStart\) 采样以达到预算上限；
-    \item 候选集合随机打散后截断到 \texttt{maxBaseCandidates}。
+    \item 将 \(0^\circ \sim 360^\circ\) 按 \(20^\circ\) 分桶；
+    \item 每个桶内随机采样一个 \(hStart\)；
+    \item 候选集合打散后进入后续色域修正流程。
 \end{itemize}
 
 \paragraph{(2) 定向波峰压缩}
@@ -82,19 +84,19 @@ Stage 1 的任务是先找到 ``可显示'' 的种子，再进入质量优化。
 \begin{equation}
 cDown_p \leftarrow cDown_p + \Delta_C,\quad lDown_q \leftarrow lDown_q + \Delta_L
 \end{equation}
-直到全部显示或达到迭代上限。
+每次迭代在 ``单个波峰 + 单个通道（C 或 L）'' 的候选动作中择优，选择使失败点数下降且形变更小的动作，直到全部显示或达到迭代上限。
 
 \subsection{Stage 2：质量优化（Quality Optimization）}
 Stage 2 在通过色域的前提下，优化质量指标。
 
 \paragraph{优化变量集合}
 \begin{itemize}
-    \item 非 constant 通道：\textbf{波谷上抬}（up）+\textbf{波峰下压}（down）同时可动；
-    \item constant 通道：单点同时允许 up/down。
+    \item 波谷上抬（up）与波峰下压（down）均可参与质量阶段优化；
+    \item 状态统一表示为 \((cDown,cUp,lDown,lUp)\) 的点级调整量。
 \end{itemize}
 
 \paragraph{搜索策略}
-主优化器为模拟退火（SA），并保留确定性坐标搜索作为 fallback。
+主优化器为模拟退火（SA），并保留确定性坐标搜索作为 fallback。SA 在每一步执行组联动扰动或单点微调，并伴随小概率 hue 微调；若突变导致暂时出色域，会先执行自动压峰回到可显示域，再继续质量评估。
 
 设评价函数为：
 \[
@@ -131,14 +133,14 @@ P(\text{accept})=
 三项同时通过记为 \texttt{passAll=true}。
 
 \section{重试与自适应预算}
-每个组合最多重试 \texttt{maxRetries=60} 次。第 \(r\) 次重试时，搜索预算按难度自适应放大：
+每个组合按 ``多轮搜索直到通过'' 的策略执行，轮次上限由 \texttt{maxSearchRounds} 控制（默认 30）。第 \(r\) 轮时，搜索预算按难度自适应放大：
 \begin{itemize}
     \item 常规重试：维持基础预算；
-    \item 中等重试（如 \(r \ge 12\)）：放大 base 候选数、seed 精炼数、SA 迭代数；
-    \item 深度重试（如 \(r \ge 30\)）：进一步扩大候选数与迭代预算；
-    \item thermal/constant 组合触发额外难例加权。
+    \item 中等重试（\(r \ge 8\)）：放大 base 候选数、色域迭代数、SA 迭代数；
+    \item 深度重试（\(r \ge 18\)）：进一步扩大候选数与迭代预算；
+    \item 复杂组合会触发额外预算加权。
 \end{itemize}
-该机制的目的是在总时长可控的前提下，提高“边界组合”命中率，而非全局固定高成本搜索。
+此外，纯色域诊断模式可单独设置 \texttt{maxGamutRetries} 以提高种子覆盖率。该机制的目的是在总时长可控的前提下，提高边界组合命中率，而非全局固定高成本搜索。
 
 \section{输出与复现实验}
 每条成功结果输出以下信息：
@@ -149,7 +151,12 @@ P(\text{accept})=
     \item 调整分量（\(cDown,cUp,lDown,lUp\)）；
     \item 搜索统计（attempts、retryCount、deformation、质量指标）。
 \end{enumerate}
-结果写入 \texttt{output\_thermal/thermal\_colormaps.json}，并可通过 \texttt{viewer\_thermal.html} 可视化检查。
+结果按轮次增量写入：
+\begin{itemize}
+    \item \texttt{output\_thermal/thermal\_colormaps\_round\_\{xxx\}.json}（每轮一个文件）；
+    \item \texttt{output\_thermal/thermal\_colormaps\_all.json}（合并文件）。
+\end{itemize}
+并可通过 \texttt{viewer\_thermal.html} 可视化检查。
 
 \section{方法学总结}
 该生成器本质上是一个 \textbf{约束满足 + 形变最小化} 的三阶段混合优化框架：
