@@ -491,7 +491,8 @@ class GaussianPerturbationApp {
         // Canvas点击事件（显示高斯信息）
         const canvases = [
             'canvas-original', 'canvas-perturbed',
-            'canvas-difference', 'canvas-heatmap'
+            'canvas-difference', 'canvas-heatmap',
+            'canvas-original-high', 'canvas-original-mid', 'canvas-original-low'
         ];
 
         for (const canvasId of canvases) {
@@ -641,6 +642,9 @@ class GaussianPerturbationApp {
     handleToggleCenters(show) {
         // 更新所有视图的显示选项
         this.visualization.views.original.options.showGaussianCenters = show;
+        this.visualization.views.originalHigh.options.showGaussianCenters = show;
+        this.visualization.views.originalMid.options.showGaussianCenters = show;
+        this.visualization.views.originalLow.options.showGaussianCenters = show;
         this.visualization.views.perturbed.options.showGaussianCenters = show;
         this.visualization.views.heatmap.options.showGaussianCenters = show;
 
@@ -654,6 +658,9 @@ class GaussianPerturbationApp {
     handleToggleGrid(show) {
         // 更新所有视图的显示选项
         this.visualization.views.original.options.showGridLines = show;
+        this.visualization.views.originalHigh.options.showGridLines = show;
+        this.visualization.views.originalMid.options.showGridLines = show;
+        this.visualization.views.originalLow.options.showGridLines = show;
         this.visualization.views.perturbed.options.showGridLines = show;
         this.visualization.views.heatmap.options.showGridLines = show;
         this.visualization.views.difference.options.showGridLines = show;

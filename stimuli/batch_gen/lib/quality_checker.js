@@ -1,6 +1,6 @@
 // Quality checker for colormaps
 
-const { ciede2000, convertColormapToHCLPalette } = require('./utils');
+const { ciede2000, convertColormapToLabPalette, sampleLabPalette, minPairDeltaE } = require('./utils');
 
 /**
  * Calculate minimum color difference for uniformly sampled points at interval k
@@ -8,13 +8,7 @@ const { ciede2000, convertColormapToHCLPalette } = require('./utils');
 function calcUniformIntervalMinDiff(palette, intervalK, sampleCount) {
     let min_interval_diff = Number.MAX_VALUE;
     try {
-        // Uniformly sample points from the palette
-        const samples = [];
-        for (let i = 0; i < sampleCount; i++) {
-            const t = i / (sampleCount - 1);
-            const idx = Math.min(Math.floor(t * palette.length), palette.length - 1);
-            samples.push(palette[idx]);
-        }
+        const samples = sampleLabPalette(palette, sampleCount);
 
         if (samples.length <= intervalK) {
             return 0;
@@ -37,36 +31,77 @@ function calcUniformIntervalMinDiff(palette, intervalK, sampleCount) {
     }
 }
 
+function getQualityConfig(config = {}) {
+    return {
+        sampleCount: config.sampleCount ?? config.uniformSampleCount ?? 30,
+        smallIntervalK: config.smallIntervalK ?? config.smallWindowK ?? 2,
+        smallMinDiff: config.smallMinDiff ?? config.smallWindowThreshold ?? 3,
+        largeIntervalK: config.largeIntervalK ?? config.largeWindowK ?? 5,
+        largeMinDiff: config.largeMinDiff ?? config.largeWindowThreshold ?? 10,
+        discriminabilitySampleCount: config.discriminabilitySampleCount ?? 10,
+        discriminabilityMinDiff: config.discriminabilityMinDiff ?? 3,
+        weightSmallWindow: config.weightSmallWindow ?? 1,
+        weightLargeWindow: config.weightLargeWindow ?? 1,
+        weightDiscriminability: config.weightDiscriminability ?? 1,
+        totalDeficitPassThreshold: config.totalDeficitPassThreshold
+    };
+}
+
 /**
- * Check if colormap passes quality thresholds
+ * Evaluate quality with continuous penalties (lower is better).
  */
-function checkQuality(colormap, config) {
-    const {
-        sampleCount = 30,
-        smallIntervalK = 2,
-        smallMinDiff = 3,
-        largeIntervalK = 5,
-        largeMinDiff = 10
-    } = config;
+function evaluateQuality(colormap, config = {}) {
+    const q = getQualityConfig(config);
+    const labPalette = convertColormapToLabPalette(colormap);
 
-    const hclPalette = convertColormapToHCLPalette(colormap);
+    const smallWindowDiff = calcUniformIntervalMinDiff(labPalette, q.smallIntervalK, q.sampleCount);
+    const largeWindowDiff = calcUniformIntervalMinDiff(labPalette, q.largeIntervalK, q.sampleCount);
+    const sampledForDisc = sampleLabPalette(labPalette, q.discriminabilitySampleCount);
+    const minPairDiff = minPairDeltaE(sampledForDisc);
 
-    const smallWindowDiff = calcUniformIntervalMinDiff(hclPalette, smallIntervalK, sampleCount);
-    const largeWindowDiff = calcUniformIntervalMinDiff(hclPalette, largeIntervalK, sampleCount);
+    const smallDeficit = Math.max(0, q.smallMinDiff - smallWindowDiff);
+    const largeDeficit = Math.max(0, q.largeMinDiff - largeWindowDiff);
+    const discDeficit = Math.max(0, q.discriminabilityMinDiff - minPairDiff);
 
-    const passSmall = smallWindowDiff >= smallMinDiff;
-    const passLarge = largeWindowDiff >= largeMinDiff;
+    const passSmall = smallDeficit === 0;
+    const passLarge = largeDeficit === 0;
+    const passDiscriminability = discDeficit === 0;
+    const totalDeficit = smallDeficit + largeDeficit + discDeficit;
+
+    const score =
+        q.weightSmallWindow * (smallDeficit ** 2) +
+        q.weightLargeWindow * (largeDeficit ** 2) +
+        q.weightDiscriminability * (discDeficit ** 2);
+
+    const passAll = Number.isFinite(q.totalDeficitPassThreshold)
+        ? (totalDeficit < q.totalDeficitPassThreshold)
+        : (passSmall && passLarge && passDiscriminability);
 
     return {
         passSmall,
         passLarge,
-        passAll: passSmall && passLarge,
+        passDiscriminability,
+        passAll,
         smallWindowDiff,
-        largeWindowDiff
+        largeWindowDiff,
+        minPairDiff,
+        smallDeficit,
+        largeDeficit,
+        discDeficit,
+        totalDeficit,
+        score
     };
+}
+
+/**
+ * Check if colormap passes quality thresholds
+ */
+function checkQuality(colormap, config) {
+    return evaluateQuality(colormap, config);
 }
 
 module.exports = {
     calcUniformIntervalMinDiff,
+    evaluateQuality,
     checkQuality
 };

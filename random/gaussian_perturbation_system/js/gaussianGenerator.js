@@ -282,15 +282,18 @@ class GaussianGenerator {
      * @param {number} height - 图像高度
      * @param {boolean} useOriginal - 是否使用原始参数
      * @param {boolean} useGradientNormalization - 是否使用梯度能量归一化
+     * @param {string|null} levelToRender - 可选，仅渲染特定尺寸级别
      * @returns {Float32Array} 1D数组
      */
-    renderTo1DArray(width, height, useOriginal = false, useGradientNormalization = true) {
+    renderTo1DArray(width, height, useOriginal = false, useGradientNormalization = true, levelToRender = null) {
         const data = new Float32Array(width * height);
         const epsilon = 1e-10; // 防止除零
 
 
         // 原始方法：直接叠加所有高斯
         for (const gauss of this.gaussians) {
+            if (levelToRender && gauss.sizeLevel !== levelToRender) continue;
+
             if (useOriginal) {
                 // 使用原始参数渲染
                 const maxSigma = Math.max(gauss.originalSX, gauss.originalSY);

@@ -108,6 +108,13 @@ function drawGivenColormap2(candidates, condition_name) {
 
     const metrics = calculateAndDisplayMetrics(colormap, condition_name);
     if (metrics) {
+        if (candidates.metadata && candidates.metadata.qualityMetrics) {
+            const q = candidates.metadata.qualityMetrics;
+            if (q.smallDeficit !== undefined) metrics.smallDeficit = q.smallDeficit;
+            if (q.largeDeficit !== undefined) metrics.largeDeficit = q.largeDeficit;
+            if (q.discDeficit !== undefined) metrics.discDeficit = q.discDeficit;
+        }
+
         displayMetricsInDiv(div, metrics);
 
         const divNode = div.node();
@@ -206,6 +213,17 @@ function updateMetricsDisplay(divElement, metrics) {
         { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
     );
 
+    // Add Deficits if passed via hack 
+    if (metrics.smallDeficit !== undefined) {
+        metricsData.push({ name: "Small Deficit", value: metrics.smallDeficit, color: "red" });
+    }
+    if (metrics.largeDeficit !== undefined) {
+        metricsData.push({ name: "Large Deficit", value: metrics.largeDeficit, color: "red" });
+    }
+    if (metrics.discDeficit !== undefined) {
+        metricsData.push({ name: "Disc Deficit", value: metrics.discDeficit, color: "red" });
+    }
+
     for (let i = 0; i < metricsData.length; i += 2) {
         const row = table.append("tr")
             .style("border-bottom", i < metricsData.length - 2 ? "1px solid #eee" : "none");
@@ -288,6 +306,17 @@ function displayMetricsInDiv(div, metrics) {
         { name: `Small Window (k=${UNIFORM_SMALL_INTERVAL_K})`, value: metrics.uniform_small_window_diff, color: "#795548" },
         { name: `Large Window (k=${UNIFORM_LARGE_INTERVAL_K})`, value: metrics.uniform_large_window_diff, color: "#00897B" }
     );
+
+    // Add Deficits if passed via hack 
+    if (metrics.smallDeficit !== undefined) {
+        metricsData.push({ name: "Small Deficit", value: metrics.smallDeficit, color: "red" });
+    }
+    if (metrics.largeDeficit !== undefined) {
+        metricsData.push({ name: "Large Deficit", value: metrics.largeDeficit, color: "red" });
+    }
+    if (metrics.discDeficit !== undefined) {
+        metricsData.push({ name: "Disc Deficit", value: metrics.discDeficit, color: "red" });
+    }
 
     for (let i = 0; i < metricsData.length; i += 2) {
         const row = table.append("tr")

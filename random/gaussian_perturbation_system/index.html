@@ -417,20 +417,38 @@
                 </div>
 
                 <!-- 上方：原始和扰动图像并排 -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                    <div class="canvas-wrapper" id="view-original">
-                        <h3>原始分布 / Original Distribution</h3>
-                        <canvas id="canvas-original" width="200" height="200"></canvas>
-                        <div class="canvas-info">
-                            <span id="info-original">等待生成... / Waiting...</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; overflow-x: auto;">
+                    <div style="display: flex; gap: 10px;">
+                        <div class="canvas-wrapper" id="view-original">
+                            <h3 style="font-size: 13px; margin-bottom: 5px;">原始分布 / Original</h3>
+                            <canvas id="canvas-original" width="200" height="200"></canvas>
+                            <div class="canvas-info">
+                                <span id="info-original" style="font-size: 11px;">等待生成... / Waiting...</span>
+                            </div>
+                        </div>
+
+                        <div class="canvas-wrapper" id="view-original-high">
+                            <h3 style="font-size: 13px; margin-bottom: 5px; color: #377eb8;">仅高频 / High Only</h3>
+                            <canvas id="canvas-original-high" width="200" height="200"></canvas>
+                        </div>
+
+                        <div class="canvas-wrapper" id="view-original-low">
+                            <h3 style="font-size: 13px; margin-bottom: 5px; color: #ff7f00;">仅低频 / Low Only</h3>
+                            <canvas id="canvas-original-low" width="200" height="200"></canvas>
+                        </div>
+
+                        <div class="canvas-wrapper" id="view-original-mid">
+                            <h3 style="font-size: 13px; margin-bottom: 5px; color: #4daf4a;">仅中频 / Mid Only</h3>
+                            <canvas id="canvas-original-mid" width="200" height="200"></canvas>
                         </div>
                     </div>
 
-                    <div class="canvas-wrapper" id="view-perturbed">
-                        <h3>扰动后 / Perturbed Distribution</h3>
+                    <div class="canvas-wrapper" id="view-perturbed"
+                        style="border-left: 2px dashed #ddd; padding-left: 15px;">
+                        <h3 style="font-size: 13px; margin-bottom: 5px;">扰动后 / Perturbed</h3>
                         <canvas id="canvas-perturbed" width="200" height="200"></canvas>
                         <div class="canvas-info">
-                            <span id="info-perturbed">未应用扰动 / No perturbation applied</span>
+                            <span id="info-perturbed" style="font-size: 11px;">未应用扰动 / No perturbation</span>
                         </div>
                     </div>
                 </div>

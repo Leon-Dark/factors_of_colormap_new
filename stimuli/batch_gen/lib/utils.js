@@ -86,6 +86,19 @@ function parseControlPoints(points) {
 }
 
 /**
+ * Normalize a color value to d3.rgb
+ */
+function toRgb(color) {
+    if (color && color.r !== undefined && color.g !== undefined && color.b !== undefined) {
+        return d3.rgb(color.r, color.g, color.b);
+    }
+    if (Array.isArray(color) && color.length >= 3) {
+        return d3.rgb(color[0], color[1], color[2]);
+    }
+    return d3.rgb(color);
+}
+
+/**
  * Multi-segment interpolation
  */
 function interpolateMultiSegment(t, controlPoints) {
@@ -101,16 +114,7 @@ function interpolateMultiSegment(t, controlPoints) {
  */
 function convertColormapToHCLPalette(colormap) {
     return colormap.map(color => {
-        let rgb;
-
-        if (color.r !== undefined && color.g !== undefined && color.b !== undefined) {
-            rgb = d3.rgb(color.r, color.g, color.b);
-        } else if (Array.isArray(color) && color.length >= 3) {
-            rgb = d3.rgb(color[0], color[1], color[2]);
-        } else {
-            rgb = d3.rgb(color);
-        }
-
+        const rgb = toRgb(color);
         const lab = d3.lab(rgb);
         const hcl = d3.hcl(lab);
         return [hcl.h, hcl.c, hcl.l];
@@ -118,24 +122,59 @@ function convertColormapToHCLPalette(colormap) {
 }
 
 /**
- * Check if colormap satisfies discriminability
+ * Convert colormap to Lab palette [L, a, b].
  */
-function satisfyDiscriminability(colormap, sampleNum = 10) {
-    const sampled_colormap = [];
-    for (let i = 0; i < colormap.length; i += Math.floor(colormap.length / sampleNum)) {
-        let lab = d3.lab(colormap[i]);
-        sampled_colormap.push([lab.l, lab.a, lab.b]);
-    }
+function convertColormapToLabPalette(colormap) {
+    return colormap.map(color => {
+        const rgb = toRgb(color);
+        const lab = d3.lab(rgb);
+        return [lab.l, lab.a, lab.b];
+    });
+}
 
-    for (let i = 0; i < sampled_colormap.length; i++) {
-        for (let j = i + 1; j < sampled_colormap.length; j++) {
-            let deltaE = ciede2000(sampled_colormap[i], sampled_colormap[j]);
-            if (deltaE < 3) {
-                return false;
+/**
+ * Uniformly sample Lab colors from a palette.
+ */
+function sampleLabPalette(labPalette, sampleNum = 10) {
+    if (!Array.isArray(labPalette) || labPalette.length === 0) {
+        return [];
+    }
+    const safeSampleNum = Math.max(2, Math.min(sampleNum, labPalette.length));
+    const sampled = [];
+    for (let i = 0; i < safeSampleNum; i++) {
+        const t = i / (safeSampleNum - 1);
+        const idx = Math.min(Math.floor(t * labPalette.length), labPalette.length - 1);
+        sampled.push(labPalette[idx]);
+    }
+    return sampled;
+}
+
+/**
+ * Minimum pairwise CIEDE2000 distance in a Lab palette.
+ */
+function minPairDeltaE(labPalette) {
+    if (!Array.isArray(labPalette) || labPalette.length < 2) {
+        return 0;
+    }
+    let minDiff = Number.MAX_VALUE;
+    for (let i = 0; i < labPalette.length; i++) {
+        for (let j = i + 1; j < labPalette.length; j++) {
+            const diff = ciede2000(labPalette[i], labPalette[j]);
+            if (diff < minDiff) {
+                minDiff = diff;
             }
         }
     }
-    return true;
+    return minDiff === Number.MAX_VALUE ? 0 : minDiff;
+}
+
+/**
+ * Check if colormap satisfies discriminability
+ */
+function satisfyDiscriminability(colormap, sampleNum = 10) {
+    const labPalette = convertColormapToLabPalette(colormap);
+    const sampled = sampleLabPalette(labPalette, sampleNum);
+    return minPairDeltaE(sampled) >= 3;
 }
 
 /**
@@ -160,6 +199,9 @@ module.exports = {
     parseControlPoints,
     interpolateMultiSegment,
     convertColormapToHCLPalette,
+    convertColormapToLabPalette,
+    sampleLabPalette,
+    minPairDeltaE,
     satisfyDiscriminability,
     adjustControlPoints
 };

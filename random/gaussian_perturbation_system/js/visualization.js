@@ -39,13 +39,14 @@ class VisualizationSystem {
      * 渲染高斯分布
      * @param {GaussianGenerator} generator - 高斯生成器
      * @param {boolean} useOriginal - 是否使用原始参数
+     * @param {string|null} levelToRender - 可选，仅渲染特定尺寸级别
      */
-    renderGaussians(generator, useOriginal = false) {
+    renderGaussians(generator, useOriginal = false, levelToRender = null) {
         // 生成数据，使用梯度归一化选项
         const useGradientNorm = this.options.useGradientNormalization !== undefined
             ? this.options.useGradientNormalization
             : true;
-        const data = generator.renderTo1DArray(this.width, this.height, useOriginal, useGradientNorm);
+        const data = generator.renderTo1DArray(this.width, this.height, useOriginal, useGradientNorm, levelToRender);
 
         // 归一化 (Min-Max Normalization)
         let max = -Infinity;
@@ -85,11 +86,11 @@ class VisualizationSystem {
 
         // 绘制高斯标记
         if (this.options.showGaussianCenters) {
-            this.drawGaussianMarkers(generator, useOriginal);
+            this.drawGaussianMarkers(generator, useOriginal, levelToRender);
         }
 
         if (this.options.showGaussianBorders) {
-            this.drawGaussianBorders(generator, useOriginal);
+            this.drawGaussianBorders(generator, useOriginal, levelToRender);
         }
 
         // 缓存数据
@@ -156,9 +157,11 @@ class VisualizationSystem {
      * 绘制高斯中心标记
      * @param {GaussianGenerator} generator - 高斯生成器
      * @param {boolean} useOriginal - 是否使用原始位置
+     * @param {string|null} levelToRender - 可选，仅渲染特定尺寸级别
      */
-    drawGaussianMarkers(generator, useOriginal = false) {
-        const gaussians = generator.getAllGaussians();
+    drawGaussianMarkers(generator, useOriginal = false, levelToRender = null) {
+        const allGaussians = generator.getAllGaussians();
+        const gaussians = levelToRender ? allGaussians.filter(g => g.sizeLevel === levelToRender) : allGaussians;
 
         for (const gauss of gaussians) {
             // 确定使用原始位置还是当前位置
@@ -190,9 +193,11 @@ class VisualizationSystem {
      * 绘制高斯边界
      * @param {GaussianGenerator} generator - 高斯生成器
      * @param {boolean} useOriginal - 是否使用原始参数
+     * @param {string|null} levelToRender - 可选，仅渲染特定尺寸级别
      */
-    drawGaussianBorders(generator, useOriginal = false) {
-        const gaussians = generator.getAllGaussians();
+    drawGaussianBorders(generator, useOriginal = false, levelToRender = null) {
+        const allGaussians = generator.getAllGaussians();
+        const gaussians = levelToRender ? allGaussians.filter(g => g.sizeLevel === levelToRender) : allGaussians;
 
         for (const gauss of gaussians) {
             // 确定使用原始参数还是当前参数
@@ -427,6 +432,15 @@ class MultiViewVisualization {
         this.views.original = new VisualizationSystem(
             document.getElementById('canvas-original')
         );
+        this.views.originalHigh = new VisualizationSystem(
+            document.getElementById('canvas-original-high')
+        );
+        this.views.originalMid = new VisualizationSystem(
+            document.getElementById('canvas-original-mid')
+        );
+        this.views.originalLow = new VisualizationSystem(
+            document.getElementById('canvas-original-low')
+        );
         this.views.perturbed = new VisualizationSystem(
             document.getElementById('canvas-perturbed')
         );
@@ -465,6 +479,10 @@ class MultiViewVisualization {
         if (!this.generator) return;
 
         this.originalData = this.views.original.renderGaussians(this.generator, true);
+        this.views.originalHigh.renderGaussians(this.generator, true, 'small');
+        this.views.originalMid.renderGaussians(this.generator, true, 'medium');
+        this.views.originalLow.renderGaussians(this.generator, true, 'large');
+
         document.getElementById('info-original').textContent =
             `Displaying ${this.generator.getAllGaussians().length} Gaussians / 显示 ${this.generator.getAllGaussians().length} 个高斯分布`;
     }
