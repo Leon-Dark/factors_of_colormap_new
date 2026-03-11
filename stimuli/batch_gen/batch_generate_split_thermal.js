@@ -36,12 +36,12 @@ const CONFIG = {
     incrementalSave: 1,
 
     // Quality thresholds
-    uniformSampleCount: 30,
+    uniformSampleCount:20,
     smallWindowK: 2,
     smallWindowThreshold: 3,
     largeWindowK: 5,
     largeWindowThreshold: 10,
-    discriminabilitySampleCount: 10,
+    discriminabilitySampleCount:20,
     discriminabilityMinDiff: 3,
     totalDeficitPassThreshold: 1,
 
@@ -1623,14 +1623,9 @@ function batchGenerateSplitThermal(options = {}) {
         console.log(`  Saved round ${n + 1}/${perCombination}: ${roundPath}\n`);
     }
 
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-    const outputPath = path.join(outputDir, 'thermal_colormaps_all.json');
-    fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
-
     console.log('═══════════════════════════════════════════════');
     console.log(`  Done! Success: ${successCount}/${totalTargets}`);
     console.log(`  Round files: ${roundFiles.length}`);
-    console.log(`  Wrote merged file to: ${outputPath}`);
     console.log('═══════════════════════════════════════════════\n');
 
     return results;

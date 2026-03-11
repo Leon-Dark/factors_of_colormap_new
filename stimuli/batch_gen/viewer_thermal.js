@@ -3,6 +3,13 @@
 // Global state
 let rawData = [];
 let currentFilter = 'all';
+let currentFile = '';
+const OUTPUT_BASE = './output_thermal';
+const baseFiles = [
+    'thermal_colormaps.json',
+    'thermal_colormaps_pointwise.json',
+    'thermal_colormaps_all.json'
+];
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Setup filter buttons
@@ -27,23 +34,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     });
 
+    const fileSelect = document.getElementById('fileSelect');
+    fileSelect.onchange = async (e) => {
+        await loadData(e.target.value);
+    };
+
     try {
-        await loadData();
+        await initializeFileOptions();
     } catch (e) {
         console.error("Failed to load colormaps:", e);
-        document.getElementById('colormapsGrid').innerHTML = `<div style="color:red; padding:20px;">Error loading data: ${e.message}. Is 'output_thermal/thermal_colormaps.json' generated?</div>`;
+        document.getElementById('colormapsGrid').innerHTML = `<div style="color:red; padding:20px;">Error loading data: ${e.message}. Check whether JSON files exist under 'output_thermal/'.</div>`;
     }
 });
 
-async function loadData() {
-    console.log("Fetching output_thermal/thermal_colormaps.json...");
-    const response = await fetch('output_thermal/thermal_colormaps.json');
+async function initializeFileOptions() {
+    const fileSelect = document.getElementById('fileSelect');
+    const availableFiles = [];
+
+    for (const file of baseFiles) {
+        try {
+            const response = await fetch(`${OUTPUT_BASE}/${file}`, { method: 'HEAD' });
+            if (response.ok) {
+                availableFiles.push(file);
+            }
+        } catch (e) {
+        }
+    }
+
+    for (let i = 1; i <= 200; i++) {
+        const file = `thermal_colormaps_round_${String(i).padStart(3, '0')}.json`;
+        try {
+            const response = await fetch(`${OUTPUT_BASE}/${file}`, { method: 'HEAD' });
+            if (response.ok) {
+                availableFiles.push(file);
+            }
+        } catch (e) {
+        }
+    }
+
+    if (availableFiles.length === 0) {
+        throw new Error('No JSON files found in output_thermal');
+    }
+
+    fileSelect.innerHTML = availableFiles
+        .map(file => `<option value="${file}">${file}</option>`)
+        .join('');
+
+    await loadData(availableFiles[0]);
+}
+
+async function loadData(fileName) {
+    currentFile = fileName;
+    console.log(`Fetching ${OUTPUT_BASE}/${fileName}...`);
+    const response = await fetch(`${OUTPUT_BASE}/${fileName}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     rawData = await response.json();
     console.log(`Loaded ${rawData.length} colormaps`);
 
     // Update stats
+    document.getElementById('currentFile').innerText = fileName;
     document.getElementById('totalCount').innerText = rawData.length;
 
     // Initial Render
@@ -83,7 +133,10 @@ function renderGrid() {
                 hValues: item.hValues,
                 cValues: item.cValues,
                 lValues: item.lValues,
-                metadata: item.metadata
+                metadata: {
+                    ...item.metadata,
+                    qualityMetrics: undefined
+                }
             };
 
             const m = item.metadata;

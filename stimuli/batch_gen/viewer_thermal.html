@@ -88,12 +88,17 @@
     <div class="controls" style="display: flex; align-items: center;">
         <h2 style="margin: 0 20px 0 0; font-size: 18px; color: #333;">Thermal independent peaks batch results</h2>
         <div class="filter-group">
+            <label for="fileSelect" style="font-size: 14px; color: #444;">JSON File</label>
+            <select id="fileSelect" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"></select>
+        </div>
+        <div class="filter-group">
             <button class="filter-btn active" onclick="filterByHue('all')">All Hues</button>
             <button class="filter-btn" onclick="filterByHue(100)">Hue 100</button>
             <button class="filter-btn" onclick="filterByHue(200)">Hue 200</button>
             <button class="filter-btn" onclick="filterByHue(300)">Hue 300</button>
         </div>
         <div class="stats">
+            File: <strong id="currentFile">-</strong> &nbsp;|&nbsp;
             Showing <strong id="visibleCount">0</strong> / <span id="totalCount">0</span> colormaps
         </div>
     </div>
@@ -108,13 +113,14 @@
         const UNIFORM_SMALL_MIN_DIFF = 3;
         const UNIFORM_LARGE_INTERVAL_K = 5;
         const UNIFORM_LARGE_MIN_DIFF = 10;
-        const UNIFORM_SAMPLE_COUNT = 30;
+        const UNIFORM_SAMPLE_COUNT = 20;
         let allColormaps = []; // Required by visualization.js
         let colormapElements = []; // Required by visualization.js
     </script>
 
     <!-- Utilities -->
     <script src="../js/utils.js"></script>
+    <script src="../js/samplingModes.js"></script>
     <script src="../js/metrics.js"></script>
     <script src="../js/visualization.js"></script>
 
