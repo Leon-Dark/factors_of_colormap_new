@@ -33,12 +33,12 @@ function calcUniformIntervalMinDiff(palette, intervalK, sampleCount) {
 
 function getQualityConfig(config = {}) {
     return {
-        sampleCount: config.sampleCount ?? config.uniformSampleCount ?? 30,
+        sampleCount: config.sampleCount ?? config.uniformSampleCount ?? 20,
         smallIntervalK: config.smallIntervalK ?? config.smallWindowK ?? 2,
         smallMinDiff: config.smallMinDiff ?? config.smallWindowThreshold ?? 3,
         largeIntervalK: config.largeIntervalK ?? config.largeWindowK ?? 5,
         largeMinDiff: config.largeMinDiff ?? config.largeWindowThreshold ?? 10,
-        discriminabilitySampleCount: config.discriminabilitySampleCount ?? 10,
+        discriminabilitySampleCount: config.discriminabilitySampleCount ?? 20,
         discriminabilityMinDiff: config.discriminabilityMinDiff ?? 3,
         weightSmallWindow: config.weightSmallWindow ?? 1,
         weightLargeWindow: config.weightLargeWindow ?? 1,
