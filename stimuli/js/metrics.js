@@ -569,14 +569,18 @@ function calculateAndDisplayMetrics(colormap, title = "Colormap Metrics") {
         metrics.categorization_tendency = calculate_color_categorization_tendency(colormap) || 0;
         console.log('Color Categorization Tendency:', metrics.categorization_tendency.toFixed(3));
 
-        // Convert colormap to HCL format for sampling metrics
-        const hclPalette = convertColormapToHCLPalette(colormap);
+        // Convert colormap to LAB format for sampling metrics (aligned with batch quality checker)
+        const labPalette = convertColormapToStandardFormat(colormap).map(color => {
+            const rgb = d3.rgb(color.rgb[0], color.rgb[1], color.rgb[2]);
+            const lab = d3.lab(rgb);
+            return [lab.l || lab.L, lab.a, lab.b];
+        });
 
         // Calculate Uniform mode metrics only
-        metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
+        metrics.uniform_small_window_diff = calcUniformIntervalMinDiff(labPalette, UNIFORM_SMALL_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
         console.log(`Uniform Small Window Diff (k=${UNIFORM_SMALL_INTERVAL_K}):`, metrics.uniform_small_window_diff.toFixed(3));
 
-        metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(hclPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
+        metrics.uniform_large_window_diff = calcUniformIntervalMinDiff(labPalette, UNIFORM_LARGE_INTERVAL_K, UNIFORM_SAMPLE_COUNT) || 0;
         console.log(`Uniform Large Window Diff (k=${UNIFORM_LARGE_INTERVAL_K}):`, metrics.uniform_large_window_diff.toFixed(3));
 
         console.log('==========================================\n');
