@@ -2,12 +2,10 @@
 
 // Draw a line chart for colormap properties
 function drawGivenCurve2(data, div, name, x = 0, y = 1) {
-    var svg_width = 220, svg_height = 80, margin = 20
+    var svg_width = 360, svg_height = 200, margin = 40
     let linechart_svg = div.append("svg").attr("id", "renderSvg").attr("typeId", "line")
         .attr("width", svg_width).attr("height", svg_height)
-        .style("display", "block")
-        .style("flex", "1")
-        .style("min-width", "180px");
+        .style("display", "block");
 
     let linechart = linechart_svg.style("background-color", "#FFF")
         .append("g")
@@ -53,10 +51,26 @@ function drawGivenCurve2(data, div, name, x = 0, y = 1) {
         .call(d3.axisLeft(m_yScale))
         .style("font-size", "8px");
 
-    linechart_svg.append("text").attr("x", 0).attr("y", 15).text(name)
-        .attr("font-size", "10px").attr("fill", "#000")
-        .attr("text-anchor", "start").attr("font-weight", "bold")
-        .attr("transform", "translate(" + (margin) + "," + (margin - 8) + ")");
+    // Add X axis label
+    linechart_svg.append("text")
+        .attr("x", margin + (svg_width - margin * 2) / 2)
+        .attr("y", svg_height - 5)
+        .style("text-anchor", "middle")
+        .style("font-size", "10px")
+        .style("fill", "#666")
+        .text("采样点 [0-255]");
+
+    // Add Y axis label 
+    linechart_svg.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", 8)
+        .attr("x", 0 - (margin + (svg_height - margin * 2) / 2))
+        .style("text-anchor", "middle")
+        .style("font-size", "10px")
+        .style("fill", "#666")
+        .text(name);
+
+
 }
 
 // Draw a complete colormap with metrics and charts
@@ -98,13 +112,12 @@ function drawGivenColormap2(candidates, condition_name) {
     let chartsDiv = div.append("div")
         .attr("class", "charts-container")
         .style("display", "flex")
-        .style("gap", "10px")
-        .style("justify-content", "space-between")
-        .style("flex-wrap", "wrap");
+        .style("flex-direction", "column")
+        .style("gap", "10px");
 
-    drawGivenCurve2([candidates['hValues']], chartsDiv, "Hue");
-    drawGivenCurve2([candidates['cValues']], chartsDiv, "Chroma");
-    drawGivenCurve2([candidates['lValues']], chartsDiv, "Luminance");
+    drawGivenCurve2([candidates['hValues']], chartsDiv, "色相");
+    drawGivenCurve2([candidates['cValues']], chartsDiv, "彩度");
+    drawGivenCurve2([candidates['lValues']], chartsDiv, "亮度");
 
     const metrics = calculateAndDisplayMetrics(colormap, condition_name);
     if (metrics) {

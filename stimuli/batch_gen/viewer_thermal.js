@@ -98,6 +98,7 @@ async function loadData(fileName) {
 
     // Initial Render
     renderGrid();
+    renderDesignSpacePanel();
 }
 
 function filterByHue(hue) {
@@ -188,4 +189,305 @@ function renderGrid() {
             console.error('Error rendering item', index, item, e);
         }
     });
+}
+
+// ────────────────────────────────────────────────────
+// Design Space Panel — Small Multiple 3-Column Layout
+// ────────────────────────────────────────────────────
+function renderDesignSpacePanel() {
+    const panel = document.getElementById('designSpacePanel');
+    if (!rawData || rawData.length === 0) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+
+    // Only items with full channel data
+    const validItems = rawData.filter(d => d.colormap && d.cValues && d.lValues && d.metadata);
+
+    // Group by hue target
+    const hueGroups = {};
+    validItems.forEach(item => {
+        const hue = (item.metadata && item.metadata.hueTarget != null) ? item.metadata.hueTarget : 'unknown';
+        if (!hueGroups[hue]) hueGroups[hue] = [];
+        hueGroups[hue].push(item);
+    });
+
+    const panelEl = d3.select('#designSpacePanel');
+    panelEl.html('');
+
+    panelEl.append('h3')
+        .attr('class', 'dsp-main-title')
+        .text('🎨 色图全览（按色相分组）— 色图 · Chroma · Luminance');
+
+    const sortedHues = Object.keys(hueGroups).sort((a, b) => +a - +b);
+
+    sortedHues.forEach(hue => {
+        const items = hueGroups[hue];
+        const group = panelEl.append('div').attr('class', 'dsp-hue-group');
+
+        group.append('div').attr('class', 'dsp-hue-label')
+            .html(`Hue ${hue}°<span class="dsp-count">${items.length} colormaps</span>`);
+
+        // Column header row
+        const header = group.append('div').attr('class', 'dsp-sm-row dsp-sm-header');
+        header.append('div').attr('class', 'dsp-sm-col-map').text('色图 Color Map');
+        header.append('div').text('Chroma');
+        header.append('div').text('Luminance');
+
+        items.forEach((item, idx) => {
+            const row = group.append('div')
+                .attr('class', `dsp-sm-row${idx % 2 === 1 ? ' dsp-sm-row-alt' : ''}`);
+
+            // Left: colormap strip + pattern label
+            const mapCol = row.append('div').attr('class', 'dsp-sm-col-map');
+            drawColormapStrip(mapCol, item.colormap, item.success);
+
+            // Middle: chroma sparkline (actual cValues from data)
+            drawSparkline(row.append('div'), item.cValues, '#E91E63', [0, 130]);
+
+            // Right: luminance sparkline (actual lValues from data)
+            drawSparkline(row.append('div'), item.lValues, '#3F51B5', [0, 100]);
+        });
+    });
+}
+
+/** Draw a horizontal colormap bar + metadata label */
+function drawColormapStrip(container, colormap, isSuccess) {
+    const W = 220, H = 28;
+    const n = colormap.length;
+
+    const wrapper = container.append('div')
+        .style('display', 'flex')
+        .style('align-items', 'center')
+        .style('gap', '5px');
+
+    // Render to canvas, then export as PNG <img> for native right-click copy
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    colormap.forEach((c, i) => {
+        const x0 = Math.floor((i / n) * W);
+        const x1 = Math.floor(((i + 1) / n) * W) + 1;
+        ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+        ctx.fillRect(x0, 0, x1 - x0, H);
+    });
+
+    const img = document.createElement('img');
+    img.width = W;
+    img.height = H;
+    img.style.borderRadius = '3px';
+    img.style.flexShrink = '0';
+    img.style.display = 'block';
+    img.src = canvas.toDataURL('image/png');
+
+    wrapper.node().appendChild(img);
+}
+
+/** Draw a compact sparkline (small multiple style with minimal axes) */
+function drawSparkline(container, values, color, yDomain) {
+    if (!values || values.length === 0) {
+        container.append('div').style('color', '#ddd').style('font-size', '10px').text('—');
+        return;
+    }
+    const W = 140, H = 52;
+    const pad = { t: 4, b: 8, l: 24, r: 4 };
+    const iW = W - pad.l - pad.r;
+    const iH = H - pad.t - pad.b;
+
+    // Render SVG into DOM first (getBoundingClientRect needs it to be attached)
+    const svg = container.append('svg')
+        .attr('width', W).attr('height', H)
+        .style('background', '#f8f8f8')
+        .style('border-radius', '3px');
+
+    const g = svg.append('g').attr('transform', `translate(${pad.l},${pad.t})`);
+
+    const xScale = d3.scaleLinear().domain([0, values.length - 1]).range([0, iW]);
+    const yScale = d3.scaleLinear().domain(yDomain).range([iH, 0]);
+
+    // X axis: domain line only, no tick marks or labels
+    g.append('g')
+        .attr('transform', `translate(0,${iH})`)
+        .call(d3.axisBottom(xScale).tickValues([]))
+        .call(ax => {
+            ax.select('.domain').attr('stroke', '#d6d6d6');
+        });
+
+    // Y axis: ticks and labels
+    g.append('g')
+        .call(d3.axisLeft(yScale).ticks(3).tickFormat(d3.format('d')))
+        .style('font-size', '9px')
+        .call(ax => {
+            ax.select('.domain').attr('stroke', '#d6d6d6');
+            ax.selectAll('line').attr('stroke', '#d6d6d6');
+            ax.selectAll('text').attr('fill', '#666');
+        });
+
+    // Subtle fill area
+    g.append('path')
+        .datum(values)
+        .attr('d', d3.area()
+            .x((d, i) => xScale(i))
+            .y0(iH)
+            .y1(d => yScale(d)))
+        .attr('fill', color)
+        .attr('opacity', 0.15);
+
+    // Curve line
+    g.append('path')
+        .datum(values)
+        .attr('d', d3.line()
+            .x((d, i) => xScale(i))
+            .y(d => yScale(d)))
+        .attr('fill', 'none')
+        .attr('stroke', color)
+        .attr('stroke-width', 1.5);
+
+    // Convert SVG to PNG <img> for native right-click copy
+    const svgNode = svg.node();
+    svgToPngBlob(svgNode, 2).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const img = document.createElement('img');
+        img.width = W;
+        img.height = H;
+        img.style.display = 'block';
+        img.style.borderRadius = '3px';
+        img.src = url;
+        svgNode.parentNode.replaceChild(img, svgNode);
+    }).catch(() => { /* fallback: leave SVG in place */ });
+}
+
+/** Convert SVG element to PNG blob (returns Promise<Blob>) */
+function svgToPngBlob(svgElement, scale = 2) {
+    return new Promise((resolve, reject) => {
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(svgElement);
+        const bbox = svgElement.getBoundingClientRect();
+
+        const canvas = document.createElement('canvas');
+        canvas.width = bbox.width * scale;
+        canvas.height = bbox.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = function() {
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/png');
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+        img.src = url;
+    });
+}
+
+/** Copy SVG element to clipboard as PNG */
+function copySVGToClipboard(svgElement, name) {
+    // Create the blob Promise first (starts async work immediately)
+    const blobPromise = svgToPngBlob(svgElement);
+
+    // Call clipboard.write() SYNCHRONOUSLY within the user gesture,
+    // passing the Promise<Blob> directly — browser grants permission now,
+    // waits for the blob to resolve without breaking the gesture context.
+    navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blobPromise })
+    ]).then(() => {
+        showToast(`${name} 已复制到剪贴板`);
+    }).catch(err => {
+        console.error('Clipboard API 失败:', err);
+        // Fallback: download
+        blobPromise.then(blob => {
+            const link = document.createElement('a');
+            link.download = `${name}.png`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast(`已下载为 ${name}.png（剪贴板不可用）`, false);
+        });
+    });
+}
+
+/** Download SVG element as PNG */
+function downloadSVG(svgElement, filename) {
+    const svgNode = svgElement;
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svgNode);
+    
+    const canvas = document.createElement('canvas');
+    const bbox = svgNode.getBoundingClientRect();
+    const scale = 2; // Higher resolution
+    canvas.width = bbox.width * scale;
+    canvas.height = bbox.height * scale;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    
+    const img = new Image();
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    
+    img.onload = function() {
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        
+        canvas.toBlob(function(blob) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }, 'image/png');
+    };
+    
+    img.src = url;
+}
+
+/** Show toast notification */
+function showToast(message, isError = false) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: ${isError ? '#e74c3c' : '#27ae60'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+}
+
+// Convert HCL (H°, C, L in LCH/HCL) to sRGB [0-255] — kept for potential reuse
+function hclToRgb(H, C, L) {
+    const hRad = H * Math.PI / 180;
+    const a = C * Math.cos(hRad);
+    const b = C * Math.sin(hRad);
+    let fy = (L + 16) / 116;
+    let fx = a / 500 + fy;
+    let fz = fy - b / 200;
+    const d = 6 / 29;
+    const x = (fx > d ? fx ** 3 : (fx - 16 / 116) * 3 * d * d) * 0.95047;
+    const y = (fy > d ? fy ** 3 : (fy - 16 / 116) * 3 * d * d) * 1.00000;
+    const z = (fz > d ? fz ** 3 : (fz - 16 / 116) * 3 * d * d) * 1.08883;
+    let r = x * 3.2406 + y * -1.5372 + z * -0.4986;
+    let g = x * -0.9689 + y * 1.8758 + z * 0.0415;
+    let bv = x * 0.0557 + y * -0.2040 + z * 1.0570;
+    const gamma = v => v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+    r = Math.round(Math.min(255, Math.max(0, gamma(r) * 255)));
+    g = Math.round(Math.min(255, Math.max(0, gamma(g) * 255)));
+    bv = Math.round(Math.min(255, Math.max(0, gamma(bv) * 255)));
+    return [r, g, bv];
 }

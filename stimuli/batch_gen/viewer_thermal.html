@@ -80,6 +80,79 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
         }
+
+        /* Design Space Panel — Small Multiple Overview */
+        #designSpacePanel {
+            background: #fff;
+            border-top: 2px solid #e0e0e0;
+            padding: 16px 24px 28px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .dsp-main-title {
+            margin: 0 0 16px 0;
+            font-size: 15px;
+            color: #333;
+            letter-spacing: 0.3px;
+        }
+
+        .dsp-hue-group {
+            margin-bottom: 28px;
+        }
+
+        .dsp-hue-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: #444;
+            padding: 6px 0 8px 0;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 4px;
+        }
+
+        .dsp-count {
+            font-size: 11px;
+            font-weight: 400;
+            color: #aaa;
+            margin-left: 8px;
+        }
+
+        .dsp-sm-row {
+            display: grid;
+            grid-template-columns: 270px 148px 148px;
+            gap: 10px;
+            align-items: center;
+            padding: 4px 6px;
+            border-radius: 3px;
+        }
+
+        .dsp-sm-row-alt {
+            background: #fafafa;
+        }
+
+        .dsp-sm-header {
+            font-size: 10px;
+            font-weight: 600;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e8e8e8;
+            margin-bottom: 2px;
+        }
+
+        .dsp-sm-col-map {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .dsp-sm-label {
+            font-size: 6px;
+            color: #aaa;
+            letter-spacing: 0.2px;
+            padding-left: 1px;
+        }
     </style>
 </head>
 
@@ -104,6 +177,9 @@
     </div>
 
     <div id="colormapsGrid"></div>
+
+    <!-- Design Space Panel at bottom — content built by renderDesignSpacePanel() -->
+    <div id="designSpacePanel" style="display:none"></div>
 
     <!-- Load Logic -->
     <script>
